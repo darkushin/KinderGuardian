@@ -4,6 +4,9 @@
 @contact: sherlockliao01@gmail.com
 """
 
+
+# python3 demo/visualize_result.py --config-file ./configs/DukeMTMC/bagtricks_R101-ibn.yml --dataset-name DukeMTMC  --output results/DukeMTMC-1.8.21/ --vis-label --label-sort descending --opts MODEL.WEIGHTS checkpoints/duke_bot_R101-ibn.
+
 import argparse
 import logging
 import sys
@@ -12,6 +15,7 @@ import numpy as np
 import torch
 import tqdm
 from torch.backends import cudnn
+import torch.nn.functional as F
 
 sys.path.append('.')
 
@@ -123,7 +127,9 @@ if __name__ == '__main__':
     g_camids = np.asarray(camids[num_query:])
 
     # compute cosine distance
-    distmat = 1 - torch.mm(q_feat, g_feat.t())
+    features = F.normalize(q_feat, p=2, dim=1)
+    others = F.normalize(g_feat, p=2, dim=1)
+    distmat = 1 - torch.mm(features, others.t())
     distmat = distmat.numpy()
 
     logger.info("Computing APs for all query images ...")

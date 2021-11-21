@@ -30,6 +30,8 @@ datasets/
         bounding_box_test/
 ```
 
+Data can be downloaded from [kaggle](https://www.kaggle.com/whurobin/dukemtmcreid/download)
+
 ## Expected dataset structure for [MSMT17](https://arxiv.org/abs/1711.08565)
 
 1. Download datasets to `datasets/`
