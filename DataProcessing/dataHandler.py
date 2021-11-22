@@ -8,15 +8,25 @@ import tensorflow as tf
 from sklearn.cluster import KMeans
 import cv2
 
+
 class DataHandler:
 
-    def __init__(self, 
-                 input_folder_path:str,
-                 output_video_path:str,
+    def __init__(self,
+                 input_folder_path: str,
+                 output_video_path: str,
                  config,
                  checkpoint,
                  device,
                  ):
+        """
+        Creates the DataHandler Obj, in charge of holding the Data Processing module capabilities.
+        Assumes input was validated by DataFactory/ScriptRunner.
+        @param input_folder_path: Input folder for videos to parse. must be non-empty with avi format videos
+        @param output_video_path: Output Folder for crops and clusters
+        @param config: the config file path for the mm-track module
+        @param checkpoint: the checkpoint file path for the mm-track module, if non entered downloads checkpoint during runtime.
+        @param device: the device to run script from. Defaults to GPU if one exists.
+        """
 
         self.input_path = input_folder_path
         self.output_path = output_video_path
@@ -25,9 +35,16 @@ class DataHandler:
         self.device = device
         self.crop_folder_path = os.path.join(self.output_path, 'crops')
         self.cluster_folder_path = os.path.join(self.output_path + 'clusters')
-        self.cam_id = 2 # this is a remaining issue , we need to parse video input and extract cam id
+        self.cam_id = 2  # this is a remaining issue , we need to parse video input and extract cam id
 
-    def track_persons_and_crop_from_dir(self, capture_index:int=500, acc_threshold:int=0.999) -> None:
+    def track_persons_and_crop_from_dir(self, capture_index: int = 500, acc_threshold: int = 0.999) -> None:
+        """
+        For each video in input directory track persons and create a cropped image based on every 'capture_index'
+        frame, if the confidence of a person detected in a crop exceeds acc_threshold param.
+        @param capture_index: a frame will be captured and analyzed was capture_index frames have passed
+        @param acc_threshold: a crop will be saved only if the model's confidence is above acc_treshold
+        @return: None.
+        """
         """
         capture_index = frame will be captured every capture_index value. input 1 for all frames
         """
@@ -54,10 +71,10 @@ class DataHandler:
                         if isinstance(img, str):
                             img = os.path.join(self.input_path, img)
                         prog_bar.update()
-                        result = inference_mot(model, img, frame_id=i) # using mmtrack inference
+                        result = inference_mot(model, img, frame_id=i)  # using mmtrack inference
                         acc = result['track_results'][0][:, -1]
                         ids = result['track_results'][0][:, 0]
-                        mask = np.where(acc > acc_threshold) # accepting accuracy above threshold
+                        mask = np.where(acc > acc_threshold)  # accepting accuracy above threshold
                         croped_boxes = result['bbox_results'][0][:, :-1]
                         croped_boxes = croped_boxes[mask]
                         croped_im = mmcv.image.imcrop(img, croped_boxes, scale=1.0, pad_fill=None)
@@ -77,6 +94,11 @@ class DataHandler:
             raise Exception(f'Unsupported Input Folder! Input path must be a non-empty folder with videos')
 
     def create_clusters(self, k=10):
+        """
+        Based on crops saved on the output path folder, run clustering to unsupervised-ly label the Ids
+        @param k: K clusters to create
+        @return: None
+        """
         # we can extend this later to receive input from args
         # if generating the crops in the same run, the input for the clustering should be the output arg
 
