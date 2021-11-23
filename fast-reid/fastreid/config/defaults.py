@@ -206,7 +206,7 @@ _C.DATASETS.COMBINEALL = False
 # Default root to the datasets folder
 _C.DATASETS.ROOT = "/home/bar_cohen/KinderGuardian/fast-reid/datasets"
 # Name of the default dataset to run on
-_C.DATASETS.CURRENT = "DukeMTMC-reID"
+_C.DATASETS.DATASET = "DukeMTMC-reID"
 
 
 

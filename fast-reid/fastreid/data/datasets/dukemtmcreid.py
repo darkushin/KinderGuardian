@@ -33,9 +33,9 @@ class DukeMTMC(ImageDataset):
 
     def __init__(self, root='datasets', cfg=None, **kwargs):
         # self.root = osp.abspath(osp.expanduser(root))
-        if cfg.get('DATASETS', {}).get('ROOT'):
+        if cfg:
             self.root = cfg.get('DATASETS', {}).get('ROOT')
-            self.dataset_dir = cfg.get('DATASETS', {}).get('CURRENT')
+            self.dataset_dir = cfg.get('DATASETS', {}).get('DATASET')
         else:
             self.root = root
         self.dataset_dir = osp.join(self.root, self.dataset_dir)

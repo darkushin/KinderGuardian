@@ -19,7 +19,7 @@ from fastreid.utils.checkpoint import Checkpointer
 USAGE:
 need to be under the /fast-reid folder and then run:
 python3 tools/train_net.py --config-file ./configs/DukeMTMC/bagtricks_R101-ibn.yml MODEL.WEIGHTS 
-checkpoints/duke_bot_R101-ibn-new.pth MODEL.DEVICE "cuda:0" 
+checkpoints/duke_bot_R101-ibn-new.pth MODEL.DEVICE "cuda:0" DATASETS.DATASET "DukeMTMC"
 '''
 
 
