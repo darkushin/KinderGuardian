@@ -1,10 +1,13 @@
 import logging
 
-from dataProcessingConstants import *
-from dataHandler import DataHandler
+from DataProcessing.dataProcessingConstants import *
+from DataProcessing.dataHandler import DataHandler
 
-def data_factory(action:str, video_folder_input_path:str, output_folder_path:str, config:object, checkpoint:str=None,
-                 device:str=None, k_cluster:int=None, capture_index:int=None, acc_threshold:float=None) -> None:
+
+def data_factory(action: str, video_folder_input_path: str, output_folder_path: str, config: object,
+                 checkpoint: str = None,
+                 device: str = None, k_cluster: int = None, capture_index: int = None,
+                 acc_threshold: float = None) -> None:
     """
     Data Factory to parse actions coming from script runner. the none-default args are expected to be validated.
     @param action: Action to preform using DataHandler

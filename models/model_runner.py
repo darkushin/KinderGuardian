@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 from subprocess import call
 
 import sys
-from model_constants import *
+from models.model_constants import *
 import DataProcessing.dataFactory
 
 
@@ -25,7 +25,7 @@ def execute_tracking_action():
     Usage example:
     tracking --input /home/bar_cohen/KinderGuardian/mmtracking/demo/demo.mp4 --output /home/bar_cohen/KinderGuardian/test-output.mp4  --config /home/bar_cohen/KinderGuardian/mmtracking/configs/mot/deepsort/sort_faster-rcnn_fpn_4e_mot17-private.py
     """
-    call(['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', '../mmtracking/demo/demo_mot_vis.py', args.config,
+    call(['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './mmtracking/demo/demo_mot_vis.py', args.config,
           '--input', args.input, '--output', args.output])
 
 
