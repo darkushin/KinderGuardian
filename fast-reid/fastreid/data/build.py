@@ -104,7 +104,7 @@ def _test_loader_from_config(cfg, *, dataset_name=None, test_set=None, num_query
 
     if test_set is None:
         assert dataset_name is not None, "dataset_name must be explicitly passed in when test_set is not provided"
-        data = DATASET_REGISTRY.get(dataset_name)(root=_root, **kwargs)
+        data = DATASET_REGISTRY.get(dataset_name)(root=_root, cfg=cfg, **kwargs)
         if comm.is_main_process():
             data.show_test()
         test_items = data.query + data.gallery

@@ -8,16 +8,26 @@
 import sys
 
 sys.path.append('.')
+sys.path.append('fast-reid')
 
 from fastreid.config import get_cfg
 from fastreid.engine import DefaultTrainer, default_argument_parser, default_setup, launch
 from fastreid.utils.checkpoint import Checkpointer
 
 
+'''
+USAGE:
+need to be under the /fast-reid folder and then run:
+python3 tools/train_net.py --config-file ./configs/DukeMTMC/bagtricks_R101-ibn.yml MODEL.WEIGHTS 
+checkpoints/duke_bot_R101-ibn-new.pth MODEL.DEVICE "cuda:0" 
+'''
+
+
 def setup(args):
     """
     Create configs and perform basic setups.
     """
+    assert args.config_file, 'No config file given, see `/fast-reid/tools/train_net.py` for usage example of ReID model'
     cfg = get_cfg()
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
