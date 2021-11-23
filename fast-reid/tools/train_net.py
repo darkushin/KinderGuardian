@@ -23,11 +23,15 @@ checkpoints/duke_bot_R101-ibn-new.pth MODEL.DEVICE "cuda:0" DATASETS.DATASET "Du
 '''
 
 
+def validate_args(args):
+    assert args.config_file, 'No config file given, see `/fast-reid/tools/train_net.py` for usage example of ReID model'
+    # assert args.DATASETS.DATASET, 'Dataset name must be given, see `/fast-reid/tools/train_net.py` for usage example of ReID model'
+
+
 def setup(args):
     """
     Create configs and perform basic setups.
     """
-    assert args.config_file, 'No config file given, see `/fast-reid/tools/train_net.py` for usage example of ReID model'
     cfg = get_cfg()
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
@@ -37,6 +41,7 @@ def setup(args):
 
 
 def main(args):
+    validate_args(args)
     cfg = setup(args)
 
     if args.eval_only:

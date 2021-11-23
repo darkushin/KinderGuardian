@@ -8,7 +8,8 @@ import DataProcessing.dataFactory
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument('action', help='what action would you like to run?', choices=[TRACKING, RE_ID, DATA_PROCESSING_ACTIONS])
+    parser.add_argument('action', help='what action would you like to run?',
+                        choices=[TRACKING, RE_ID_EVAL, RE_ID_TRAIN, DATA_PROCESSING_ACTIONS])
     parser.add_argument('--config', help='config file')
     parser.add_argument('--input', help='input video file or folder')
     parser.add_argument('--output', help='output video file (mp4 format) or folder')
@@ -17,16 +18,36 @@ def get_args():
     parser.add_argument('--k_cluster', help='If running clustering on Data Processing')
     parser.add_argument('--capture_index', help='If running track and crop on Data Processing')
     parser.add_argument('--acc_threshold', help='If running track and crop on Data Processing')
+    parser.add_argument('--model_weights', help='The weights that should be used (for reID model)')
+    parser.add_argument('--dataset', help='The name of the dataset that should be used')
     return parser.parse_args()
 
 
 def execute_tracking_action():
     """
     Usage example:
-    tracking --input /home/bar_cohen/KinderGuardian/mmtracking/demo/demo.mp4 --output /home/bar_cohen/KinderGuardian/test-output.mp4  --config /home/bar_cohen/KinderGuardian/mmtracking/configs/mot/deepsort/sort_faster-rcnn_fpn_4e_mot17-private.py
+    tracking --input /home/bar_cohen/KinderGuardian/mmtracking/demo/demo.mp4 --output
+    /home/bar_cohen/KinderGuardian/test-output.mp4  --config
+    /home/bar_cohen/KinderGuardian/mmtracking/configs/mot/deepsort/sort_faster-rcnn_fpn_4e_mot17-private.py
     """
     call(['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './mmtracking/demo/demo_mot_vis.py', args.config,
           '--input', args.input, '--output', args.output])
+
+
+def execute_reid_action():
+    """
+    --config-file ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml MODEL.WEIGHTS
+    ./fast-reid/checkpoints/duke_bot_R101-ibn.pth MODEL.DEVICE "cuda:0" DATASETS.DATASET "DukeMTMC-reID-test"
+    """
+    if args.action == RE_ID_TRAIN:
+        call(['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './fast-reid/tools/train_net.py', '--config-file',
+              args.config, 'MODEL.WEIGHTS', args.model_weights, 'MODEL.DEVICE', 'cuda:0', 'DATASETS.DATASET',
+              args.dataset])
+
+    if args.action == RE_ID_EVAL:
+        call(['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './fast-reid/tools/train_net.py',
+              '--config-file', args.config, '--eval-only', 'MODEL.WEIGHTS', args.model_weights,
+              'MODEL.DEVICE', 'cuda:0', 'DATASETS.DATASET', args.dataset])
 
 
 def validate_tracking_args():
@@ -50,6 +71,8 @@ def runner():
                                                 acc_threshold=args.acc_treshold,
                                                 capture_index=args.capture_index)
 
+    elif 're-id' in args.action:
+        execute_reid_action()
     else:
         raise Exception(f'Unsupported action! run model_runner.py -h to see the list of possible actions')
 
