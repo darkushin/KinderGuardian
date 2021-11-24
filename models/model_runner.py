@@ -8,8 +8,7 @@ import DataProcessing.dataFactory
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument('action', help='what action would you like to run?',
-                        choices=[TRACKING, RE_ID_EVAL, RE_ID_TRAIN, DATA_PROCESSING_ACTIONS])
+    parser.add_argument('action', help='what action would you like to run?', choices=CHOICES)
     parser.add_argument('--config', help='config file')
     parser.add_argument('--input', help='input video file or folder')
     parser.add_argument('--output', help='output video file (mp4 format) or folder')
