@@ -4,6 +4,7 @@ from subprocess import call
 import sys
 from models.model_constants import *
 import DataProcessing.dataFactory
+from typing import List
 
 
 def get_args():
@@ -22,6 +23,17 @@ def get_args():
     return parser.parse_args()
 
 
+def create_optional_args() -> List:
+    """
+    Creates a list of optional arguments that if given should be appended to the sys.call arguments.
+    """
+    optional_args: List = []
+    if args.model_weights:
+        optional_args.extend(['MODEL.WEIGHTS', args.model_weights])
+
+    return optional_args
+
+
 def execute_tracking_action():
     """
     Usage example:
@@ -38,15 +50,19 @@ def execute_reid_action():
     --config-file ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml MODEL.WEIGHTS
     ./fast-reid/checkpoints/duke_bot_R101-ibn.pth MODEL.DEVICE "cuda:0" DATASETS.DATASET "DukeMTMC-reID-test"
     """
+    optional_args: List = create_optional_args()
     if args.action == RE_ID_TRAIN:
-        call(['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './fast-reid/tools/train_net.py', '--config-file',
-              args.config, 'MODEL.WEIGHTS', args.model_weights, 'MODEL.DEVICE', 'cuda:0', 'DATASETS.DATASET',
-              args.dataset])
+        script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './fast-reid/tools/train_net.py',
+                       '--config-file', args.config, 'MODEL.DEVICE', 'cuda:0', 'DATASETS.DATASET', args.dataset]
+        script_args.extend(optional_args)
+        call(script_args)
 
     if args.action == RE_ID_EVAL:
-        call(['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './fast-reid/tools/train_net.py',
-              '--config-file', args.config, '--eval-only', 'MODEL.WEIGHTS', args.model_weights,
-              'MODEL.DEVICE', 'cuda:0', 'DATASETS.DATASET', args.dataset])
+        script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './fast-reid/tools/train_net.py',
+                       '--config-file', args.config, '--eval-only', 'MODEL.DEVICE', 'cuda:0', 'DATASETS.DATASET',
+                       args.dataset]
+        script_args.extend(optional_args)
+        call(script_args)
 
 
 def validate_tracking_args():
