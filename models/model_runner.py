@@ -18,8 +18,8 @@ def get_args():
     parser.add_argument('--k_cluster', help='If running clustering on Data Processing')
     parser.add_argument('--capture_index', help='If running track and crop on Data Processing')
     parser.add_argument('--acc_threshold', help='If running track and crop on Data Processing')
-    parser.add_argument('--model_weights', help='The weights that should be used (for reID model)')
-    parser.add_argument('--dataset', help='The name of the dataset that should be used')
+    parser.add_argument('--model_weights', help='The weights that should be used for inference (reID model)')
+    parser.add_argument('--dataset', help='The name of the dataset that should be used in the reID model')
     return parser.parse_args()
 
 
