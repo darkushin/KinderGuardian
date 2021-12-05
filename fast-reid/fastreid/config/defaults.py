@@ -203,6 +203,12 @@ _C.DATASETS.NAMES = ("Market1501",)
 _C.DATASETS.TESTS = ("Market1501",)
 # Combine trainset and testset joint training
 _C.DATASETS.COMBINEALL = False
+# Default root to the datasets folder
+_C.DATASETS.ROOT = "/home/bar_cohen/KinderGuardian/fast-reid/datasets"
+# Name of the default dataset to run on
+_C.DATASETS.DATASET = "DukeMTMC-reID"
+
+
 
 # -----------------------------------------------------------------------------
 # DataLoader
