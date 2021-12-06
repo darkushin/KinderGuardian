@@ -76,8 +76,8 @@ def validate_tracking_args():
 
 def execute_combined_model():
     call(['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
-          args.track_config, args.reid_config, '--reid_opts', 'DATASETS.DATASET', args.dataset])
-          # 'track_config', args.track_config, 'reid_config', args.reid_config])
+          args.track_config, args.reid_config, '--input', args.input, '--output', args.output, '--reid_opts', 'DATASETS.DATASET', args.dataset])
+
 
 
 def runner():
