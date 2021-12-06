@@ -1,0 +1,16 @@
+# path to the folder with the labeled data
+LABELED_DATA: /home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned
+
+# path to the folder where the dataset should be created in
+LOCATION: /home/bar_cohen/KinderGuardian/fast-reid/datasets
+
+# the name that should be given to the dataset
+NAME: dani-test
+
+# comma-separated list of labeled data folders that should be included in the corresponding folder
+TRAIN: 29.7.21_cam1,30.7.21_cam2
+TEST: 2.8.21_cam1
+QUERY: 29.7.21_cam2
+
+# description of the dataset that will be added to the README file
+DESCRIPTION: my informative description
