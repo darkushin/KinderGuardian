@@ -1,4 +1,6 @@
 import os
+from collections import defaultdict
+
 from cv2 import imread
 from pathlib import Path
 from tqdm import tqdm
@@ -54,14 +56,15 @@ def read_labled_croped_images(file_dir) -> {}:
     # '/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned' cur path for labled data
 
     assert os.path.isdir(file_dir) , 'Read labled data must get a valid dir path'
-    imgs = {}
+    imgs = defaultdict(list)
+    print('reading imgs from dir...')
     for img in tqdm(Path(file_dir).rglob('*.jpg')):
         img = str(img)
         if not os.path.isfile(img):
             continue
         img_left_bracket = img.rfind('/')
         img_id = img[img_left_bracket+1:img_left_bracket+5] # xxxx id format
-        imgs[img_id] = imread(img)
+        imgs[img_id].append(imread(img))
     return imgs
 
 
