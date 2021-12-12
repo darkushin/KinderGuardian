@@ -44,11 +44,11 @@ def create_readme():
     Creates a README file in the dataset folder which explains the configurations of this dataset
     """
     readme = open(os.path.join(dataset_conf.get("LOCATION"), dataset_conf.get("NAME"), "README.md"), "w+")
-    readme.write(f'Description: {dataset_conf.get("DESCRIPTION")}\n\n')
+    readme.write(f'**Description**: {dataset_conf.get("DESCRIPTION")}\n\n')
     readme.write(f'The dataset contains the following data-days: \n'
-                 f'- Train: {dataset_conf.get("TRAIN")}\n'
-                 f'- Test: {dataset_conf.get("TEST")}\n'
-                 f'- Query: {dataset_conf.get("QUERY")}\n')
+                 f'- **Train**: {dataset_conf.get("TRAIN")}\n'
+                 f'- **Test**: {dataset_conf.get("TEST")}\n'
+                 f'- **Query**: {dataset_conf.get("QUERY")}\n')
     readme.close()
 
 
@@ -84,4 +84,7 @@ if __name__ == '__main__':
     create_dataset_folder()
     copy_imgs()
     create_readme()
+
+    print(f'Dataset Created Successfully! Checkout {os.path.join(dataset_conf.get("LOCATION"), dataset_conf.get("NAME"))}'
+          f' and verify that the README file describes correctly the dataset.')
 

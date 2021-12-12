@@ -49,7 +49,12 @@ def execute_tracking_action():
 
 def execute_reid_action():
     """
-    --reid_config ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml MODEL.WEIGHTS
+    Using model_runner:
+    re-id-train --reid_config ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml --model_weights
+    ./fast-reid/checkpoints/duke_bot_R101-ibn.pth --dataset "DukeMTMC-reID-test"
+
+    Using fast-reid directly:
+    config ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml MODEL.WEIGHTS
     ./fast-reid/checkpoints/duke_bot_R101-ibn.pth MODEL.DEVICE "cuda:0" DATASETS.DATASET "DukeMTMC-reID-test"
     """
     optional_args: List = create_optional_args()
@@ -82,7 +87,7 @@ def execute_combined_model():
 
 def runner():
     if args.action == TRACKING:
-        validate_tracking_args()
+        # validate_tracking_args()
         execute_tracking_action()
 
     elif args.action in DATA_PROCESSING_ACTIONS:
