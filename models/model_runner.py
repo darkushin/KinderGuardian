@@ -19,7 +19,8 @@ def get_args():
     parser.add_argument('--device', help='device to run on')
     parser.add_argument('--k_cluster', help='If running clustering on Data Processing')
     parser.add_argument('--capture_index', help='If running track and crop on Data Processing')
-    parser.add_argument('--acc_threshold', help='If running track and crop on Data Processing')
+    parser.add_argument('--acc_threshold', default=0.8,
+                        help='If running track and crop on Data Processing, or if running track-and-reid model')
     parser.add_argument('--model_weights', help='The weights that should be used for inference (reID model)')
     parser.add_argument('--dataset', help='The name of the dataset that should be used in the reID model')
     return parser.parse_args()
@@ -81,7 +82,8 @@ def validate_tracking_args():
 
 def execute_combined_model():
     call(['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
-          args.track_config, args.reid_config, '--input', args.input, '--output', args.output, '--reid_opts', 'DATASETS.DATASET', args.dataset])
+          args.track_config, args.reid_config, '--input', args.input, '--output', args.output, '--acc_th', args.acc_threshold,
+          '--reid_opts', 'DATASETS.DATASET', args.dataset])
 
 
 

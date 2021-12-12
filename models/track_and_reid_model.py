@@ -31,6 +31,7 @@ def get_args():
     parser.add_argument('--fps', help='FPS of the output video')
     parser.add_argument('--crops_folder', help='Path to the folder in which the generated crops should be saved')
     parser.add_argument("--reid_opts", help="Modify reid-config options using the command-line 'KEY VALUE' pairs", default=[], nargs=REMAINDER,)
+    parser.add_argument("--acc_th", help="The accuracy threshold that should be used for the tracking model", default=0.8)
     args = parser.parse_args()
     return args
 
@@ -58,11 +59,11 @@ def apply_reid_model(reid_model, data):
     feats = torch.cat(feats, dim=0)
     g_feat = feats
     g_pids = np.asarray(pids)
-    # g_camids = np.asarray(camids)  # todo: remove?
-    return feats, g_feat, g_pids
+    g_camids = np.asarray(camids)
+    return feats, g_feat, g_pids, g_camids
 
 
-def find_best_match(q_feat, g_feat, g_pids):
+def find_best_reid_match(q_feat, g_feat, g_pids):
     """
     Given feature vectors of the query images, return the ids of the images that are most similar in the test gallery
     """
@@ -77,7 +78,6 @@ def find_best_match(q_feat, g_feat, g_pids):
 
 def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.8):
     result = inference_mot(tracking_model, img, frame_id=frame_id)
-    # result['track_bboxes'] = result.get('track_results')
     acc = result['track_results'][0][:, -1]
     mask = np.where(acc > acc_threshold)
     result['track_results'][0] = result['track_results'][0][mask]
@@ -118,7 +118,7 @@ def main():
     reid_model = FeatureExtractionDemo(reid_cfg, parallel=True)
 
     # run re-id model on all images in the test gallery and query folders:
-    feats, g_feat, g_pids = apply_reid_model(reid_model, test_loader)
+    feats, g_feat, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
 
     # initialize tracking model:
     tracking_model = init_model(args.track_config, args.track_checkpoint, device=args.device)
@@ -138,7 +138,7 @@ def main():
         if isinstance(img, str):
             img = os.path.join(args.input, img)
 
-        result = tracking_inference(tracking_model, img, i)
+        result = tracking_inference(tracking_model, img, i, acc_threshold=float(args.acc_th))
 
         q_feat = reid_inference(reid_model, img, result, frame_id=i, crops_folder=args.crops_folder)
 
@@ -149,7 +149,6 @@ def main():
 
         # save the image to the temp folder
         out_file = os.path.join(temp_path, f'{i:06d}.jpg')
-        # args.show = False  # Im doing it here cuz i dont have the energy to change the input :SSSSSS  # todo: remove
         tracking_model.show_result(
             img,
             result,
