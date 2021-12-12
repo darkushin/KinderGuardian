@@ -2,3 +2,4 @@
 .idea
 __pycache__
 fast-reid/datasets
+fast-reid/checkpoints
