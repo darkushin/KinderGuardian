@@ -83,7 +83,7 @@ def runner():
                                                 output_folder_path=args.output, config=args.config,
                                                 checkpoint=args.checkpoint,
                                                 k_cluster=args.k_cluster,
-                                                acc_threshold=args.acc_treshold,
+                                                acc_threshold=args.acc_threshold,
                                                 capture_index=args.capture_index)
 
     elif 're-id' in args.action:
