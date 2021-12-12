@@ -102,7 +102,7 @@ def replace_ids(result, q_feat, g_feat, g_pids):
     """
     Replace the ids given by the tracking model with the ids computed by the re-id model
     """
-    reid_ids = find_best_match(q_feat, g_feat, g_pids)
+    reid_ids = find_best_reid_match(q_feat, g_feat, g_pids)
     for k in range(len(result['track_results'][0])):
         result['track_results'][0][k][0] = reid_ids[k]
 
