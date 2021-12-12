@@ -1,4 +1,8 @@
 import os
+from cv2 import imread
+from pathlib import Path
+from tqdm import tqdm
+
 
 """
 This folder holds functions that can be useful for data handling, such as renaming images etc.
@@ -40,8 +44,30 @@ def remove_images_from_dataset(path, pattern):
             os.remove(os.path.join(path, im))
 
 
-if __name__ == '__main__':
-    rename_folders = ['third-query-2.8_test-4.8/bounding_box_train']
-    for folder in rename_folders:
-        remove_images_from_dataset(f'/home/bar_cohen/KinderGuardian/fast-reid/datasets/{folder}', 'f03')
+def read_labled_croped_images(file_dir) -> {}:
+    """
+    used to load images from a folder, recursively.
+    file-dir: dir to load images from
+    return an ID to images dict.
+    """
 
+    # '/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned' cur path for labled data
+
+    assert os.path.isdir(file_dir) , 'Read labled data must get a valid dir path'
+    imgs = {}
+    for img in tqdm(Path(file_dir).rglob('*.jpg')):
+        img = str(img)
+        if not os.path.isfile(img):
+            continue
+        img_left_bracket = img.rfind('/')
+        img_id = img[img_left_bracket+1:img_left_bracket+5] # xxxx id format
+        imgs[img_id] = imread(img)
+    return imgs
+
+
+if __name__ == '__main__':
+    read_labled_croped_images('/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned')
+    # rename_folders = ['third-query-2.8_test-4.8/bounding_box_train']
+    # for folder in rename_folders:
+    #     remove_images_from_dataset(f'/home/bar_cohen/KinderGuardian/fast-reid/datasets/{folder}', 'f03')
+    #
