@@ -81,6 +81,12 @@ def validate_tracking_args():
 
 
 def execute_combined_model():
+    """
+    Usage example:
+    re-id-and-tracking --track_config ./mmtracking/configs/mot/deepsort/sort_faster-rcnn_fpn_4e_mot17-private.py
+    --reid_config ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml --input ./Videos/Reid-Eval2-2.8.mp4
+    --output ./Results/Reid-Eval2-2.8-test.mp4 --dataset query-2.8_test-4.8 --acc_th 0.8
+    """
     call(['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
           args.track_config, args.reid_config, '--input', args.input, '--output', args.output, '--acc_th', args.acc_threshold,
           '--reid_opts', 'DATASETS.DATASET', args.dataset])
