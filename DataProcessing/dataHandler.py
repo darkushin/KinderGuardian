@@ -48,6 +48,8 @@ class DataHandler:
         """
         capture_index = frame will be captured every capture_index value. input 1 for all frames
         """
+        logging.info("Load mm-track model")
+        model = init_model(self.config, self.checkpoint, device=self.device)
         os.makedirs(self.crop_folder_path, exist_ok=True)
         if os.path.isdir(self.input_path):
             vids = os.listdir(self.input_path)
@@ -55,11 +57,10 @@ class DataHandler:
             print(f'Found the following videos to process: {vids}')
             for vid in vids:
                 cur_path = os.path.join(self.input_path, vid)
-                print(f'Processing video: {cur_path}')
-                if not os.path.isdir(cur_path) and '.avi' in cur_path:
+                if not os.path.isdir(cur_path) and cur_path.endswith(('.mp4', '.avi')):
+                    print(f'Processing video: {cur_path}')
                     imgs = mmcv.VideoReader(cur_path)
                     print('begin extraction of video {}'.format(vid))
-                    model = init_model(self.config, self.checkpoint, device=self.device)
                     prog_bar = mmcv.ProgressBar(len(imgs))
                     # test and show/save the images
                     for i, img in enumerate(imgs):
@@ -89,7 +90,7 @@ class DataHandler:
                             cv2.imwrite(cropped_out, per_crop)
                         prog_bar.update()
                 else:
-                    logging.warning(f"Only avi files are supported skipping file {cur_path}")
+                    logging.warning(f"Only avi or mp4 files are supported ; skipping file {cur_path}")
         else:
             raise Exception(f'Unsupported Input Folder! Input path must be a non-empty folder with videos')
 
@@ -103,9 +104,10 @@ class DataHandler:
         # if generating the crops in the same run, the input for the clustering should be the output arg
 
         os.makedirs(self.cluster_folder_path, exist_ok=True)
-        print(self.cluster_folder_path)
-        images = [cv2.resize(cv2.imread(file), (224, 224)) for file in glob.glob(self.crop_folder_path + '*')]
-        paths = [file for file in glob.glob(self.crop_folder_path + '*')]
+        joined_path_to_files = os.path.join(self.crop_folder_path,'*.*')
+        images = [cv2.resize(cv2.imread(file), (224, 224)) for file in glob.glob(joined_path_to_files)]
+        paths = [file for file in glob.glob(joined_path_to_files)]
+        assert images and paths , "crops folder must be non-empty"
         images = np.array(np.float32(images).reshape(len(images), -1) / 255)
         model = tf.keras.applications.MobileNetV2(include_top=False, weights="imagenet", input_shape=(224, 224, 3))
         predictions = model.predict(images.reshape(-1, 224, 224, 3))
