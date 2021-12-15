@@ -57,10 +57,19 @@ def execute_reid_action():
         script_args.extend(optional_args)
         call(script_args)
 
-    if args.action == RE_ID_EVAL:
+    elif args.action == RE_ID_EVAL:
         script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './fast-reid/tools/train_net.py',
                        '--config-file', args.config, '--eval-only', 'MODEL.DEVICE', 'cuda:0', 'DATASETS.DATASET',
                        args.dataset]
+        script_args.extend(optional_args)
+        call(script_args)
+
+    elif args.action == RE_ID_VIZ:
+        # python3 demo/visualize_result.py --config-file ./configs/DukeMTMC/bagtricks_R101-ibn.yml --dataset-name DukeMTMC  --output results/DukeMTMC-1.8.21/ --vis-label --label-sort descending --opts MODEL.WEIGHTS checkpoints/duke_bot_R101-ibn.
+
+        script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './fast-reid/demo/visualize_result.py',
+                       '--config-file', args.config, '--eval-only' '--label-sort', 'descending', 'MODEL.DEVICE', 'cuda:0', 'DATASETS.DATASET',
+                       args.dataset, '--opts', 'MODEL.WEIGHTS', 'checkpoints/duke_bot_R101-ibn' ]
         script_args.extend(optional_args)
         call(script_args)
 
@@ -86,7 +95,7 @@ def runner():
                                                 acc_threshold=args.acc_treshold,
                                                 capture_index=args.capture_index)
 
-    elif 're-id' in args.action:
+    elif args.action in REID_ACTIONS:
         execute_reid_action()
     else:
         raise Exception(f'Unsupported action! run model_runner.py -h to see the list of possible actions')

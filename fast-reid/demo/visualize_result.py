@@ -127,10 +127,16 @@ if __name__ == '__main__':
     g_camids = np.asarray(camids[num_query:])
 
     # compute cosine distance
-    features = F.normalize(q_feat, p=2, dim=1)
-    others = F.normalize(g_feat, p=2, dim=1)
-    distmat = 1 - torch.mm(features, others.t())
-    distmat = distmat.numpy()
+    # features = F.normalize(q_feat, p=2, dim=1)
+    # others = F.normalize(g_feat, p=2, dim=1)
+    # distmat = 1 - torch.mm(features, others.t())
+    # distmat = distmat.numpy()
+
+    distmat_numerator = torch.mm(q_feat, g_feat.t())
+    q_norm = torch.norm(q_feat, dim=1)
+    g_norm = torch.norm(g_feat, dim=1)
+    norm = torch.outer(q_norm, g_norm.t())
+    distmat = 1 - (distmat_numerator / norm)
 
     logger.info("Computing APs for all query images ...")
     cmc, all_ap, all_inp = evaluate_rank(distmat, q_pids, g_pids, q_camids, g_camids)
