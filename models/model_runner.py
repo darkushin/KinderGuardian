@@ -23,6 +23,9 @@ def get_args():
                         help='If running track and crop on Data Processing, or if running track-and-reid model')
     parser.add_argument('--model_weights', help='The weights that should be used for inference (reID model)')
     parser.add_argument('--dataset', help='The name of the dataset that should be used in the reID model')
+    parser.add_argument('--gallery_mean_feature', action='store_true',
+                        help='If set, will compute the mean feature vector of every id in the test gallery')
+
     return parser.parse_args()
 
 
@@ -33,6 +36,8 @@ def create_optional_args() -> List:
     optional_args: List = []
     if args.model_weights:
         optional_args.extend(['MODEL.WEIGHTS', args.model_weights])
+    if args.gallery_mean_feature:
+        optional_args.extend(['TEST.MEAN_FEATURE_VECTOR', 'true'])
 
     return optional_args
 
@@ -90,7 +95,6 @@ def execute_combined_model():
     call(['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
           args.track_config, args.reid_config, '--input', args.input, '--output', args.output, '--acc_th', args.acc_threshold,
           '--reid_opts', 'DATASETS.DATASET', args.dataset])
-
 
 
 def runner():

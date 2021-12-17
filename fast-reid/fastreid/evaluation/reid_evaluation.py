@@ -23,6 +23,20 @@ from .rank_cylib import compile_helper
 logger = logging.getLogger(__name__)
 
 
+def compute_mean_feature_vectors(features, pids):
+    """
+    Given the gallery feature vectors of all images in the gallery, compute a mean feature vector for every id.
+    """
+    ids = np.unique(pids)
+    mean_features = torch.empty((len(ids), features[0].size()[0]))
+    for i, id in enumerate(ids):
+        id_vectors = np.where(pids == id)
+        mean_vector = torch.mean(features[id_vectors], axis=0)
+        mean_features[i] = mean_vector
+
+    return mean_features, ids
+
+
 class ReidEvaluator(DatasetEvaluator):
     def __init__(self, cfg, num_query, output_dir=None):
         self.cfg = cfg
@@ -87,6 +101,10 @@ class ReidEvaluator(DatasetEvaluator):
             qe_k = self.cfg.TEST.AQE.QE_K
             alpha = self.cfg.TEST.AQE.ALPHA
             query_features, gallery_features = aqe(query_features, gallery_features, qe_time, qe_k, alpha)
+
+        if self.cfg.TEST.MEAN_FEATURE_VECTOR == 'true':
+            logger.info("Using mean feature vector for test-gallery images")
+            gallery_features, gallery_pids = compute_mean_feature_vectors(gallery_features, gallery_pids)
 
         dist = build_dist(query_features, gallery_features, self.cfg.TEST.METRIC)
 
