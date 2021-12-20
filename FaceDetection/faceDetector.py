@@ -11,6 +11,7 @@ from FaceDetection.facenet_pytorch import MTCNN, InceptionResnetV1
 from mtcnn.mtcnn import MTCNN as mtcnn_origin
 from matplotlib import pyplot as plt
 import torch
+import torchvision
 
 import plotly.io as pio
 pio.renderers.default = "browser"

@@ -2,17 +2,14 @@ import copy
 import pickle
 import time
 from collections import defaultdict
-from sklearn.model_selection import train_test_split
-from torch.optim import lr_scheduler
-from torch.utils.data import DataLoader
-from torchvision import transforms, utils, datasets, models
-import matplotlib.image as mpimg
 
-from DataProcessing.utils import read_labled_croped_images
-from FaceDetection.faceDetector import FaceDetector
+from sklearn import preprocessing
+from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader
+from torch.nn import functional as F
+from torchvision import transforms, utils, datasets, models
 from FaceDetection.facenet_pytorch import MTCNN, InceptionResnetV1
 from torch import nn, optim
-from mtcnn.mtcnn import MTCNN as mtcnn_origin
 from matplotlib import pyplot as plt
 import torch
 import numpy as np
@@ -25,14 +22,29 @@ class Flatten(torch.nn.Module):
         x = x.view(x.size(0), -1)
         return x
 
-
+#
 class normalize(torch.nn.Module):
     def __init__(self):
         super(normalize, self).__init__()
 
     def forward(self, x):
-        x = torch.F.normalize(x, p=2, dim=1)
+        x = F.normalize(x, p=2, dim=1)
         return x
+
+class FacesDataset(torch.utils.data.Dataset):
+    def __init__(self, images:[], labels:[]):
+        super(FacesDataset, self).__init__()
+        self.images = images
+        self.labels = labels
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, item):
+        label = self.labels[item]
+        image = self.images[item]
+        return image, label
+
 
 class FaceClassifer():
 
@@ -40,9 +52,10 @@ class FaceClassifer():
         self.num_classes = num_classes
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model_ft = self._create_Incepction_Resnet_for_finetunning()
+        print(self.model_ft)
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer_ft = optim.SGD(self.model_ft.parameters(), lr=1e-2, momentum=0.9)
-        self.exp_lr_scheduler = lr_scheduler.StepLR(self.optimizer_ft, step_size=7, gamma=0.1)
+        self.optimizer_ft = optim.Adam(self.model_ft.parameters(), lr=0.0001)
+        # self.exp_lr_scheduler = lr_scheduler.StepLR(self.optimizer_ft, step_size=7, gamma=0.1)
 
 
     def _create_Incepction_Resnet_for_finetunning(self):
@@ -69,29 +82,27 @@ class FaceClassifer():
         #         transforms.ToTensor(),
         #         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         #     ])
-        self.imshow(X[0:2])
         plt.show()
         print('showed1')
         X_train, X_val, y_train, y_val = train_test_split(X,y, test_size = 0.2 , random_state = 1)
         X_val, X_test, y_val, y_test = train_test_split(X_val,y_val, test_size = 0.5 , random_state = 1)
-
-        self.imshow(X_train[0:2])
         plt.show()
         print('showed2')
-        print(type(X_train[0]), X_train[0].shape)
-        # X_train = [apply_transform(np.array(x)) for x in X_train]
-        # X_val = apply_transform(np.array(X_val))
-        # X_test = apply_transform(np.array(X_test))
-
-        dl_train = DataLoader((X_train,y_train), batch_size=8, shuffle=True)
-        dl_val = DataLoader((X_val,y_val), batch_size=8, shuffle=True)
-        dl_test = DataLoader((X_test,y_test), batch_size=8, shuffle=True)
+        # print(type(X_train[0]), X_train[0].shape)
+        X_train = [transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(x) for x in X_train]
+        X_val = [transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(x)for x in X_val]
+        X_test = [transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(x) for x in X_train]
+        dl_train = DataLoader(FacesDataset(X_train, y_train), batch_size=100, shuffle=True)
+        dl_val = DataLoader(FacesDataset(X_val,y_val), batch_size=100, shuffle=True)
+        dl_test = DataLoader(FacesDataset(X_test,y_test), batch_size=100, shuffle=True)
         return dl_train, dl_val, dl_test
 
     def train_model(self,dl_train:DataLoader, dl_val:DataLoader, num_epochs=25):
         dataloaders = {'train': dl_train, 'val':dl_val}
+        dataset_size = {'train': len(dl_train) , 'val': len(dl_val)}
         since = time.time()
         FT_losses = []
+
         best_model_wts = copy.deepcopy(self.model_ft.state_dict())
         best_acc = 0.0
         for epoch in range(num_epochs):
@@ -106,7 +117,8 @@ class FaceClassifer():
                 running_loss = 0.0
                 running_corrects = 0
                 # Iterate over data.
-                for inputs, labels in dataloaders[phase]:
+                for i, batch in enumerate(dataloaders[phase]):
+                    inputs , labels = batch
                     inputs = inputs.to(self.device)
                     labels = labels.to(self.device)
                     # zero the parameter gradients
@@ -121,21 +133,27 @@ class FaceClassifer():
                         if phase == 'train':
                             loss.backward()
                             self.optimizer_ft.step()
-                            self.exp_lr_scheduler.step()
+                            # self.exp_lr_scheduler.step()
 
                     FT_losses.append(loss.item())
                     # statistics
+                    # print(preds, labels)
                     running_loss += loss.item() * inputs.size(0)
-                #     running_corrects += torch.sum(preds == labels.data)
-                # epoch_loss = running_loss / dataset_sizes[phase]
-                # epoch_acc = running_corrects.double() /
-                # dataset_sizes[phase]
-            # print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-            #     phase, epoch_loss, epoch_acc))
-            # # deep copy the self.model
-            # if phase == 'val' and epoch_acc > best_acc:
-            #     best_acc = epoch_acc
-            #     best_model_wts = copy.deepcopy(self.model.state_dict())
+                    running_corrects += torch.sum(preds == labels.data).item()
+                    # if i % 1 == 0:
+                    #     print('[%d, %5d] loss: %.3f' %
+                    #           (epoch + 1, i + 1, np.mean(FT_losses)))
+
+                    # print(running_corrects)
+                epoch_loss = running_loss / dataset_size[phase]
+                epoch_acc = running_corrects / dataset_size[phase]
+            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+                phase, epoch_loss, epoch_acc))
+            # deep copy the self.model
+            if phase == 'val' and epoch_acc > best_acc:
+                best_acc = epoch_acc
+                best_model_wts = copy.deepcopy(self.model_ft.state_dict())
+                torch.save(best_model_wts, 'best_model.pkl')
 
         time_elapsed = time.time() - since
         print('Training complete in {:.0f}m {:.0f}s'.format(
@@ -164,13 +182,17 @@ if __name__ == '__main__':
     # print('done')
     X = pickle.load(open('X.pkl','rb'))
     y = pickle.load(open('y.pkl','rb'))
+    y = [int(i) for i in y] # TODO fix y to hold ints and not strs
+    le = preprocessing.LabelEncoder()
+    y_transformed = le.fit_transform(y)
+    num_classes = len(np.unique(y_transformed))
+    print(num_classes)
+    print(y)
     # print(X,y)
-    fc = FaceClassifer(21)
+    fc = FaceClassifer(num_classes)
     fc.imshow(X[0:5])
     plt.show()
 
-    x,y,z = fc.create_data_loaders(X,y)
-    for images, labels in x:
-        print(labels)
-        fc.imshow(images)
+    x,y,z = fc.create_data_loaders(X,y_transformed)
+    fc.train_model(x, y,num_epochs=3000)
     # fc.imshow(t)
