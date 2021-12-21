@@ -1,4 +1,4 @@
-from argparse import ArgumentParser
+from argparse import ArgumentParser, REMAINDER
 from subprocess import call
 
 import sys
@@ -15,16 +15,12 @@ def get_args():
     parser.add_argument('--input', help='input video file or folder')
     parser.add_argument('--output', help='output video file (mp4 format) or folder')
     parser.add_argument('--mmtrack_checkpoint', help='checkpoint file for mmtrack model')
-    parser.add_argument('--reid_checkpoint', help='checkpoint file for reid model')
     parser.add_argument('--device', help='device to run on')
     parser.add_argument('--k_cluster', help='If running clustering on Data Processing')
     parser.add_argument('--capture_index', help='If running track and crop on Data Processing')
     parser.add_argument('--acc_threshold', default=0.8,
                         help='If running track and crop on Data Processing, or if running track-and-reid model')
-    parser.add_argument('--model_weights', help='The weights that should be used for inference (reID model)')
-    parser.add_argument('--dataset', help='The name of the dataset that should be used in the reID model')
-    parser.add_argument('--gallery_mean_feature', action='store_true',
-                        help='If set, will compute the mean feature vector of every id in the test gallery')
+    parser.add_argument('--reid_opts', help='Modify config options using the command-line', default=None, nargs=REMAINDER)
 
     return parser.parse_args()
 
@@ -34,11 +30,9 @@ def create_optional_args() -> List:
     Creates a list of optional arguments that if given should be appended to the sys.call arguments.
     """
     optional_args: List = []
-    if args.model_weights:
-        optional_args.extend(['MODEL.WEIGHTS', args.model_weights])
-    if args.gallery_mean_feature:
-        optional_args.extend(['TEST.MEAN_FEATURE_VECTOR', 'true'])
-
+    if args.reid_opts:
+        for opt in args.reid_opts:
+            optional_args.append(opt)
     return optional_args
 
 
@@ -66,7 +60,7 @@ def execute_reid_action():
     optional_args: List = create_optional_args()
     if args.action == RE_ID_TRAIN:
         script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './fast-reid/tools/train_net.py',
-                       '--config-file', args.reid_config, 'MODEL.DEVICE', 'cuda:0', 'DATASETS.DATASET', args.dataset]
+                       '--config-file', args.reid_config, 'MODEL.DEVICE', 'cuda:0']
         script_args.extend(optional_args)
         call(script_args)
 
