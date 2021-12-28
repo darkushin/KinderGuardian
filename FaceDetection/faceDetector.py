@@ -1,6 +1,5 @@
 import pickle
 from collections import defaultdict, Counter
-import plotly.express as px
 from PIL import Image
 import seaborn as sns
 from sklearn.model_selection import train_test_split
@@ -8,13 +7,13 @@ import pandas as pd
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 from DataProcessing.utils import read_labled_croped_images
 from FaceDetection.facenet_pytorch import MTCNN, InceptionResnetV1
-from mtcnn.mtcnn import MTCNN as mtcnn_origin
+# from mtcnn.mtcnn import MTCNN as mtcnn_origin
 from matplotlib import pyplot as plt
 import torch
 import torchvision
 
-import plotly.io as pio
-pio.renderers.default = "browser"
+# import plotly.io as pio
+# pio.renderers.default = "browser"
 
 class FaceDetector():
 
@@ -22,13 +21,12 @@ class FaceDetector():
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.raw_images_path = raw_images_path
         self.faces_data_path = faces_data_path
-        self.mtcnn_detector = mtcnn_origin()
+        # self.mtcnn_detector = mtcnn_origin()
         self.facenet_detecor = MTCNN(margin=40, select_largest=False, post_process=False, device=device, thresholds=[0.8,0.8,0.8])
         self.resnet = InceptionResnetV1(pretrained='vggface2', classify=False)
         self.face_treshold = 0.90
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.high_conf_face_imgs = defaultdict(list)
-        self.filter_out_non_face_corps()
 
 
     def filter_out_non_face_corps(self) -> None:
@@ -57,7 +55,8 @@ class FaceDetector():
                         # input()
                         self.high_conf_face_imgs[id].append(ret)
                     counter += 1
-            given_num_of_images_final = sum([len(self.high_conf_face_imgs[i]) for i in self.raw_imgs_dict.keys()])
+
+            given_num_of_images_final = sum([len(self.high_conf_face_imgs[i]) for i in raw_imgs_dict.keys()])
             print(f'Post filter left with {given_num_of_images_final}')
             pickle.dump(self.high_conf_face_imgs, open('C:\KinderGuardian\FaceDetection\imgs_with_face_highconf.pkl','wb'))
 
@@ -83,8 +82,9 @@ class FaceDetector():
         plt.show()
 
 if __name__ == '__main__':
+    pass
     # C:\KinderGuardian\FaceDetection\imgs_with_face_highconf.pkl
-    fc = FaceDetector(raw_images_path='/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned', faces_data_path='C:\KinderGuardian\FaceDetection\imgs_with_face_highconf.pkl')
-    # read_labled_croped_images(self.raw_images_path)
-    fc.build_samples_hist(fc.high_conf_face_imgs, 'Face Images Hist')
-    fc.build_samples_hist(read_labled_croped_images(fc.raw_images_path), title='Raw Images Hist')
+    # fc = FaceDetector(raw_images_path='/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned', faces_data_path='C:\KinderGuardian\FaceDetection\imgs_with_face_highconf.pkl')
+    # # read_labled_croped_images(self.raw_images_path)
+    # fc.build_samples_hist(fc.high_conf_face_imgs, 'Face Images Hist')
+    # fc.build_samples_hist(read_labled_croped_images(fc.raw_images_path), title='Raw Images Hist')

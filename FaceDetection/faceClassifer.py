@@ -1,3 +1,10 @@
+import os
+import sys
+
+from FaceDetection.faceDetector import FaceDetector
+
+sys.path.append('DataProcessing')
+
 import pandas as pd
 import copy
 import pickle
@@ -13,7 +20,7 @@ from torchvision import transforms, utils, datasets, models
 from torchvision.utils import make_grid
 
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
-from FaceDetection.facenet_pytorch import MTCNN, InceptionResnetV1
+from FaceDetection.facenet_pytorch import InceptionResnetV1
 from torch import nn, optim
 from matplotlib import pyplot as plt
 import torch
@@ -60,7 +67,7 @@ class FaceClassifer():
         self.model_ft = self._create_Incepction_Resnet_for_finetunning()
         print(self.model_ft)
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer_ft = optim.Adam(self.model_ft.parameters(),lr=0.00001, amsgrad=False)
+        self.optimizer_ft = optim.Adam(self.model_ft.parameters(),lr=0.0001, amsgrad=False)
         self.writer = SummaryWriter('runs/images')
         # self.exp_lr_scheduler = lr_scheduler.StepLR(self.optimizer_ft, step_size=7, gamma=0.1)
 
@@ -159,7 +166,7 @@ class FaceClassifer():
                         named_preds = [ID_TO_NAME[le.inverse_transform([i.item()])[0]]for i in preds[0:5]]
                         named_labels = [ID_TO_NAME[le.inverse_transform([i.item()])[0]] for i in labels[0:5]]
                         print(f'phase: {phase} prediction: {named_preds}, true_labels: {named_labels}')
-                        self.imshow(inputs[0:5], named_preds)
+                        # self.imshow(inputs[0:5], named_preds)
                         self.writer.add_graph(self.model_ft, inputs)
 
                 epoch_loss = running_loss / dataset_size[phase]
@@ -179,8 +186,8 @@ class FaceClassifer():
             metrics = {'batch_train_loss': train_losses, 'batch_val_loss': val_losses,
                        'train_acc_by_epoch': acc_by_epoch_train, 'val_acc_by_epoch': acc_by_epcoh_val}
             if epoch > 1:
-                fc.plot_results(metrics)
-
+                # fc.plot_results(metrics)
+                pass
         time_elapsed = time.time() - since
         print('Training complete in {:.0f}m {:.0f}s'.format(
             time_elapsed // 60, time_elapsed % 60))
@@ -267,15 +274,19 @@ def test_accuracy_of_dataset(fc, dl, name):
     print(np.mean(acc))
 
 if __name__ == '__main__':
-    # fc = FaceDetector()
-    # fc.filter_out_non_face_corps()
-    # X,y = fc.create_X_y_faces()
-    # pickle.dump(X, open("X.pkl",'wb'))
-    # pickle.dump(y, open("y.pkl",'wb'))
-    # print('done')
 
-    X = pickle.load(open('X.pkl','rb'))
-    y = pickle.load(open('y.pkl','rb'))
+    data_path = '/home/bar_cohen/KinderGuardian/FaceDetection/data/'
+    pickle.dump('bla', open(os.path.join(data_path, 'X.pkl'),'wb'))
+
+    fc = FaceDetector('/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned')
+    fc.filter_out_non_face_corps()
+    X,y = fc.create_X_y_faces()
+    pickle.dump(X, open(os.path.join(data_path, 'X.pkl'),'wb'))
+    pickle.dump(y, open(os.path.join(data_path, 'y.pkl'),'wb'))
+    print('done')
+
+    X = pickle.load(open(os.path.join(data_path, 'X.pkl'),'rb'))
+    y = pickle.load(open(os.path.join(data_path, 'y.pkl'),'rb'))
     y = [int(i) for i in y] # TODO fix y to hold ints and not strs
     indexs_to_drop = [index for index,clss in enumerate(y) if clss in [17,19]]
     print(indexs_to_drop)
@@ -288,18 +299,18 @@ if __name__ == '__main__':
     print(num_classes)
     fc = FaceClassifer(num_classes)
 
-    # fc.model_ft.load_state_dict(torch.load('best_model.pkl'))
+    # fc.model_ft.load_state_dict(torch.load('best_model3.pkl'))
     print(len(X))
     dl_train,dl_val,dl_test = fc.create_data_loaders(X,y_transformed)
     print(len(dl_train) * dl_train.batch_size, len(dl_val) * dl_val.batch_size, len(dl_test) * dl_test.batch_size)
 
-    pickle.dump(dl_train, open("dl_train.pkl",'wb'))
-    pickle.dump(dl_val, open("dl_val.pkl",'wb'))
-    pickle.dump(dl_test, open("dl_test.pkl",'wb'))
+    pickle.dump(dl_train, open(os.path.join(data_path, 'dl_train.pkl'),'wb'))
+    pickle.dump(dl_val, open(os.path.join(data_path, 'df_val.pkl'),'wb'))
+    pickle.dump(dl_test, open(os.path.join(data_path, 'df_test.pkl'),'wb'))
     model, metrics = fc.train_model(dl_train, dl_val,num_epochs=1000)
     test_accuracy_of_dataset(fc, dl_train, 'Train')
     test_accuracy_of_dataset(fc, dl_val, 'Val')
     test_accuracy_of_dataset(fc, dl_test, 'Test')
-    pickle.dump(metrics , open('metrics_best_new.pkl','wb'))
+    pickle.dump(metrics , open(os.path.join(data_path, 'best_new_metric.pkl'),'wb'))
     # metrics = pickle.load(open('metrics.pkl','rb'))
     fc.plot_results(metrics)
