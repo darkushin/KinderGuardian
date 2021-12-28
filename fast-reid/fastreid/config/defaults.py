@@ -300,6 +300,9 @@ _C.TEST = CN()
 
 _C.TEST.EVAL_PERIOD = 20
 
+# Use mean feature-vector for test images
+_C.TEST.MEAN_FEATURE_VECTOR = 'false'
+
 # Number of images per batch across all machines.
 _C.TEST.IMS_PER_BATCH = 64
 _C.TEST.METRIC = "cosine"

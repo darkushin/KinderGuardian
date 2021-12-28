@@ -3,3 +3,6 @@
 __pycache__
 fast-reid/datasets
 fast-reid/checkpoints
+Results/
+Videos/
+logs/
