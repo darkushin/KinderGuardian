@@ -232,17 +232,18 @@ def create_data_by_re_id_and_track():
         # plt.imshow(track_imgs[0])
         # plt.title(ID_TO_NAME[reid_maj_vote])
         # plt.show()
-        face_imgs = [crop.face_img for crop in crops if crop.check_if_face_img()]
-        if len(face_imgs) > 0: # at least 1 face was detected
-            face_classifer_preds = faceClassifer.predict(torch.cat(face_imgs), out=torch.tensor(len(face_imgs), face_imgs[0].shape[0],face_imgs[0].shape[1]))
-            bincount_face = np.bincount(face_classifer_preds)
-            face_label = ID_TO_NAME[np.argmax(bincount_face)]
-            print(face_label)
-            plt.imshow(face_imgs[0])
-            plt.show()
 
-            if reid_maj_conf < 0.5: # silly heuristic
-                label = face_label
+        # face_imgs = [crop.face_img for crop in crops if crop.check_if_face_img()]
+        # if len(face_imgs) > 0: # at least 1 face was detected
+        #     face_classifer_preds = faceClassifer.predict(torch.cat(face_imgs), out=torch.tensor(len(face_imgs), face_imgs[0].shape[0],face_imgs[0].shape[1]))
+        #     bincount_face = np.bincount(face_classifer_preds)
+        #     face_label = ID_TO_NAME[np.argmax(bincount_face)]
+        #     # print(face_label)
+        #     # plt.imshow(face_imgs[0])
+        #     # plt.show()
+        #
+        #     if reid_maj_conf < 0.5: # silly heuristic
+        #         label = face_label
 
         for crop in crops:
             crop.set_label(label)
