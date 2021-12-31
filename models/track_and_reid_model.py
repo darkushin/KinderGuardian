@@ -163,8 +163,8 @@ def create_data_by_re_id_and_track():
     assert args.crops_folder , "You must insert crop_folder param in order to create data"
 
     faceDetector = FaceDetector()
-    faceClassifer = FaceClassifer(num_classes=21)
-    # faceClassifer.model_ft.load_state_dict(torch.load('best_model3.pkl'))
+    faceClassifer = FaceClassifer(num_classes=19)
+    faceClassifer.model_ft.load_state_dict(torch.load('/home/bar_cohen/KinderGuardian/FaceDetection/best_model3.pth'))
 
 
     reid_cfg = set_reid_cfgs(args)
@@ -201,15 +201,9 @@ def create_data_by_re_id_and_track():
         crops_bboxes = result['track_results'][0][:, 1:-1]
         crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
         for i, (id, crop) in enumerate(zip(ids,crops_imgs)):
-            # plt.imshow(crop)
-            # plt.show()
-            # print(i,crop)
             face_img = faceDetector.facenet_detecor(crop)
-            # print(face_img)
             if face_img is not None and face_img is not face_img.numel():
                 face_img = face_img.permute(1, 2, 0).int()
-                # plt.imshow(face_img.permute(1, 2, 0).int().numpy())
-                # plt.show()
             crop_obj = Crop(video_name=args.input ,
                             frame_id=id,
                             bbox=crops_bboxes[i],
@@ -232,19 +226,32 @@ def create_data_by_re_id_and_track():
         bincount = np.bincount(reid_ids)
         reid_maj_vote = np.argmax(bincount)
         reid_maj_conf = bincount[reid_maj_vote] / len(reid_ids)
+        label = ID_TO_NAME[reid_maj_vote]
+
         # faceClassifer.imshow(track_imgs, labels=[ID_TO_NAME[reid_maj_vote]] * len(track_imgs))
-        plt.imshow(track_imgs[0])
-        plt.title(ID_TO_NAME[reid_maj_vote])
-        plt.show()
+        # plt.imshow(track_imgs[0])
+        # plt.title(ID_TO_NAME[reid_maj_vote])
+        # plt.show()
+        face_imgs = [crop.face_img for crop in crops if crop.check_if_face_img()]
+        if len(face_imgs) > 0: # at least 1 face was detected
+            face_classifer_preds = faceClassifer.predict(torch.cat(face_imgs), out=torch.tensor(len(face_imgs), face_imgs[0].shape[0],face_imgs[0].shape[1]))
+            bincount_face = np.bincount(face_classifer_preds)
+            face_label = ID_TO_NAME[np.argmax(bincount_face)]
+            print(face_label)
+            plt.imshow(face_imgs[0])
+            plt.show()
+
+            if reid_maj_conf < 0.5: # silly heuristic
+                label = face_label
 
         for crop in crops:
-            label = ID_TO_NAME[reid_maj_vote]
             crop.set_label(label)
             crop.save_crop(datapath=args.crops_folder)
             del crop.crop_img # we dont want to keep this info in the crop obj
             del crop.face_img
             crops_db.append(crop)
         # todo insert faceid
+
 
     pickle.dump(crops_db, open(f'{args.crops_folder}_crop_db.pkl','wb'))
     print("Done")

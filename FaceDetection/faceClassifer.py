@@ -202,6 +202,7 @@ class FaceClassifer():
         plt.show()
 
     def predict(self, inputs):
+        inputs.to(self.device)
         outputs = self.model_ft(inputs)
         preds = torch.argmax(outputs, dim=1)
         return preds
