@@ -91,17 +91,8 @@ class FaceClassifer():
         return model_ft
 
     def create_data_loaders(self, X, y) -> (DataLoader, DataLoader, DataLoader):
-        # apply_transform  = transforms.Compose([
-        #         transforms.RandomHorizontalFlip(),
-        #         transforms.ToTensor(),
-        #         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        #     ])
         X_train, X_test, y_train, y_test = train_test_split(X,y, test_size = 0.1 , shuffle=True, random_state=1)
         X_train, X_val, y_train, y_val = train_test_split(X_train,y_train, test_size = 0.2 , shuffle=True, random_state=1)
-        # print(type(X_train[0]), X_train[0].shape)
-        # X_train = [transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(x) for x in X_train]
-        # X_val = [transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(x)for x in X_val]
-        # X_test = [transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(x) for x in X_train]
         dl_train = DataLoader(FacesDataset(X_train, y_train), batch_size=100, shuffle=True)
         dl_val = DataLoader(FacesDataset(X_val,y_val), batch_size=10, shuffle=True)
         dl_test = DataLoader(FacesDataset(X_test,y_test), batch_size=10, shuffle=True)
@@ -153,7 +144,7 @@ class FaceClassifer():
 
                     # statistics
                     running_loss += loss.item()
-                    running_corrects += torch.sum(preds == labels.data).item()
+                    running_corrects += torch.sum(preds.eq(labels.data)).item()
                     # if i % 1 == 0:
                     #     print('[%d, %5d] loss: %.3f' %
                     #           (epoch + 1, i + 1, np.mean(FT_losses)))
@@ -273,8 +264,7 @@ def test_accuracy_of_dataset(fc, dl, name):
         acc.append(fc.get_accuracy(preds, labels))
     print(np.mean(acc))
 
-if __name__ == '__main__':
-
+def main_train():
     data_path = '/home/bar_cohen/KinderGuardian/FaceDetection/data/'
     pickle.dump('bla', open(os.path.join(data_path, 'X.pkl'),'wb'))
 
@@ -314,3 +304,6 @@ if __name__ == '__main__':
     pickle.dump(metrics , open(os.path.join(data_path, 'best_new_metric.pkl'),'wb'))
     # metrics = pickle.load(open('metrics.pkl','rb'))
     fc.plot_results(metrics)
+
+if __name__ == '__main__':
+    main_train()

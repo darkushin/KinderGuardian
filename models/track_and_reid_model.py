@@ -50,15 +50,17 @@ class Crop:
 
     def update_hash(self):
         self.unique_id = f'video_name:{self.video_name[9:]}_track_id:{self.track_id}_cam_id:{self.cam_id}_frame_id:{self.frame_id}_crop_id:{self.crop_id}_label:{self.label}'
-        if self.face_img:
+        if self.check_if_face_img():
             self.unique_face_crop_id = f'video_name:{self.video_name[9:]}_track_id:{self.track_id}_cam_id:{self.cam_id}_frame_id:{self.frame_id}_crop_id:{self.crop_id}__face_version__label:{self.label}'
 
     def save_crop(self, datapath):
         mmcv.imwrite(self.crop_img, os.path.join(datapath, f'{self.unique_id}.png'))
-        if self.unique_face_crop_id and self.face_img:
-            mmcv.imwrite(self.face_img, os.path.join(datapath, f'{self.unique_face_crop_id}.png'))
+        if self.unique_face_crop_id and self.check_if_face_img():
+            mmcv.imwrite(self.face_img.numpy(), os.path.join(datapath, f'{self.unique_face_crop_id}.png'))
 
 
+    def check_if_face_img(self):
+        return self.face_img is not None and self.face_img is not self.face_img.numel()
 def get_args():
     parser = ArgumentParser()
     parser.add_argument('track_config', help='config file for the tracking model')
@@ -201,12 +203,13 @@ def create_data_by_re_id_and_track():
         for i, (id, crop) in enumerate(zip(ids,crops_imgs)):
             # plt.imshow(crop)
             # plt.show()
-            print(i,crop)
+            # print(i,crop)
             face_img = faceDetector.facenet_detecor(crop)
-            print(face_img)
+            # print(face_img)
             if face_img is not None and face_img is not face_img.numel():
-                plt.imshow(face_img)
-                plt.show()
+                face_img = face_img.permute(1, 2, 0).int()
+                # plt.imshow(face_img.permute(1, 2, 0).int().numpy())
+                # plt.show()
             crop_obj = Crop(video_name=args.input ,
                             frame_id=id,
                             bbox=crops_bboxes[i],
@@ -222,12 +225,17 @@ def create_data_by_re_id_and_track():
     os.makedirs(args.crops_folder, exist_ok=True)
     for track_id, crops in tracklets.items():
         track_imgs = [crop.crop_img for crop in crops]
+        if len(track_imgs) < 5: #todo add this as a param
+            continue
         q_feat = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
         reid_ids = find_best_reid_match(q_feat, g_feat, g_pids)
         bincount = np.bincount(reid_ids)
         reid_maj_vote = np.argmax(bincount)
         reid_maj_conf = bincount[reid_maj_vote] / len(reid_ids)
-
+        # faceClassifer.imshow(track_imgs, labels=[ID_TO_NAME[reid_maj_vote]] * len(track_imgs))
+        plt.imshow(track_imgs[0])
+        plt.title(ID_TO_NAME[reid_maj_vote])
+        plt.show()
 
         for crop in crops:
             label = ID_TO_NAME[reid_maj_vote]
@@ -239,6 +247,7 @@ def create_data_by_re_id_and_track():
         # todo insert faceid
 
     pickle.dump(crops_db, open(f'{args.crops_folder}_crop_db.pkl','wb'))
+    print("Done")
 
 def main():
     args = get_args()
