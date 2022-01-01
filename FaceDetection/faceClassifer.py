@@ -202,7 +202,8 @@ class FaceClassifer():
         plt.show()
 
     def predict(self, inputs):
-        inputs.to(self.device)
+
+        inputs = inputs.to(self.device)
         outputs = self.model_ft(inputs)
         preds = torch.argmax(outputs, dim=1)
         return preds
@@ -267,14 +268,16 @@ def test_accuracy_of_dataset(fc, dl, name):
 
 def main_train():
     data_path = '/home/bar_cohen/KinderGuardian/FaceDetection/data/'
-    pickle.dump('bla', open(os.path.join(data_path, 'X.pkl'),'wb'))
+    # pickle.dump('bla', open(os.path.join(data_path, 'X.pkl'),'wb'))
 
     fc = FaceDetector('/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned')
-    fc.filter_out_non_face_corps()
-    X,y = fc.create_X_y_faces()
-    pickle.dump(X, open(os.path.join(data_path, 'X.pkl'),'wb'))
-    pickle.dump(y, open(os.path.join(data_path, 'y.pkl'),'wb'))
-    print('done')
+    # fc.filter_out_non_face_corps()
+    # X,y = fc.create_X_y_faces()
+    # pickle.dump(X, open(os.path.join(data_path, 'X.pkl'),'wb'))
+    # pickle.dump(y, open(os.path.join(data_path, 'y.pkl'),'wb'))
+    # print('done')
+    # return
+    # print(X[0].shape)
 
     X = pickle.load(open(os.path.join(data_path, 'X.pkl'),'rb'))
     y = pickle.load(open(os.path.join(data_path, 'y.pkl'),'rb'))
@@ -286,6 +289,8 @@ def main_train():
     assert len(X) == len(y)
     le = preprocessing.LabelEncoder()
     y_transformed = le.fit_transform(y)
+    pickle.dump(le, open(os.path.join(data_path, 'le.pkl'),'wb'))
+    return
     num_classes = len(np.unique(y_transformed))
     print(num_classes)
     fc = FaceClassifer(num_classes)

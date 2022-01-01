@@ -56,7 +56,8 @@ class Crop:
     def save_crop(self, datapath):
         mmcv.imwrite(self.crop_img, os.path.join(datapath, f'{self.unique_id}.png'))
         if self.unique_face_crop_id and self.check_if_face_img():
-            mmcv.imwrite(self.face_img.numpy(), os.path.join(datapath, f'{self.unique_face_crop_id}.png'))
+            face_to_write = self.face_img.permute(1, 2, 0).int().numpy()
+            mmcv.imwrite(face_to_write, os.path.join(datapath, f'{self.unique_face_crop_id}.png'))
 
 
     def check_if_face_img(self):
@@ -203,7 +204,8 @@ def create_data_by_re_id_and_track():
         for i, (id, crop) in enumerate(zip(ids,crops_imgs)):
             face_img = faceDetector.facenet_detecor(crop)
             if face_img is not None and face_img is not face_img.numel():
-                face_img = face_img.permute(1, 2, 0).int()
+                # face_img = face_img.permute(1, 2, 0).int()
+                pass
             crop_obj = Crop(video_name=args.input ,
                             frame_id=id,
                             bbox=crops_bboxes[i],
@@ -211,7 +213,7 @@ def create_data_by_re_id_and_track():
                             face_img=face_img,
                             track_id=id,
                             cam_id=1,
-                            crop_id=i)
+                            crop_id=-1)
             tracklets[id].append(crop_obj)
 
     print('make prediction and save crop')
@@ -233,19 +235,23 @@ def create_data_by_re_id_and_track():
         # plt.title(ID_TO_NAME[reid_maj_vote])
         # plt.show()
 
-        # face_imgs = [crop.face_img for crop in crops if crop.check_if_face_img()]
-        # if len(face_imgs) > 0: # at least 1 face was detected
-        #     face_classifer_preds = faceClassifer.predict(torch.cat(face_imgs), out=torch.tensor(len(face_imgs), face_imgs[0].shape[0],face_imgs[0].shape[1]))
-        #     bincount_face = np.bincount(face_classifer_preds)
-        #     face_label = ID_TO_NAME[np.argmax(bincount_face)]
-        #     # print(face_label)
-        #     # plt.imshow(face_imgs[0])
-        #     # plt.show()
-        #
-        #     if reid_maj_conf < 0.5: # silly heuristic
-        #         label = face_label
+        face_imgs = [crop.face_img for crop in crops if crop.check_if_face_img()]
+        if len(face_imgs) > 0: # at least 1 face was detected
+            face_classifer_preds = faceClassifer.predict(torch.stack(face_imgs))
+            bincount_face = torch.bincount(face_classifer_preds.cpu())
+            face_label = ID_TO_NAME[int(torch.argmax(bincount_face))]
+            # print(face_label)
+            # faceClassifer.imshow(face_imgs[0:5], labels=[face_label]*len(face_imgs))
+            # plt.imshow(face_imgs[0])
+            # plt.show()
 
-        for crop in crops:
+            # if reid_maj_conf < 0.5: # silly heuristic
+            #     print(f'do the predictors agree? f{label==face_label}')
+            #     print("Take Faceanyways due to low conf rom reid")
+            #     label = face_label
+
+        for crop_id, crop in enumerate(crops):
+            crop.crop_id = crop_id
             crop.set_label(label)
             crop.save_crop(datapath=args.crops_folder)
             del crop.crop_img # we dont want to keep this info in the crop obj
