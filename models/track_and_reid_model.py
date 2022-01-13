@@ -31,13 +31,13 @@ class Crop:
                  cam_id:int,
                  crop_id:int,
                  video_name:str):
-        self.frame_id = frame_id
+        self.frame_id = int(frame_id)
         self.bbox = bbox
         self.crop_img = crop_img
         self.face_img = face_img
-        self.track_id = track_id
-        self.cam_id = cam_id
-        self.crop_id = crop_id
+        self.track_id = int(track_id)
+        self.cam_id = int(cam_id)
+        self.crop_id = int(crop_id)
         self.video_name = video_name
         self.label = None
         self.unique_crop_name = None
@@ -49,7 +49,7 @@ class Crop:
 
     def update_hash(self):
          # save format - f'video_name:{self.video_name[9:]}_track_id:{self.track_id}_cam_id:{self.cam_id}_frame_id:{self.frame_id}_crop_id:{self.crop_id}_label:{self.label}'
-        self.unique_crop_name = f'{self.label}_v{self.video_name[9:]}_f{self.frame_id}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
+        self.unique_crop_name = f'{self.label}_v{self.video_name[9:]}_f{self.frame_id}_b{str(self.bbox)}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
 
     def save_crop(self, datapath):
         mmcv.imwrite(self.crop_img, os.path.join(datapath, f'{self.unique_crop_name}.png'))
@@ -119,8 +119,10 @@ def find_best_reid_match(q_feat, g_feat, g_pids):
     return g_pids[best_match_in_gallery]
 
 
-def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.8):
+def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
     result = inference_mot(tracking_model, img, frame_id=frame_id)
+    result['track_results'] = result['track_bboxes']
+    result['bbox_results'] = result['det_bboxes']
     acc = result['track_results'][0][:, -1]
     mask = np.where(acc > acc_threshold)
     result['track_results'][0] = result['track_results'][0][mask]
@@ -162,9 +164,11 @@ def create_data_by_re_id_and_track():
     assert args.crops_folder , "You must insert crop_folder param in order to create data"
 
     faceDetector = FaceDetector()
+    le = pickle.load(open('/home/bar_cohen/KinderGuardian/FaceDetection/data/le.pkl','rb'))
     faceClassifer = FaceClassifer(num_classes=19)
-    faceClassifer.model_ft.load_state_dict(torch.load("/home/bar_cohen/KinderGuardian/FaceDetection/best_model3.pth"))
 
+    faceClassifer.model_ft.load_state_dict(torch.load("/home/bar_cohen/KinderGuardian/FaceDetection/best_model3.pth"))
+    faceClassifer.model_ft.eval()
 
     reid_cfg = set_reid_cfgs(args)
 
@@ -193,6 +197,8 @@ def create_data_by_re_id_and_track():
     print('create tracklets')
     tracklets = defaultdict(list)
     for image_index, img in enumerate(imgs):
+        if image_index > 500:
+            break
         if isinstance(img, str):
             img = os.path.join(args.input, img)
         result = tracking_inference(tracking_model, img, image_index, acc_threshold=float(args.acc_th))
@@ -201,10 +207,11 @@ def create_data_by_re_id_and_track():
         crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
         for i, (id, crop) in enumerate(zip(ids,crops_imgs)):
             face_img = faceDetector.facenet_detecor(crop)
+            # face_img = None
             if face_img is not None and face_img is not face_img.numel():
                 # face_img = face_img.permute(1, 2, 0).int()
                 pass
-            crop_obj = Crop(video_name=args.input ,
+            crop_obj = Crop(video_name=args.input.split('/')[-1][:-4] ,
                             frame_id=image_index,
                             bbox=crops_bboxes[i],
                             crop_img=crop,
@@ -229,20 +236,20 @@ def create_data_by_re_id_and_track():
         reid_maj_conf = bincount[reid_maj_vote] / len(reid_ids)
         label = ID_TO_NAME[reid_maj_vote]
 
-        # plt.imshow(track_imgs[0])
-        # plt.title(ID_TO_NAME[reid_maj_vote])
-        # plt.show()
+        plt.imshow(track_imgs[0])
+        plt.title(ID_TO_NAME[reid_maj_vote])
+        plt.show()
 
         face_imgs = [crop.face_img for crop in crops if crop.check_if_face_img()]
         if len(face_imgs) > 0: # at least 1 face was detected
             face_classifer_preds = faceClassifer.predict(torch.stack(face_imgs))
             bincount_face = torch.bincount(face_classifer_preds.cpu())
-            face_label = ID_TO_NAME[int(torch.argmax(bincount_face))]
+            face_label = ID_TO_NAME[le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
             if len(face_imgs) > 1:
                 faceClassifer.imshow(face_imgs[0:2], labels=[face_label] * 2)
-            # print(face_label)
-            # plt.imshow(face_imgs[0])
-            # plt.show()
+            print(face_label)
+            print(f'reid label: {label}, face label: {face_label}')
+            print(f'do the predictors agree? f{label == face_label}')
 
             # if reid_maj_conf < 0.5: # silly heuristic todo do this according to the prob of the faceid model
             #     print(f'do the predictors agree? f{label==face_label}')
