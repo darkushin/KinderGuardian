@@ -5,16 +5,12 @@ LABELED_DATA: /home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned
 LOCATION: /home/bar_cohen/KinderGuardian/fast-reid/datasets
 
 # the name that should be given to the dataset
-NAME: id-split
+NAME: 1.8.21-dataset
 
 # comma-separated list of labeled data folders that should be included in the corresponding folder
-TRAIN: 29.7.21_cam1,29.7.21_cam2,30.7.21_cam1,30.7.21_cam2,1.8.21_cam1,1.8.21_cam2,4.8.21_cam1
-TEST: 29.7.21_cam1,29.7.21_cam2,30.7.21_cam1,30.7.21_cam2,1.8.21_cam1,1.8.21_cam2,4.8.21_cam1
-QUERY: 2.8.21_cam1
+TRAIN: 1.8.21_cam1
+TEST: ''
+QUERY: ''
 
 # description of the dataset that will be added to the README file
-DESCRIPTION: In this dataset both training set and gallery set contain images of persons across all available days, however we split
-  the data according to ids, that is, persons that appear in the training set don't appear in the test set (and query).
-  The following ids are in the training set - all ids up to 0015 -
-  The following ids are in the query set - Sofi, Daniel, Yahel, Roni
-  The following ids are in the test set - all ids from 0015 - Yahel, Ella, Sofi, Roni
+DESCRIPTION: This dataset is used to train a model on the data from 1.8.21 ONLY. The train and test folders are identical and include most of the labeled data from 1.8.21_cam1, except a few images that were used for evaluation of the model by transferring them to the query set.
