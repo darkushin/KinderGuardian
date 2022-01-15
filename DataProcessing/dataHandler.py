@@ -2,12 +2,65 @@ import logging
 
 import mmcv
 import numpy as np
+import torch
 from mmtrack.apis import inference_mot, init_model
 import os, glob, shutil
 import tensorflow as tf
 from sklearn.cluster import KMeans
 import cv2
 
+class Crop:
+    def __init__(self, frame_id:int,
+                 bbox:np.array,
+                 crop_img:torch.tensor,
+                 face_img:torch.tensor,
+                 track_id:int,
+                 cam_id:int,
+                 crop_id:int,
+                 video_name:str):
+        self.frame_id = int(frame_id)
+        self.bbox = bbox
+        self.crop_img = crop_img
+        self.face_img = face_img
+        self.track_id = int(track_id)
+        self.cam_id = int(cam_id)
+        self.crop_id = int(crop_id)
+        self.video_name = video_name
+        self.label = None
+        self.unique_crop_name = None
+        self.update_hash()
+
+    def set_label(self, label):
+        self.label = label
+        self.update_hash() # update unique_hash
+
+    def update_hash(self):
+         # save format - f'video_name:{self.video_name[9:]}_track_id:{self.track_id}_cam_id:{self.cam_id}_frame_id:{self.frame_id}_crop_id:{self.crop_id}_label:{self.label}'
+        self.unique_crop_name = f'{self.label}_v{self.video_name[9:]}_f{self.frame_id}_b{str(self.bbox)}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
+
+    def save_crop(self, datapath):
+        mmcv.imwrite(self.crop_img, os.path.join(datapath, f'{self.unique_crop_name}.png'))
+        if self.check_if_face_img():
+            face_to_write = self.face_img.permute(1, 2, 0).int().numpy()
+            mmcv.imwrite(face_to_write, os.path.join(datapath, f'Face_{self.unique_crop_name}.png'))
+
+    def check_if_face_img(self):
+        return self.face_img is not None and self.face_img is not self.face_img.numel()
+
+def create_Crop_from_str(img_path):
+    # self.unique_crop_name = f'{self.label}_v{self.video_name[9:]}_f{self.frame_id}_b{str(self.bbox)}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
+    splitted = img_path.split('_')
+    label = splitted[0]
+    video_name = splitted[1][1:]
+    frame_id = splitted[2][1:]
+    bbox = list(splitted[3][1:])
+    track_id = splitted[4][1:]
+    cam = splitted[5][1:]
+    cid = splitted[6][1:]
+    crop_obj = Crop(frame_id=frame_id,bbox=bbox,crop_img=None,face_img=None,
+                track_id=track_id,cam_id=cam,crop_id=cid, video_name=video_name)
+    crop_obj.set_label(label)
+    return crop_obj
 
 class DataHandler:
 

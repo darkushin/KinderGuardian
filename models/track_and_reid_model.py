@@ -11,6 +11,7 @@ import numpy as np
 import mmcv
 import torch.nn.functional as F
 
+from DataProcessing.dataHandler import Crop
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 from FaceDetection.faceClassifer import FaceClassifer
 from FaceDetection.faceDetector import FaceDetector
@@ -21,44 +22,6 @@ from fastreid.config import get_cfg
 from fastreid.data import build_reid_test_loader
 from demo.predictor import FeatureExtractionDemo
 from mmtrack.apis import inference_mot, init_model
-
-class Crop:
-    def __init__(self, frame_id:int,
-                 bbox:np.array,
-                 crop_img:torch.tensor,
-                 face_img:torch.tensor,
-                 track_id:int,
-                 cam_id:int,
-                 crop_id:int,
-                 video_name:str):
-        self.frame_id = int(frame_id)
-        self.bbox = bbox
-        self.crop_img = crop_img
-        self.face_img = face_img
-        self.track_id = int(track_id)
-        self.cam_id = int(cam_id)
-        self.crop_id = int(crop_id)
-        self.video_name = video_name
-        self.label = None
-        self.unique_crop_name = None
-        self.update_hash()
-
-    def set_label(self, label):
-        self.label = label
-        self.update_hash() # update unique_hash
-
-    def update_hash(self):
-         # save format - f'video_name:{self.video_name[9:]}_track_id:{self.track_id}_cam_id:{self.cam_id}_frame_id:{self.frame_id}_crop_id:{self.crop_id}_label:{self.label}'
-        self.unique_crop_name = f'{self.label}_v{self.video_name[9:]}_f{self.frame_id}_b{str(self.bbox)}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
-
-    def save_crop(self, datapath):
-        mmcv.imwrite(self.crop_img, os.path.join(datapath, f'{self.unique_crop_name}.png'))
-        if self.check_if_face_img():
-            face_to_write = self.face_img.permute(1, 2, 0).int().numpy()
-            mmcv.imwrite(face_to_write, os.path.join(datapath, f'Face_{self.unique_crop_name}.png'))
-
-    def check_if_face_img(self):
-        return self.face_img is not None and self.face_img is not self.face_img.numel()
 
 def get_args():
     parser = ArgumentParser()
