@@ -27,6 +27,7 @@ import torch
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
+# helper classes for faceClassifer class
 class Flatten(torch.nn.Module):
     def __init__(self):
         super(Flatten, self).__init__()
@@ -60,8 +61,11 @@ class FacesDataset(torch.utils.data.Dataset):
 
 
 class FaceClassifer():
-
-    def __init__(self, num_classes):
+    """
+    The face Classifier is a CNN that utilizes InceptionResnetV1 architecture with a pretrain
+    weights of vggface2 to fine-tune custom data
+    """
+    def __init__(self, num_classes, label_encoder):
         self.num_classes = num_classes
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model_ft = self._create_Incepction_Resnet_for_finetunning()
@@ -69,13 +73,13 @@ class FaceClassifer():
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer_ft = optim.Adam(self.model_ft.parameters(),lr=0.0001, amsgrad=False)
         self.writer = SummaryWriter('runs/images')
+        self.le = label_encoder
         # self.exp_lr_scheduler = lr_scheduler.StepLR(self.optimizer_ft, step_size=7, gamma=0.1)
 
 
     def _create_Incepction_Resnet_for_finetunning(self):
         model_ft = InceptionResnetV1(pretrained='vggface2', classify=True)
         layer_list = list(model_ft.children())[-5:] # final layers
-        # print(layer_list)
         model_ft = torch.nn.Sequential(*list(model_ft.children())[:-5]) # skipping 5 last layers
         for param in model_ft.parameters():
             param.requires_grad = False # we dont want to train the original layers
@@ -90,15 +94,20 @@ class FaceClassifer():
         model_ft = model_ft.to(self.device)
         return model_ft
 
-    def create_data_loaders(self, X, y) -> (DataLoader, DataLoader, DataLoader):
+    def create_data_loaders(self, X, y, data_path) -> (DataLoader, DataLoader, DataLoader):
         X_train, X_test, y_train, y_test = train_test_split(X,y, test_size = 0.1 , shuffle=True, random_state=1)
         X_train, X_val, y_train, y_val = train_test_split(X_train,y_train, test_size = 0.2 , shuffle=True, random_state=1)
         dl_train = DataLoader(FacesDataset(X_train, y_train), batch_size=100, shuffle=True)
         dl_val = DataLoader(FacesDataset(X_val,y_val), batch_size=10, shuffle=True)
         dl_test = DataLoader(FacesDataset(X_test,y_test), batch_size=10, shuffle=True)
+        # must save datasets dls for reproducibility
+        pickle.dump(dl_train, open(os.path.join(data_path, 'dl_train_1.pkl'), 'wb'))
+        pickle.dump(dl_val, open(os.path.join(data_path, 'df_val_1.pkl'), 'wb'))
+        pickle.dump(dl_test, open(os.path.join(data_path, 'df_test_1.pkl'), 'wb'))
         return dl_train, dl_val, dl_test
 
     def train_model(self,dl_train:DataLoader, dl_val:DataLoader, num_epochs=25):
+        """ Main training loop for model"""
         dataloaders = {'train': dl_train, 'val':dl_val}
         dataset_size = {'train': len(dl_train) , 'val': len(dl_val)}
         since = time.time()
@@ -148,17 +157,16 @@ class FaceClassifer():
                     # if i % 1 == 0:
                     #     print('[%d, %5d] loss: %.3f' %
                     #           (epoch + 1, i + 1, np.mean(FT_losses)))
+                    # todo Tensor board upgrade WIP
                     img_grid = make_grid(inputs)
-                    # self.matplotlib_imshow(img_grid, one_channel=True)
                     self.writer.add_image('image_input', img_grid)
 
-
                     if i == len(dataloaders[phase]) - 1 : # last batch
-                        named_preds = [ID_TO_NAME[le.inverse_transform([i.item()])[0]]for i in preds[0:5]]
-                        named_labels = [ID_TO_NAME[le.inverse_transform([i.item()])[0]] for i in labels[0:5]]
+                        named_preds = [ID_TO_NAME[self.le.inverse_transform([i.item()])[0]]for i in preds[0:5]]
+                        named_labels = [ID_TO_NAME[self.le.inverse_transform([i.item()])[0]] for i in labels[0:5]]
                         print(f'phase: {phase} prediction: {named_preds}, true_labels: {named_labels}')
                         # self.imshow(inputs[0:5], named_preds)
-                        self.writer.add_graph(self.model_ft, inputs)
+                        # self.writer.add_graph(self.model_ft, inputs)
 
                 epoch_loss = running_loss / dataset_size[phase]
                 epoch_acc = running_corrects / (dataset_size[phase] * dataloaders[phase].batch_size)
@@ -202,21 +210,20 @@ class FaceClassifer():
         plt.show()
 
     def predict(self, inputs):
-
+        """Given input images as tensors, return predictions"""
         inputs = inputs.to(self.device)
         outputs = self.model_ft(inputs)
         preds = torch.argmax(outputs, dim=1)
         return preds
 
     def get_accuracy(self, preds, labels):
+        """Acc given prediction and true labels"""
         correct = 0
         assert len(preds) == len(labels)
         for p, l in zip(preds, labels):
             if p == l:
                 correct += 1
         return correct / (len(preds))
-
-        # return torch.sum(preds == labels).item() / len(preds)
 
     def matplotlib_imshow(self, img, one_channel=False):
         if one_channel:
@@ -229,7 +236,7 @@ class FaceClassifer():
             plt.imshow(np.transpose(npimg, (1, 2, 0)))
 
     def plot_results(self, metrics):
-
+        """ Simple plots of training and validation """
         sns.lineplot(x=range(len(metrics['batch_train_loss'])), y=metrics['batch_train_loss'], color='red')
         plt.xlabel('Batch num')
         plt.ylabel('Train Loss')
@@ -256,6 +263,7 @@ class FaceClassifer():
 
 
 def test_accuracy_of_dataset(fc, dl, name):
+    """ Simple accuracy tester for face Classfication """
     print('Accuracy of dataset --- ', name)
     acc = []
     for batch in dl:
@@ -266,50 +274,49 @@ def test_accuracy_of_dataset(fc, dl, name):
         acc.append(fc.get_accuracy(preds, labels))
     print(np.mean(acc))
 
-def main_train():
-    data_path = '/home/bar_cohen/KinderGuardian/FaceDetection/data/'
-    # pickle.dump('bla', open(os.path.join(data_path, 'X.pkl'),'wb'))
+def labelencode(label_encoder_output,X,y ,classes_to_drop:list):
+    """
+    creates a label encoder based on inserted classes to drop
+    Args:
+        label_encoder_output: output path to save label encoder
+        X: the image tensors
+        y: image labels
+        classes_to_drop: label classes not to be trained upon
 
-    fc = FaceDetector('/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned')
-    # fc.filter_out_non_face_corps()
-    # X,y = fc.create_X_y_faces()
-    # pickle.dump(X, open(os.path.join(data_path, 'X.pkl'),'wb'))
-    # pickle.dump(y, open(os.path.join(data_path, 'y.pkl'),'wb'))
-    # print('done')
-    # return
-    # print(X[0].shape)
+    Returns: X_transformed, y_transformed, label-encoder
 
-    X = pickle.load(open(os.path.join(data_path, 'X.pkl'),'rb'))
-    y = pickle.load(open(os.path.join(data_path, 'y.pkl'),'rb'))
-    y = [int(i) for i in y] # TODO fix y to hold ints and not strs
-    indexs_to_drop = [index for index,clss in enumerate(y) if clss in [17,19]]
-    print(indexs_to_drop)
-    X = [x for i,x in enumerate(X) if i not in indexs_to_drop]
-    y = [clss for i,clss in enumerate(y) if i not in indexs_to_drop]
+    """
+    y = [int(i) for i in y]
+    indexs_to_drop = [index for index, clss in enumerate(y) if clss in classes_to_drop]
+    X = [x for i, x in enumerate(X) if i not in indexs_to_drop]
+    y = [clss for i, clss in enumerate(y) if i not in indexs_to_drop]
     assert len(X) == len(y)
     le = preprocessing.LabelEncoder()
     y_transformed = le.fit_transform(y)
-    pickle.dump(le, open(os.path.join(data_path, 'le.pkl'),'wb'))
-    return
+    pickle.dump(le, open(os.path.join(label_encoder_output, 'le.pkl'), 'wb'))
+    return X, y_transformed, le
+
+def main_train():
+    data_path = '/home/bar_cohen/KinderGuardian/FaceDetection/data/'
+    fd = FaceDetector(raw_images_path='/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned',
+                      faces_data_path='C:\KinderGuardian\FaceDetection\imgs_with_face_highconf.pkl')
+    fd.filter_out_non_face_corps()
+    X,y = fd.create_X_y_faces()
+    X,y_transformed,le = labelencode(data_path, X,y,[17,19])
     num_classes = len(np.unique(y_transformed))
     print(num_classes)
-    fc = FaceClassifer(num_classes)
-
-    # fc.model_ft.load_state_dict(torch.load('best_model3.pkl'))
-    print(len(X))
-    dl_train,dl_val,dl_test = fc.create_data_loaders(X,y_transformed)
+    fc = FaceClassifer(num_classes, le)
+    fc.model_ft.load_state_dict(torch.load('best_model3.pkl'))
+    fc.model_ft.train() # this will train the model after loading weights
+    dl_train,dl_val,dl_test = fc.create_data_loaders(X,y_transformed, data_path)
     print(len(dl_train) * dl_train.batch_size, len(dl_val) * dl_val.batch_size, len(dl_test) * dl_test.batch_size)
-
-    pickle.dump(dl_train, open(os.path.join(data_path, 'dl_train.pkl'),'wb'))
-    pickle.dump(dl_val, open(os.path.join(data_path, 'df_val.pkl'),'wb'))
-    pickle.dump(dl_test, open(os.path.join(data_path, 'df_test.pkl'),'wb'))
-    model, metrics = fc.train_model(dl_train, dl_val,num_epochs=1000)
+    model, metrics = fc.train_model(dl_train, dl_val,num_epochs=1)
     test_accuracy_of_dataset(fc, dl_train, 'Train')
     test_accuracy_of_dataset(fc, dl_val, 'Val')
     test_accuracy_of_dataset(fc, dl_test, 'Test')
-    pickle.dump(metrics , open(os.path.join(data_path, 'best_new_metric.pkl'),'wb'))
-    # metrics = pickle.load(open('metrics.pkl','rb'))
+    pickle.dump(metrics , open(os.path.join(data_path, 'best_new_metric_1.pkl'),'wb'))
     fc.plot_results(metrics)
 
 if __name__ == '__main__':
     main_train()
+
