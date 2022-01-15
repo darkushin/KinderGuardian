@@ -85,8 +85,10 @@ def execute_combined_model():
     """
     Usage example:
     re-id-and-tracking --track_config ./mmtracking/configs/mot/deepsort/sort_faster-rcnn_fpn_4e_mot17-private.py
-    --reid_config ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml --input ./Videos/Reid-Eval2-2.8.mp4
-    --output ./Results/Reid-Eval2-2.8-test.mp4 --dataset query-2.8_test-4.8 --acc_th 0.8
+    --reid_config ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml --input ../Data-Shoham/1.8.21_cam1/videos/IPCamera_20210801095724.avi
+    --output ./Results/Reid-Eval2-2.8-test.mp4 --acc_th 0.98 --crops_folder /mnt/raid1/home/bar_cohen/DB_Crops/
+    --reid_opts DATASETS.DATASET inference_on_train_data MODEL.WEIGHTS ./fast-reid/checkpoints/scratch-id-by-day.pth
+
     """
     print("********************************************************************")
 

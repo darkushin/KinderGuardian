@@ -5,6 +5,9 @@ from cv2 import imread
 from pathlib import Path
 from tqdm import tqdm
 
+import tempfile
+
+import mmcv
 
 """
 This folder holds functions that can be useful for data handling, such as renaming images etc.
@@ -68,9 +71,23 @@ def read_labled_croped_images(file_dir) -> {}:
     return imgs
 
 
+def trim_video(input_path, output_path, limit):
+    imgs = mmcv.VideoReader(input_path)
+    temp_dir = tempfile.TemporaryDirectory()
+    temp_path = temp_dir.name
+    fps = int(imgs.fps)
+    print('Starting to save imgs:')
+    for i, img in enumerate(imgs):
+        if not i % 100:
+            print(f'{i} frames done.')
+        if i > limit:
+            break
+        mmcv.imwrite(img, f'{temp_path}/{i:03d}.png')
+    mmcv.frames2video(temp_path, output_path, fps=fps, fourcc='mp4v', filename_tmpl='{:03d}.png')
+    temp_dir.cleanup()
+
+
 if __name__ == '__main__':
-    read_labled_croped_images('/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned')
-    # rename_folders = ['third-query-2.8_test-4.8/bounding_box_train']
-    # for folder in rename_folders:
-    #     remove_images_from_dataset(f'/home/bar_cohen/KinderGuardian/fast-reid/datasets/{folder}', 'f03')
-    #
+    trim_video('/home/bar_cohen/Data-Shoham/1.8.21_cam1/videos/IPCamera_20210801095724.avi',
+               '/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4', limit=500)
+
