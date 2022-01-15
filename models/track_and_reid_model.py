@@ -128,7 +128,7 @@ def create_data_by_re_id_and_track():
 
     faceDetector = FaceDetector()
     le = pickle.load(open('/home/bar_cohen/KinderGuardian/FaceDetection/data/le.pkl','rb'))
-    faceClassifer = FaceClassifer(num_classes=19)
+    faceClassifer = FaceClassifer(num_classes=19,label_encoder=le)
 
     faceClassifer.model_ft.load_state_dict(torch.load("/home/bar_cohen/KinderGuardian/FaceDetection/best_model3.pth"))
     faceClassifer.model_ft.eval()
@@ -150,11 +150,6 @@ def create_data_by_re_id_and_track():
     # load images and set temp folders for output creation:
     imgs = mmcv.VideoReader(args.input)
     fps = int(imgs.fps)
-    temp_dir = tempfile.TemporaryDirectory()
-    temp_path = temp_dir.name
-    _out = args.output.rsplit('/', 1)
-    if len(_out) > 1:
-        os.makedirs(_out[0], exist_ok=True)
 
     # iterate over all images and collect tracklets
     print('create tracklets')
@@ -198,18 +193,14 @@ def create_data_by_re_id_and_track():
         reid_maj_vote = np.argmax(bincount)
         reid_maj_conf = bincount[reid_maj_vote] / len(reid_ids)
         label = ID_TO_NAME[reid_maj_vote]
-
-        plt.imshow(track_imgs[0])
-        plt.title(ID_TO_NAME[reid_maj_vote])
-        plt.show()
-
         face_imgs = [crop.face_img for crop in crops if crop.check_if_face_img()]
         if len(face_imgs) > 0: # at least 1 face was detected
             face_classifer_preds = faceClassifer.predict(torch.stack(face_imgs))
             bincount_face = torch.bincount(face_classifer_preds.cpu())
-            face_label = ID_TO_NAME[le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
+            face_label = ID_TO_NAME[faceClassifer.le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
             if len(face_imgs) > 1:
-                faceClassifer.imshow(face_imgs[0:2], labels=[face_label] * 2)
+                # faceClassifer.imshow(face_imgs[0:2], labels=[face_label] * 2)
+                pass # uncomment above to show faces
             print(face_label)
             print(f'reid label: {label}, face label: {face_label}')
             print(f'do the predictors agree? f{label == face_label}')
@@ -226,8 +217,6 @@ def create_data_by_re_id_and_track():
             del crop.crop_img # we dont want to keep this info in the crop obj
             del crop.face_img
             crops_db.append(crop)
-        # todo insert faceid
-
 
     pickle.dump(crops_db, open(f'{args.crops_folder}_crop_db.pkl','wb'))
     print("Done")

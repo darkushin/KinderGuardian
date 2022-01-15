@@ -90,9 +90,6 @@ def execute_combined_model():
     --reid_opts DATASETS.DATASET inference_on_train_data MODEL.WEIGHTS ./fast-reid/checkpoints/scratch-id-by-day.pth
 
     """
-    print("********************************************************************")
-
-    print("WE ARE IN HERE")
     optional_args: List = create_optional_args()
     script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
           args.track_config, args.reid_config, '--input', args.input, '--output', args.output, '--acc_th', args.acc_threshold,
