@@ -1,6 +1,11 @@
 import os
+import pickle
 import tempfile
+from collections import defaultdict
 
+import cv2
+import numpy as np
+from mmtrack.core.utils.visualization import _cv2_show_tracks as plot_tracks
 import mmcv
 
 """
@@ -54,19 +59,33 @@ def viz_data_on_video(input_vid, pre_labeled_crops_path):
     Returns:
 
     """
-    crops = []
-    for file in os.listdir(pre_labeled_crops_path):
-        crop_path = os.path.join(pre_labeled_crops_path, file)
-        crops.append(create_Crop_from_str(crop_path))
-    crop_dict_by_frame = {crop.frame_id : crop for crop in crops}
+    # crops = []
+    # for file in os.listdir(pre_labeled_crops_path):
+    #     crop_path = os.path.join(pre_labeled_crops_path, file)
+    #     crops.append(create_Crop_from_str(crop_path))
+
+    crops = pickle.load(open("/mnt/raid1/home/bar_cohen/DB_Crops/_crop_db.pkl", 'rb'))
+    # crop_dict_by_frame = {crop.frame_id : crop for crop in crops}
+    crop_dict_by_frame = defaultdict(list)
+    for crop in crops:
+        crop_dict_by_frame[crop.frame_id].append(crop)
 
     imgs = mmcv.VideoReader(input_vid)
     output_frames = []
+    from matplotlib import pyplot as plt
     for i,frame in enumerate(imgs):
         cur_crops = crop_dict_by_frame[i]
         crops_bboxes = [crop.bbox for crop in cur_crops]
         crops_labels = [crop.label for crop in cur_crops]
-        output_frames.append(plot_tracks(img=frame,bboxes=crops_bboxes, ids=crops_labels, labels=crops_labels))
+        for c,l in zip(crops_bboxes, crops_labels):
+            x,y,h,w = np.array(c).astype(int)
+            print(c)
+            frame = cv2.rectangle(frame, (x, y), (x + w, y + h), (36, 255, 12), 1)
+            cv2.putText(frame, l, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36, 255, 12), 2)
+        plt.imshow(frame)
+        plt.show()
+        break
+        # output_frames.append(plot_tracks(img=frame,bboxes=np.array(crops_bboxes), ids=np.array(crops_labels), labels=np.array(crops_labels)))
 
 def trim_video(input_path, output_path, limit):
     imgs = mmcv.VideoReader(input_path)
@@ -84,7 +103,8 @@ def trim_video(input_path, output_path, limit):
     temp_dir.cleanup()
 
 if __name__ == '__main__':
-    rename_folders = ['third-query-2.8_test-4.8/bounding_box_train']
-    for folder in rename_folders:
-        remove_images_from_dataset(f'/home/bar_cohen/KinderGuardian/fast-reid/datasets/{folder}', 'f03')
+    viz_data_on_video("/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4", "")
+    # rename_folders = ['third-query-2.8_test-4.8/bounding_box_train']
+    # for folder in rename_folders:
+    #     remove_images_from_dataset(f'/home/bar_cohen/KinderGuardian/fast-reid/datasets/{folder}', 'f03')
 
