@@ -1,4 +1,7 @@
 import os
+import tempfile
+
+import mmcv
 
 """
 This folder holds functions that can be useful for data handling, such as renaming images etc.
@@ -39,6 +42,46 @@ def remove_images_from_dataset(path, pattern):
         if pattern in im:
             os.remove(os.path.join(path, im))
 
+
+def viz_data_on_video(input_vid, pre_labeled_crops_path):
+    """
+    This func assumes that the input video has been run by the track and reid model data creator to
+    create a pre-annoted set.
+    Args:
+        input_vid:
+        pre_labeled_crops_path:
+
+    Returns:
+
+    """
+    crops = []
+    for file in os.listdir(pre_labeled_crops_path):
+        crop_path = os.path.join(pre_labeled_crops_path, file)
+        crops.append(create_Crop_from_str(crop_path))
+    crop_dict_by_frame = {crop.frame_id : crop for crop in crops}
+
+    imgs = mmcv.VideoReader(input_vid)
+    output_frames = []
+    for i,frame in enumerate(imgs):
+        cur_crops = crop_dict_by_frame[i]
+        crops_bboxes = [crop.bbox for crop in cur_crops]
+        crops_labels = [crop.label for crop in cur_crops]
+        output_frames.append(plot_tracks(img=frame,bboxes=crops_bboxes, ids=crops_labels, labels=crops_labels))
+
+def trim_video(input_path, output_path, limit):
+    imgs = mmcv.VideoReader(input_path)
+    temp_dir = tempfile.TemporaryDirectory()
+    temp_path = temp_dir.name
+    fps = int(imgs.fps)
+    print('Starting to save imgs:')
+    for i, img in enumerate(imgs):
+        if not i % 100:
+            print(f'{i} frames done.')
+        if i > limit:
+            break
+        mmcv.imwrite(img, f'{temp_path}/{i:03d}.png')
+    mmcv.frames2video(temp_path, output_path, fps=fps, fourcc='mp4v', filename_tmpl='{:03d}.png')
+    temp_dir.cleanup()
 
 if __name__ == '__main__':
     rename_folders = ['third-query-2.8_test-4.8/bounding_box_train']
