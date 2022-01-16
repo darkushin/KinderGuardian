@@ -21,6 +21,7 @@ def get_args():
     parser.add_argument('--acc_threshold', default=0.8,
                         help='If running track and crop on Data Processing, or if running track-and-reid model')
     parser.add_argument('--reid_opts', help='Modify config options using the command-line', default=None, nargs=REMAINDER)
+    parser.add_argument('--crops_folder')
 
     return parser.parse_args()
 
@@ -67,6 +68,7 @@ def execute_reid_action():
     if args.action == RE_ID_EVAL:
         script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './fast-reid/tools/train_net.py',
                        '--config-file', args.reid_config, '--eval-only', 'MODEL.DEVICE', 'cuda:0', 'DATASETS.DATASET',
+
                        args.dataset]
         script_args.extend(optional_args)
         call(script_args)
@@ -83,12 +85,18 @@ def execute_combined_model():
     """
     Usage example:
     re-id-and-tracking --track_config ./mmtracking/configs/mot/deepsort/sort_faster-rcnn_fpn_4e_mot17-private.py
-    --reid_config ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml --input ./Videos/Reid-Eval2-2.8.mp4
-    --output ./Results/Reid-Eval2-2.8-test.mp4 --dataset query-2.8_test-4.8 --acc_th 0.8
+    --reid_config ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml --input ../Data-Shoham/1.8.21_cam1/videos/IPCamera_20210801095724.avi
+    --output ./Results/Reid-Eval2-2.8-test.mp4 --acc_th 0.98 --crops_folder /mnt/raid1/home/bar_cohen/DB_Crops/
+    --reid_opts DATASETS.DATASET inference_on_train_data MODEL.WEIGHTS ./fast-reid/checkpoints/scratch-id-by-day.pth
+
     """
-    call(['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
+    optional_args: List = create_optional_args()
+    script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
           args.track_config, args.reid_config, '--input', args.input, '--output', args.output, '--acc_th', args.acc_threshold,
-          '--reid_opts', 'DATASETS.DATASET', args.dataset])
+                   '--crops_folder', args.crops_folder, '--reid_opts']
+    script_args.extend(optional_args)
+    print(script_args)
+    call(script_args)
 
 
 def runner():
