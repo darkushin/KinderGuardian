@@ -63,17 +63,20 @@ def copy_imgs():
     query_folder = os.path.join(dataset_path, QUERY_SET)
     labeled_data_path = dataset_conf.get('LABELED_DATA')
 
-    train_days = dataset_conf.get('TRAIN').split(',')
-    for train_day in train_days:
-        copy_tree(os.path.join(labeled_data_path, train_day), train_folder)
+    if dataset_conf.get('TRAIN'):
+        train_days = dataset_conf.get('TRAIN').split(',')
+        for train_day in train_days:
+            copy_tree(os.path.join(labeled_data_path, train_day), train_folder)
 
-    test_days = dataset_conf.get('TEST').split(',')
-    for test_day in test_days:
-        copy_tree(os.path.join(labeled_data_path, test_day), test_folder)
+    if dataset_conf.get('TEST'):
+        test_days = dataset_conf.get('TEST').split(',')
+        for test_day in test_days:
+            copy_tree(os.path.join(labeled_data_path, test_day), test_folder)
 
-    query_days = dataset_conf.get('QUERY').split(',')
-    for query_day in query_days:
-        copy_tree(os.path.join(labeled_data_path, query_day), query_folder)
+    if dataset_conf.get('QUERY'):
+        query_days = dataset_conf.get('QUERY').split(',')
+        for query_day in query_days:
+            copy_tree(os.path.join(labeled_data_path, query_day), query_folder)
 
 
 if __name__ == '__main__':
