@@ -75,17 +75,20 @@ def viz_data_on_video(input_vid, pre_labeled_crops_path):
     from matplotlib import pyplot as plt
     for i,frame in enumerate(imgs):
         cur_crops = crop_dict_by_frame[i]
-        crops_bboxes = [crop.bbox for crop in cur_crops]
+        crops_bboxes = [np.append(crop.bbox, [1]) for crop in cur_crops]
         crops_labels = [crop.label for crop in cur_crops]
-        for c,l in zip(crops_bboxes, crops_labels):
-            x,y,h,w = np.array(c).astype(int)
-            print(c)
-            frame = cv2.rectangle(frame, (x, y), (x + w, y + h), (36, 255, 12), 1)
-            cv2.putText(frame, l, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36, 255, 12), 2)
-        plt.imshow(frame)
+        # for c,l in zip(crops_bboxes, crops_labels):
+        #     x,y,h,w = np.array(c).astype(int)
+        #     print(c)
+        #     frame = cv2.rectangle(frame, (x, y), (x + w, y + h), (36, 255, 12), 1)
+        #     cv2.putText(frame, l, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36, 255, 12), 2)
+        # plt.imshow(frame)
+        # plt.show()
+        # break
+        output_frames.append(plot_tracks(img=frame,bboxes=np.array(crops_bboxes), ids=np.array(crops_labels), labels=np.array(crops_labels)))
+        plt.imshow(output_frames[0])
         plt.show()
         break
-        # output_frames.append(plot_tracks(img=frame,bboxes=np.array(crops_bboxes), ids=np.array(crops_labels), labels=np.array(crops_labels)))
 
 def trim_video(input_path, output_path, limit):
     imgs = mmcv.VideoReader(input_path)
