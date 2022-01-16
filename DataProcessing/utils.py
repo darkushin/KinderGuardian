@@ -66,7 +66,7 @@ def viz_data_on_video(input_vid, output_path, pre_labeled_pkl_path=None,path_to_
         crops = []
         for file in os.listdir(path_to_crops):
             crop_path = os.path.join(path_to_crops, file)
-            # crops.append(create_Crop_from_str(crop_path)) # this exists in FaceDetect branch
+            # crops.append(create_Crop_from_str(crop_path)) # todo this exists in FaceDetect branch
     elif pre_labeled_pkl_path:
         assert os.path.isfile(pre_labeled_pkl_path) , "Path must be a CropDB file"
         crops = pickle.load(open(pre_labeled_pkl_path, 'rb'))
