@@ -48,7 +48,7 @@ def remove_images_from_dataset(path, pattern):
             os.remove(os.path.join(path, im))
 
 
-def viz_data_on_video(input_vid, output_path, pre_labeled_pkl_path):
+def viz_data_on_video(input_vid, output_path, pre_labeled_pkl_path=None,path_to_crops=None):
     """
     This func assumes that the input video has been run by the track and reid model data creator to
     create a pre-annoted set.
@@ -59,17 +59,23 @@ def viz_data_on_video(input_vid, output_path, pre_labeled_pkl_path):
     Returns:
 
     """
-    # crops = []
-    # for file in os.listdir(pre_labeled_crops_path):
-    #     crop_path = os.path.join(pre_labeled_crops_path, file)
-    #     crops.append(create_Crop_from_str(crop_path))
-    #
-    assert os.path.isfile(pre_labeled_pkl_path) , "Path must be a CropDB file"
-    crops = pickle.load(open(pre_labeled_pkl_path, 'rb'))
+    assert pre_labeled_pkl_path or path_to_crops , "You must enter either a pkl to cropsDB or the crops folder"
+    crops = None
+    if path_to_crops:
+        assert os.path.isdir(path_to_crops) , "Path must be a CropDB folder"
+        crops = []
+        for file in os.listdir(path_to_crops):
+            crop_path = os.path.join(path_to_crops, file)
+            # crops.append(create_Crop_from_str(crop_path)) # this exists in FaceDetect branch
+    elif pre_labeled_pkl_path:
+        assert os.path.isfile(pre_labeled_pkl_path) , "Path must be a CropDB file"
+        crops = pickle.load(open(pre_labeled_pkl_path, 'rb'))
+
     # create frame_to_crops dict
     crop_dict_by_frame = defaultdict(list)
     for crop in crops:
         crop_dict_by_frame[crop.frame_id].append(crop)
+
     imgs = mmcv.VideoReader(input_vid)
     temp_dir = tempfile.TemporaryDirectory()
     temp_path = temp_dir.name
