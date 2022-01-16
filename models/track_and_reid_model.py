@@ -155,8 +155,6 @@ def create_data_by_re_id_and_track():
     print('create tracklets')
     tracklets = defaultdict(list)
     for image_index, img in enumerate(imgs):
-        if image_index > 500:
-            break
         if isinstance(img, str):
             img = os.path.join(args.input, img)
         result = tracking_inference(tracking_model, img, image_index, acc_threshold=float(args.acc_th))

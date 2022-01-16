@@ -297,26 +297,34 @@ def labelencode(label_encoder_output,X,y ,classes_to_drop:list):
     return X, y_transformed, le
 
 def main_train():
+    """
+    This is an example of a training pipeline. Insert a raw images path or existing
+    faces data path to build a dataset and train a faceClassifer on it. Data will be saved
+    as well metrics for the training.
+    Returns:
+
+    """
     data_path = '/home/bar_cohen/KinderGuardian/FaceDetection/data/'
     fd = FaceDetector(raw_images_path='/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned',
-                      faces_data_path='C:\KinderGuardian\FaceDetection\imgs_with_face_highconf.pkl')
-    fd.filter_out_non_face_corps()
-    X,y = fd.create_X_y_faces()
-    X,y_transformed,le = labelencode(data_path, X,y,[17,19])
-    num_classes = len(np.unique(y_transformed))
-    print(num_classes)
-    fc = FaceClassifer(num_classes, le)
+                      faces_data_path='C:\KinderGuardian\FaceDetection\imgs_with_face_highconf.pkl') # init faceDetector
+    fd.filter_out_non_face_corps() # keeps only face-present images in data
+    X,y = fd.create_X_y_faces() # create an X,y dataset from filtered images
+    X,y_transformed,le = labelencode(data_path, X,y,[17,19]) # creates a label encoder and removes entered classes from dataset
+    num_classes = len(np.unique(y_transformed)) # num of unique classes
+    fc = FaceClassifer(num_classes, le)  # init faceClassifer
+    # loads an already train model to keep training it - uncomment if you want to train from scratch
     fc.model_ft.load_state_dict(torch.load('best_model3.pkl'))
     fc.model_ft.train() # this will train the model after loading weights
+    # creates and saves datasets based on the lines above,
+    # if you want to train based on exsisting data split, load it first
     dl_train,dl_val,dl_test = fc.create_data_loaders(X,y_transformed, data_path)
     print(len(dl_train) * dl_train.batch_size, len(dl_val) * dl_val.batch_size, len(dl_test) * dl_test.batch_size)
-    model, metrics = fc.train_model(dl_train, dl_val,num_epochs=1)
+    model, metrics = fc.train_model(dl_train, dl_val,num_epochs=1) # train the model
+    # run acc test on data splits
     test_accuracy_of_dataset(fc, dl_train, 'Train')
     test_accuracy_of_dataset(fc, dl_val, 'Val')
     test_accuracy_of_dataset(fc, dl_test, 'Test')
+    # save metrics for later lookup
     pickle.dump(metrics , open(os.path.join(data_path, 'best_new_metric_1.pkl'),'wb'))
+    # plot metrics results
     fc.plot_results(metrics)
-
-if __name__ == '__main__':
-    main_train()
-

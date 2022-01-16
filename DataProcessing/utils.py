@@ -49,29 +49,33 @@ def remove_images_from_dataset(path, pattern):
             os.remove(os.path.join(path, im))
 
 
-def read_labled_croped_images(file_dir) -> {}:
+def read_labeled_croped_images(file_dir, file_type='jpg') -> dict:
     """
-    used to load images from a folder, recursively.
+    used to load images from a folder, recursively and returns dict with mapping between
+    each image crop and it's id
     file-dir: dir to load images from
     return an ID to images dict.
     """
 
     # '/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned' cur path for labled data
 
-    assert os.path.isdir(file_dir) , 'Read labled data must get a valid dir path'
+    assert os.path.isdir(file_dir) , 'Read labeled data must get a valid dir path'
     imgs = defaultdict(list)
     print('reading imgs from dir...')
-    for img in tqdm(Path(file_dir).rglob('*.jpg')):
+    for img in tqdm(Path(file_dir).rglob(f'*.{file_type}')):
         img = str(img)
         if not os.path.isfile(img):
             continue
-        img_left_bracket = img.rfind('/')
-        img_id = img[img_left_bracket+1:img_left_bracket+5] # xxxx id format
+        im_path = os.path.split(img)[1]
+        img_id = im_path[:4] # xxxx id format
         imgs[img_id].append(imread(img))
     return imgs
 
 
 def trim_video(input_path, output_path, limit):
+    """
+    Given a path to a video and the number of frames that should be taken from it, trim the video to the first `limit` frames. Saves the output to the `output_path` location.
+    """
     imgs = mmcv.VideoReader(input_path)
     temp_dir = tempfile.TemporaryDirectory()
     temp_path = temp_dir.name

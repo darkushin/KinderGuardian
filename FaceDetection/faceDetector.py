@@ -3,7 +3,7 @@ from collections import defaultdict, Counter
 import seaborn as sns
 import pandas as pd
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
-from DataProcessing.utils import read_labled_croped_images
+from DataProcessing.utils import read_labeled_croped_images
 from FaceDetection.facenet_pytorch import MTCNN, InceptionResnetV1
 from matplotlib import pyplot as plt
 import torch
@@ -34,7 +34,7 @@ class FaceDetector():
             self.high_conf_face_imgs = pickle.load(open(self.faces_data_path,'rb'))
         else:
             assert self.raw_images_path , 'Pickle to existing face images not found, please input raw images path'
-            raw_imgs_dict = read_labled_croped_images(self.raw_images_path)
+            raw_imgs_dict = read_labeled_croped_images(self.raw_images_path)
 
             print('Number of unique ids', len(raw_imgs_dict.keys()))
             given_num_of_images = sum([len(raw_imgs_dict[i]) for i in raw_imgs_dict.keys()])
@@ -74,6 +74,7 @@ class FaceDetector():
         plt.show()
 
 def main():
+    """Simple test of FaceDetector"""
     fd = FaceDetector(raw_images_path='/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned',
                       faces_data_path='C:\KinderGuardian\FaceDetection\imgs_with_face_highconf.pkl')
     fd.filter_out_non_face_corps()
@@ -81,7 +82,3 @@ def main():
     print(len(X), len(y))
     fd.build_samples_hist(fd.high_conf_face_imgs, 'Face Images Hist')
     # fd.build_samples_hist(read_labled_croped_images(fd.raw_images_path), title='Raw Images Hist')
-
-if __name__ == '__main__':
-    main()
-    print('done')

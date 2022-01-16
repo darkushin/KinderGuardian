@@ -35,7 +35,6 @@ class Crop:
         self.update_hash() # update unique_hash
 
     def update_hash(self):
-         # save format - f'video_name:{self.video_name[9:]}_track_id:{self.track_id}_cam_id:{self.cam_id}_frame_id:{self.frame_id}_crop_id:{self.crop_id}_label:{self.label}'
         self.unique_crop_name = f'{self.label}_v{self.video_name[9:]}_f{self.frame_id}_b{str(self.bbox)}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
 
     def save_crop(self, datapath):
@@ -49,14 +48,15 @@ class Crop:
 
 def create_Crop_from_str(img_path):
     # self.unique_crop_name = f'{self.label}_v{self.video_name[9:]}_f{self.frame_id}_b{str(self.bbox)}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
-    splitted = img_path.split('_')
+    splitted = img_path.split('.')[0]
+    splitted = splitted.split('_')
     label = splitted[0]
     video_name = splitted[1][1:]
     frame_id = splitted[2][1:]
     bbox = list(splitted[3][1:])
     track_id = splitted[4][1:]
     cam = splitted[5][1:]
-    cid = splitted[6][1:]
+    cid = splitted[6][3:]
     crop_obj = Crop(frame_id=frame_id,bbox=bbox,crop_img=None,face_img=None,
                 track_id=track_id,cam_id=cam,crop_id=cid, video_name=video_name)
     crop_obj.set_label(label)
