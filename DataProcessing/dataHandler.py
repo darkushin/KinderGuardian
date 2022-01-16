@@ -35,6 +35,7 @@ class Crop:
         self.update_hash() # update unique_hash
 
     def update_hash(self):
+         # save format - f'video_name:{self.video_name[9:]}_track_id:{self.track_id}_cam_id:{self.cam_id}_frame_id:{self.frame_id}_crop_id:{self.crop_id}_label:{self.label}'
         self.unique_crop_name = f'{self.label}_v{self.video_name[9:]}_f{self.frame_id}_b{str(self.bbox)}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
 
     def save_crop(self, datapath):
@@ -47,7 +48,11 @@ class Crop:
         return self.face_img is not None and self.face_img is not self.face_img.numel()
 
 def create_Crop_from_str(img_path):
-    # self.unique_crop_name = f'{self.label}_v{self.video_name[9:]}_f{self.frame_id}_b{str(self.bbox)}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
+    """
+    Given a labeled image name, convert the name to a Crop object.
+    The name of the file needs to fit the following convention:
+    '{self.label}_v{self.video_name[9:]}_f{self.frame_id}_b{str(self.bbox)}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
+    """
     splitted = img_path.split('.')[0]
     splitted = splitted.split('_')
     label = splitted[0]
