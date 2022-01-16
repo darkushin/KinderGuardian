@@ -174,7 +174,7 @@ def create_data_by_re_id_and_track():
                             face_img=face_img,
                             track_id=id,
                             cam_id=1,
-                            crop_id=-1 ) # todo maybe this is an outcome of frame_id + track_id)
+                            crop_id=-1)
             tracklets[id].append(crop_obj)
 
     print('make prediction and save crop')

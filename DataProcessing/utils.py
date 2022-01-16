@@ -9,6 +9,8 @@ import numpy as np
 from mmtrack.core.utils.visualization import _cv2_show_tracks as plot_tracks
 import mmcv
 
+from DataProcessing.dataHandler import create_Crop_from_str
+
 """
 This folder holds functions that can be useful for data handling, such as renaming images etc.
 """
@@ -109,7 +111,9 @@ def viz_data_on_video(input_vid, output_path, pre_labeled_pkl_path=None,path_to_
         crops = []
         for file in os.listdir(path_to_crops):
             crop_path = os.path.join(path_to_crops, file)
-            # crops.append(create_Crop_from_str(crop_path)) # todo this exists in FaceDetect branch
+            _ , extention = os.path.splitext(crop_path)
+            if os.path.split(crop_path)[-1][0] != 'Face' and extention in ['.jpg', '.png']: # skip face crops for viz
+                crops.append(create_Crop_from_str(crop_path))
     elif pre_labeled_pkl_path:
         assert os.path.isfile(pre_labeled_pkl_path) , "Path must be a CropDB file"
         crops = pickle.load(open(pre_labeled_pkl_path, 'rb'))
@@ -120,9 +124,11 @@ def viz_data_on_video(input_vid, output_path, pre_labeled_pkl_path=None,path_to_
         crop_dict_by_frame[crop.frame_id].append(crop)
 
     imgs = mmcv.VideoReader(input_vid)
+    assert len(imgs) == len(crop_dict_by_frame.keys()) , "Must have as many cropped_frames as crops"
     temp_dir = tempfile.TemporaryDirectory()
     temp_path = temp_dir.name
     fps = int(imgs.fps)
+
     for i,frame in enumerate(imgs):
         cur_crops = crop_dict_by_frame[i]
         crops_bboxes = [np.append(crop.bbox, [1]) for crop in cur_crops] ## adding 1 for keeping up with plot requirements
@@ -133,7 +139,8 @@ def viz_data_on_video(input_vid, output_path, pre_labeled_pkl_path=None,path_to_
     temp_dir.cleanup()
 
 if __name__ == '__main__':
-    rename_folders = ['third-query-2.8_test-4.8/bounding_box_train']
-    for folder in rename_folders:
-        remove_images_from_dataset(f'/home/bar_cohen/KinderGuardian/fast-reid/datasets/{folder}', 'f03')
-
+    # viz_data_on_video(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
+    #                   output_path="/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_labled1.mp4",
+    #                   pre_labeled_pkl_path='/mnt/raid1/home/bar_cohen/DB_Crops/_crop_db.pkl')
+                      # path_to_crops="/mnt/raid1/home/bar_cohen/DB_Crops/")
+    pass
