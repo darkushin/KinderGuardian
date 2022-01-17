@@ -124,23 +124,27 @@ def viz_data_on_video(input_vid, output_path, pre_labeled_pkl_path=None,path_to_
         crop_dict_by_frame[crop.frame_id].append(crop)
 
     imgs = mmcv.VideoReader(input_vid)
-    assert len(imgs) == len(crop_dict_by_frame.keys()) , "Must have as many cropped_frames as crops"
     temp_dir = tempfile.TemporaryDirectory()
     temp_path = temp_dir.name
     fps = int(imgs.fps)
 
     for i,frame in enumerate(imgs):
-        cur_crops = crop_dict_by_frame[i]
-        crops_bboxes = [np.append(crop.bbox, [1]) for crop in cur_crops] ## adding 1 for keeping up with plot requirements
-        crops_labels = [crop.label for crop in cur_crops]
-        cur_img = plot_tracks(img=frame,bboxes=np.array(crops_bboxes), ids=np.array(crops_labels), labels=np.array(crops_labels))
-        mmcv.imwrite(cur_img, f'{temp_path}/{i:03d}.png')
+        cur_crops = crop_dict_by_frame.get(i)
+        if cur_crops:
+            # at least single crop was found in frame
+            crops_bboxes = [np.append(crop.bbox, [1]) for crop in cur_crops] ## adding 1 for keeping up with plot requirements
+            crops_labels = [crop.label for crop in cur_crops]
+            cur_img = plot_tracks(img=frame,bboxes=np.array(crops_bboxes), ids=np.array(crops_labels), labels=np.array(crops_labels))
+            mmcv.imwrite(cur_img, f'{temp_path}/{i:03d}.png')
+        else:
+            # no crops detected, write the original frame
+            mmcv.imwrite(frame, f'{temp_path}/{i:03d}.png')
+
     mmcv.frames2video(temp_path, output_path, fps=fps, fourcc='mp4v', filename_tmpl='{:03d}.png')
     temp_dir.cleanup()
 
 if __name__ == '__main__':
-    # viz_data_on_video(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
-    #                   output_path="/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_labled1.mp4",
-    #                   pre_labeled_pkl_path='/mnt/raid1/home/bar_cohen/DB_Crops/_crop_db.pkl')
+    viz_data_on_video(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
+                      output_path="/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_labled1.mp4",
+                      pre_labeled_pkl_path='/mnt/raid1/home/bar_cohen/DB_Crops/_crop_db.pkl')
                       # path_to_crops="/mnt/raid1/home/bar_cohen/DB_Crops/")
-    pass

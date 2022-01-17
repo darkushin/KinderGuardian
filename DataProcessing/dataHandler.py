@@ -31,7 +31,7 @@ class Crop:
         self.label = None
         self.unique_crop_name = None
         self.update_hash()
-        self.is_face = None
+        self.is_face = False
 
     def set_label(self, label):
         self.label = label
@@ -39,8 +39,7 @@ class Crop:
 
     def update_hash(self):
          # save format - f'video_name:{self.video_name[9:]}_track_id:{self.track_id}_cam_id:{self.cam_id}_frame_id:{self.frame_id}_crop_id:{self.crop_id}_label:{self.label}'
-        bbox_as_list = str(list(self.bbox))
-        self.unique_crop_name = f'{self.label}_v{self.video_name[8:]}_f{self.frame_id}_b{bbox_as_list}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
+        self.unique_crop_name = f'{self.label}_v{self.video_name[8:]}_f{self.frame_id}_b{str(list(self.bbox))}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
 
     def save_crop(self, datapath):
         mmcv.imwrite(self.crop_img, os.path.join(datapath, f'{self.unique_crop_name}.png'))
