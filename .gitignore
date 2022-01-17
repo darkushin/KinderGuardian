@@ -6,3 +6,7 @@ fast-reid/checkpoints
 Results/
 Videos/
 logs/
+FaceDetection/data
+FaceDetection/facenet-pytorch
+FaceDetection/facenet_pytorch
+FaceDetection/checkpoints
