@@ -12,6 +12,8 @@ from mmcv.runner import init_dist
 from mmdet.apis import set_random_seed
 
 from mmtrack import __version__
+from mmtrack.apis import init_random_seed
+from mmtrack.core import setup_multi_processes
 from mmtrack.datasets import build_dataset
 from mmtrack.utils import collect_env, get_root_logger
 
@@ -82,6 +84,10 @@ def main():
         from mmtrack.models import build_model
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
+
+    # set multi-process settings
+    setup_multi_processes(cfg)
+
     # set cudnn_benchmark
     if cfg.get('cudnn_benchmark', False):
         torch.backends.cudnn.benchmark = True
@@ -132,13 +138,19 @@ def main():
     logger.info(f'Distributed training: {distributed}')
     logger.info(f'Config:\n{cfg.pretty_text}')
 
-    # set random seeds
+    # set random seeds. Force setting fixed seed and deterministic=True in SOT
+    # configs
     if args.seed is not None:
-        logger.info(f'Set random seed to {args.seed}, '
-                    f'deterministic: {args.deterministic}')
-        set_random_seed(args.seed, deterministic=args.deterministic)
-    cfg.seed = args.seed
-    meta['seed'] = args.seed
+        cfg.seed = args.seed
+    elif cfg.get('seed', None) is None:
+        cfg.seed = init_random_seed()
+
+    deterministic = True if args.deterministic else cfg.get(
+        'deterministic', False)
+    logger.info(f'Set random seed to {cfg.seed}, '
+                f'deterministic: {deterministic}')
+    set_random_seed(cfg.seed, deterministic=deterministic)
+    meta['seed'] = cfg.seed
 
     if cfg.get('train_cfg', False):
         model = build_model(

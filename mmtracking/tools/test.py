@@ -13,6 +13,7 @@ from mmcv.runner import (get_dist_info, init_dist, load_checkpoint,
                          wrap_fp16_model)
 from mmdet.apis import set_random_seed
 
+from mmtrack.core import setup_multi_processes
 from mmtrack.datasets import build_dataset
 
 
@@ -111,7 +112,16 @@ def main():
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
 
-    set_random_seed(1, deterministic=True)
+    # set multi-process settings
+    setup_multi_processes(cfg)
+
+    # set random seeds. Force setting fixed seed and deterministic=True in SOT
+    # configs
+    if cfg.get('cudnn_benchmark', False):
+        torch.backends.cudnn.benchmark = True
+    if cfg.get('seed', None) is not None:
+        set_random_seed(
+            cfg.seed, deterministic=cfg.get('deterministic', False))
     cfg.data.test.test_mode = True
 
     # init distributed env first, since logger depends on the dist info.

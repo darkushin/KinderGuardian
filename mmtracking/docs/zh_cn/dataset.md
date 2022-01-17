@@ -1,60 +1,61 @@
-## Dataset Preparation
+## 数据集准备
 
-This page provides the instructions for dataset preparation on existing benchmarks, include
+本页提供关于现有基准测试的数据集准备的说明，包括：
 
-- Video Object Detection
+- 视频目标检测
   - [ILSVRC](http://image-net.org/challenges/LSVRC/2017/)
-- Multiple Object Tracking
+- 多目标跟踪
   - [MOT Challenge](https://motchallenge.net/)
-- Single Object Tracking
+  - [CrowdHuman](https://www.crowdhuman.org/)
+- 单目标跟踪
   - [LaSOT](http://vision.cs.stonybrook.edu/~lasot/)
   - [UAV123](https://cemse.kaust.edu.sa/ivul/uav123/)
   - [TrackingNet](https://tracking-net.org/)
   - [OTB100](http://www.visual-tracking.net/)
   - [GOT10k](http://got-10k.aitestunion.com/)
   - [VOT2018](https://www.votchallenge.net/vot2018/)
-- Video Instance Segmentation
+- 视频实例分割
   - [YouTube-VIS](https://youtube-vos.org/dataset/vis/)
 
-### 1. Download Datasets
+### 1. 下载数据集
 
-Please download the datasets from the official websites. It is recommended to symlink the root of the datasets to `$MMTRACKING/data`.
+请从官方网站下载数据集。建议将数据集的根目录符号链接到 `$MMTRACKING/data`。
 
-#### 1.1 Video Object Detection
+#### 1.1 视频目标检测
 
-- For the training and testing of video object detection task, only ILSVRC dataset is needed.
+- 对于视频目标检测任务的训练和测试，只需要 ILSVRC 数据集。
 
-- The `Lists` under `ILSVRC` contains the txt files from [here](https://github.com/msracver/Flow-Guided-Feature-Aggregation/tree/master/data/ILSVRC2015/ImageSets).
+- `ILSVRC` 下的 `Lists` 包含来自在[这里](https://github.com/msracver/Flow-Guided-Feature-Aggregation/tree/master/data/ILSVRC2015/ImageSets)的 txt 文件。
 
-#### 1.2 Multiple Object Tracking
+#### 1.2 多目标跟踪
 
-- For the training and testing of multi object tracking task, only one of the MOT Challenge datasets (e.g. MOT17) is needed.
+- 对于多目标跟踪任务的训练和测试，需要 MOT Challenge 中的任意一个数据集（比如 MOT17）， CrowdHuman 可以作为补充数据。
 
-#### 1.3 Single Object Tracking
+#### 1.3 单目标跟踪
 
-- For the training and testing of single object tracking task, the MSCOCO, ILSVRC, LaSOT, UAV123, TrackingNet, OTB100, GOT10k and VOT2018 datasets are needed.
+- 对于单目标跟踪任务的训练和测试，需要 MSCOCO， ILSVRC, LaSOT, UAV123, TrackingNet, OTB100 和 GOT10k 数据集。
 
-- For OTB100 dataset, you don't need to download the dataset from the official website manually, since we provide a script to download it.
+- 对于 OTB100 数据集，你不必要手工地从官网下载数据。我们提供了下载脚本。
 
 ```shell
-# download OTB100 dataset by web crawling
+# 通过网页爬虫下载 OTB100 数据集
 python ./tools/convert_datasets/otb100/download_otb100.py -o ./data/otb100/zips -p 8
 ```
 
-- For VOT2018, we use the official downloading script.
+- 对于 VOT2018, 我们使用官方的下载脚本。
 
 ```shell
-# download VOT2018 dataset by web crawling
+# 通过网页爬虫下载 VOT2018 数据集
 python ./tools/convert_datasets/vot/download_vot.py --dataset vot2018 --save_path ./data/vot2018/data
 ```
 
-#### 1.4 Video Instance Segmentation
+#### 1.4 视频实例分割
 
-- For the training and testing of video instance segmetatioon task, only one of YouTube-VIS datasets (e.g. YouTube-VIS 2019) is needed.
+- 对于视频实例分割任务的训练和测试，只需要 YouTube-VIS 中的任意一个数据集（比如 YouTube-VIS 2019）。
 
-#### 1.5 Data Structure
+#### 1.5 数据集文件夹结构
 
-If your folder structure is different from the following, you may need to change the corresponding paths in config files.
+如果您的文件夹结构与以下不同，您可能需要更改配置文件中的相应路径。
 
 ```
 mmtracking
@@ -90,6 +91,18 @@ mmtracking
 |   ├── MOT15/MOT16/MOT17/MOT20
 |   |   ├── train
 |   |   ├── test
+│   │
+│   ├── crowdhuman
+│   │   ├── annotation_train.odgt
+│   │   ├── annotation_val.odgt
+│   │   ├── train
+│   │   │   ├── Images
+│   │   │   ├── CrowdHuman_train01.zip
+│   │   │   ├── CrowdHuman_train02.zip
+│   │   │   ├── CrowdHuman_train03.zip
+│   │   ├── val
+│   │   │   ├── Images
+│   │   │   ├── CrowdHuman_val.zip
 │   │
 │   ├── lasot
 │   │   ├── LaSOTBenchmark
@@ -164,10 +177,11 @@ mmtracking
 │   │   │   │── ......
 ```
 
-### 2. Convert Annotations
+### 2. 转换标注格式
 
-We use [CocoVID](https://github.com/open-mmlab/mmtracking/blob/master/mmtrack/datasets/parsers/coco_video_parser.py) to maintain all datasets in this codebase.
-In this case, you need to convert the official annotations to this style. We provide scripts and the usages are as following:
+我们使用 [CocoVID](https://github.com/open-mmlab/mmtracking/blob/master/mmtrack/datasets/parsers/coco_video_parser.py) 来维护代码库中所有的数据集。
+
+基于此，您需要将官方的标注转换为此种格式。我们提供的脚本以及用法如下：
 
 ```shell
 # ImageNet DET
@@ -177,9 +191,12 @@ python ./tools/convert_datasets/ilsvrc/imagenet2coco_det.py -i ./data/ILSVRC -o 
 python ./tools/convert_datasets/ilsvrc/imagenet2coco_vid.py -i ./data/ILSVRC -o ./data/ILSVRC/annotations
 
 # MOT17
-# The processing of other MOT Challenge dataset is the same as MOT17
+# MOT Challenge中其余数据集的处理与MOT17相同
 python ./tools/convert_datasets/mot/mot2coco.py -i ./data/MOT17/ -o ./data/MOT17/annotations --split-train --convert-det
 python ./tools/convert_datasets/mot/mot2reid.py -i ./data/MOT17/ -o ./data/MOT17/reid --val-split 0.2 --vis-threshold 0.3
+
+# CrowdHuman
+python ./tools/convert_datasets/mot/crowdhuman2coco.py -i ./data/crowdhuman -o ./data/crowdhuman/annotations
 
 # LaSOT
 python ./tools/convert_datasets/lasot/lasot2coco.py -i ./data/lasot/LaSOTBenchmark -o ./data/lasot/annotations
@@ -188,21 +205,21 @@ python ./tools/convert_datasets/lasot/lasot2coco.py -i ./data/lasot/LaSOTBenchma
 python ./tools/convert_datasets/uav123/uav2coco.py -i ./data/UAV123/ -o ./data/UAV123/annotations
 
 # TrackingNet
-# unzip files in 'data/trackingnet/*.zip'
+# 解压目录 'data/trackingnet/' 下的所有 '*.zip' 文件
 bash ./tools/convert_datasets/trackingnet/unzip_trackingnet.sh ./data/trackingnet
-# generate annotations
+# 生成标注
 python ./tools/convert_datasets/trackingnet/trackingnet2coco.py -i ./data/trackingnet -o ./data/trackingnet/annotations
 
 # OTB100
-# unzip files in 'data/otb100/zips/*.zip'
+# 解压目录 'data/otb100/zips' 下的所有 '*.zip' 文件
 bash ./tools/convert_datasets/otb100/unzip_otb100.sh ./data/otb100
-# generate annotations
-python ./tools/convert_datasets/otb100/otb2coco.py -i ./data/otb100/data -o ./data/otb100/annotations
+# 生成标注
+python ./tools/convert_datasets/otb100/otb2coco.py -i ./data/otb100 -o ./data/otb100/annotations
 
 # GOT10k
-# unzip 'data/got10k/full_data/test_data.zip', 'data/got10k/full_data/val_data.zip' and files in 'data/got10k/full_data/train_data/*.zip'
+# 解压 'data/got10k/full_data/test_data.zip', 'data/got10k/full_data/val_data.zip' 和 目录'data/got10k/full_data/train_data/' 下的所有 '*.zip' 文件
 bash ./tools/convert_datasets/got10k/unzip_got10k.sh ./data/got10k
-# generate annotations
+# 生成标注
 python ./tools/convert_datasets/got10k/got10k2coco.py -i ./data/got10k -o ./data/got10k/annotations
 
 # VOT2018
@@ -215,7 +232,7 @@ python ./tools/convert_datasets/youtubevis/youtubevis2coco.py -i ./data/youtube_
 python ./tools/convert_datasets/youtubevis/youtubevis2coco.py -i ./data/youtube_vis_2021 -o ./data/youtube_vis_2021/annotations --version 2021
 ```
 
-The folder structure will be as following after your run these scripts:
+完成以上格式转换后，文件目录结构如下：
 
 ```
 mmtracking
@@ -256,6 +273,21 @@ mmtracking
 |   |   ├── reid
 │   │   │   ├── imgs
 │   │   │   ├── meta
+│   │
+│   ├── crowdhuman
+│   │   ├── annotation_train.odgt
+│   │   ├── annotation_val.odgt
+│   │   ├── train
+│   │   │   ├── Images
+│   │   │   ├── CrowdHuman_train01.zip
+│   │   │   ├── CrowdHuman_train02.zip
+│   │   │   ├── CrowdHuman_train03.zip
+│   │   ├── val
+│   │   │   ├── Images
+│   │   │   ├── CrowdHuman_val.zip
+│   │   ├── annotations
+│   │   │   ├── crowdhuman_train.json
+│   │   │   ├── crowdhuman_val.json
 │   │
 │   ├── lasot
 │   │   ├── LaSOTBenchmark
@@ -370,121 +402,133 @@ mmtracking
 │   │   │── annotations (the converted annotation file)
 ```
 
-#### The folder of annotations in ILSVRC
+#### ILSVRC 的标注文件夹
 
-There are 3 json files in `data/ILSVRC/annotations`:
+在`data/ILSVRC/annotations`中有 3 个 JSON 文件:
 
-`imagenet_det_30plus1cls.json`: Json file containing the annotations information of the training set in ImageNet DET dataset. The `30` in `30plus1cls` denotes the overlapped 30 categories in ImageNet VID dataset, and the `1cls` means we take the other 170 categories in ImageNet DET dataset as a category, named as `other_categeries`.
+`imagenet_det_30plus1cls.json`: 包含 ImageNet DET 训练集标注信息的json文件。`30plus1cls` 中的 `30` 表示本数据集与 ImageNet VID 数据集重合的30类，`1cls` 表示我们将 ImageNet Det 数据集中的其余170类作为一类，
+并命名为 `other_categeries`。
 
-`imagenet_vid_train.json`: Json file containing the annotations information of the training set in ImageNet VID dataset.
+`imagenet_vid_train.json`: 包含 ImageNet VID 训练集标注信息的 JSON 文件。
 
-`imagenet_vid_val.json`: Json file containing the annotations information of the validation set in ImageNet VID dataset.
+`imagenet_vid_val.json`: 包含 ImageNet VID 验证集标注信息的 JSON 文件。
 
-#### The folder of annotations and reid in MOT15/MOT16/MOT17/MOT20
+#### MOT15/MOT16/MOT17/MOT20 的标注和 reid 文件夹
 
-We take MOT17 dataset as examples, the other datasets share similar structure.
+我们以MOT17为例，其余数据集结构相似。
 
-There are 8 json files in `data/MOT17/annotations`:
+在 `data/MOT17/annotations` 中有 8 个 JSON 文件:
 
-`train_cocoformat.json`: Json file containing the annotations information of the training set in MOT17 dataset.
+`train_cocoformat.json`: 包含 MOT17 训练集标注信息的 JSON 文件。
 
-`train_detections.pkl`: Pickle file containing the public detections of the training set in MOT17 dataset.
+`train_detections.pkl`: 包含 MOT17 训练集公共检测结果信息的 pickle 文件。
 
-`test_cocoformat.json`: Json file containing the annotations information of the testing set in MOT17 dataset.
+`test_cocoformat.json`: 包含 MOT17 测试集标注信息的 JSON 文件。
 
-`test_detections.pkl`: Pickle file containing the public detections of the testing set in MOT17 dataset.
+`test_detections.pkl`: 包含 MOT17 测试集公共检测结果信息的 pickle 文件。
 
-`half-train_cocoformat.json`, `half-train_detections.pkl`, `half-val_cocoformat.json`and `half-val_detections.pkl` share similar meaning with `train_cocoformat.json` and `train_detections.pkl`. The `half` means we split each video in the training set into half. The first half videos are denoted as `half-train` set, and the second half videos are denoted as`half-val` set.
+`half-train_cocoformat.json`, `half-train_detections.pkl`, `half-val_cocoformat.json` 以及 `half-val_detections.pkl` 具有和 `train_cocoformat.json`、`train_detections.pkl` 相似的含义。 `half` 意味着我们将训练集中的每个视频分成两半。 前一半标记为 `half-train`, 后一半标记为 `half-val`。
 
-The structure of `data/MOT17/reid` is as follows:
+`data/MOT17/reid` 的目录结构如下:
 
 ```
+
 reid
 ├── imgs
 │   ├── MOT17-02-FRCNN_000002
 │   │   ├── 000000.jpg
 │   │   ├── 000001.jpg
-│   │   ├── ...
+│   │   ├── ......
 │   ├── MOT17-02-FRCNN_000003
 │   │   ├── 000000.jpg
 │   │   ├── 000001.jpg
-│   │   ├── ...
+│   │   ├── ......
 ├── meta
 │   ├── train_80.txt
 │   ├── val_20.txt
-```
-
-The `80` in `train_80.txt` means the proportion of the training dataset to the whole ReID dataset is 80%. While the proportion of the validation dataset is 20%.
-
-For training, we provide a annotation list `train_80.txt`. Each line of the list contains a filename and its corresponding ground-truth labels. The format is as follows:
 
 ```
+
+`train_80.txt` 中的 `80` 意味着将全部 ReID 数据集的80%作为训练集，剩余的20%作为验证集。
+
+训练集标注 `train_80.txt` 中每一行包含一个文件名和其对应的图片物体真实标签。格式如下：
+
+```
+
 MOT17-05-FRCNN_000110/000018.jpg 0
 MOT17-13-FRCNN_000146/000014.jpg 1
 MOT17-05-FRCNN_000088/000004.jpg 2
 MOT17-02-FRCNN_000009/000081.jpg 3
+
 ```
 
-`MOT17-05-FRCNN_000110` denotes the 110-th person in `MOT17-05-FRCNN` video.
+`MOT17-05-FRCNN_000110` 表示 `MOT17-05-FRCNN` 视频中的第110个人。
 
-For validation, The annotation list `val_20.txt` remains the same as format above.
+验证集标注 `val_20.txt` 的结构和上面类似。
 
-Images in `reid/imgs` are cropped from raw images in `MOT17/train` by the corresponding `gt.txt`. The value of ground-truth labels should fall in range `[0, num_classes - 1]`.
+`reid/imgs` 中的图片是从 `MOT17/train` 中原始图片根据对应的 `gt.txt` 裁剪得到。真实类别标签值在 `[0, num_classes - 1]` 范围内。
 
-#### The folder of annotations in lasot
+#### crowdhuman 的标注文件夹
 
-There are 2 json files in `data/lasot/annotations`:
+在 `data/crowdhuman/annotations` 中有 2 个 JSON 文件:
 
-`lasot_train.json`:  Json file containing the annotations information of the training set in LaSOT dataset.
-`lasot_test.json`:  Json file containing the annotations information of the testing set in LaSOT dataset.
+`crowdhuman_train.json`:  包含 CrowdHuman 训练集标注信息的 JSON 文件。
+`crowdhuman_val.json`:  包含 CrowdHuman 验证集标注信息的 JSON 文件。
 
-#### The folder of annotations in UAV123
+#### lasot 的标注文件夹
 
-There are only 1 json files in `data/UAV123/annotations`:
+在 `data/lasot/annotations` 中有 2 个 JSON 文件:
 
-`uav123.json`:  Json file containing the annotations information of the UAV123 dataset.
+`lasot_train.json`:  包含 LaSOT 训练集标注信息的 JSON 文件。
+`lasot_test.json`:  包含 LaSOT 测试集标注信息的 JSON 文件。
 
-#### The folder of frames and annotations in TrackingNet
+#### UAV123 的标注文件夹
 
-There are 511 video directories of TrackingNet testset in `data/trackingnet/TEST/frames`, and each video directory contains all images of the video. Similar file structures can be seen in `data/trackingnet/TRAIN_{*}/frames`.
+在 `data/UAV123/annotations` 中只有 1 个 JSON 文件:
 
-There are 2 json files in `data/trackingnet/annotations`:
+`uav123.json`: 包含 UAV123 数据集标注信息的 JSON 文件。
 
-`trackingnet_test.json`:  Json file containing the annotations information of the testing set in TrackingNet dataset.
-`trackingnet_train.json`:  Json file containing the annotations information of the training set in TrackingNet dataset.
+#### TrackingNet 的标注和视频帧文件夹
 
-#### The folder of data and annotations in OTB100
+在 `data/trackingnet/TEST/frames` 文件夹下有 TrackingNet 测试集的 511 个视频目录， 每个视频目录下面包含该视频所有图片。`data/trackingnet/TRAIN_{*}/frames` 下具有类似的文件目录结构。
 
-There are 98 video directories of OTB100 dataset in `data/otb100/data`, and the `img` folder under each video directory contains all images of the video.
+在 `data/trackingnet/annotations` 中有 2 个 JSON 文件：
 
-There are only 1 json files in `data/otb100/annotations`:
+`trackingnet_train.json`： 包含 TrackingNet 训练集标注信息的 JSON 文件。
+`trackingnet_test.json`： 包含 TrackingNet 测试集标注信息的 JSON 文件。
 
-`otb100.json`:  Json file containing the annotations information of the OTB100 dataset.
+#### OTB100 的标注和视频帧文件夹
 
-#### The folder of frames and annotations in GOT10k
+在 `data/otb100/data` 文件夹下有 OTB100 数据集的 98 个视频目录， 每个视频目录下的 `img` 文件夹包含该视频所有图片。
 
-There are training video directories in `data/got10k/train`, and each video directory contains all images of the video. Similar file structures can be seen in `data/got10k/test` and `data/got10k/val`.
+在 `data/otb100/data/annotations` 中只有 1 个 JSON 文件：
 
-There are 3 json files in `data/got10k/annotations`:
+`otb100.json`： 包含 OTB100 数据集标注信息的 JSON 文件
 
-`got10k_train.json`:  Json file containing the annotations information of the training set in GOT10k dataset.
-`got10k_test.json`:  Json file containing the annotations information of the testing set in GOT10k dataset.
-`got10k_val.json`:  Json file containing the annotations information of the valuation set in GOT10k dataset.
+#### GOT10k 的标注和视频帧文件夹
 
-#### The folder of data and annotations in VOT2018
+在 `data/got10k/train` 文件夹下有 GOT10k 训练集的视频目录， 每个视频目录下面包含该视频所有图片。`data/got10k/test` 和 `data/got10k/val` 下具有类似的文件目录结构。
 
-There are 60 video directories of VOT2018 dataset in `data/vot2018/data`, and the `color` folder under each video directory contains all images of the video.
+在 `data/got10k/annotations` 中有 3 个 JSON 文件：
 
-There are only 1 json files in `data/vot2018/annotations`:
+`got10k_train.json`： 包含 GOT10k 训练集标注信息的 JSON 文件。
+`got10k_test.json`： 包含 GOT10k 测试集标注信息的 JSON 文件。
+`got10k_val.json`： 包含 GOT10k 验证集标注信息的 JSON 文件。
 
-`vot2018.json`:  Json file containing the annotations information of the VOT2018 dataset.
+#### VOT2018的标注和视频帧文件夹
 
-#### The folder of annotations in youtube_vis_2019/youtube_vis2021
+在 `data/vot2018/data` 文件夹下有 VOT2018 数据集的 60 个视频目录， 每个视频目录下的 `color` 文件夹包含该视频所有图片。
 
-There are 3 json files in `data/youtube_vis_2019/annotations` or `data/youtube_vis_2021/annotations`:
+在 `data/vot2018/data/annotations` 中只有一个 JSON 文件：
 
-`youtube_vis_2019_train.json`/`youtube_vis_2021_train.json`: Json file containing the annotations information of the training set in youtube_vis_2019/youtube_vis2021 dataset.
+`vot2018.json`： 包含 VOT2018 数据集标注信息的 JSON 文件。
 
-`youtube_vis_2019_valid.json`/`youtube_vis_2021_valid.json`: Json file containing the annotations information of the validation set in youtube_vis_2019/youtube_vis2021 dataset.
+#### youtube_vis_2019/youtube_vis2021 的标注文件夹
 
-`youtube_vis_2019_test.json`/`youtube_vis_2021_test.json`: Json file containing the annotations information of the testing set in youtube_vis_2019/youtube_vis2021 dataset.
+在 `data/youtube_vis_2019/annotations` 或者 `data/youtube_vis_2021/annotations` 下有 3 个 JSON 文件：
+
+`youtube_vis_2019_train.json`/`youtube_vis_2021_train.json`: 包含着 youtube_vis_2019/youtube_vis2021 训练集注释信息的 JSON 文件。
+
+`youtube_vis_2019_valid.json`/`youtube_vis_2021_valid.json`: 包含着 youtube_vis_2019/youtube_vis2021 验证集注释信息的 JSON 文件。
+
+`youtube_vis_2019_test.json`/`youtube_vis_2021_test.json`: 包含着 youtube_vis_2019/youtube_vis2021 测试集注释信息的 JSON 文件。

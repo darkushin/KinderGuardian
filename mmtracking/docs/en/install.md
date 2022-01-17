@@ -12,10 +12,11 @@ The compatible MMTracking, MMCV, and MMDetection versions are as below. Please i
 
 |  MMTracking version |       MMCV version       |      MMDetection version      |
 |:-------------------:|:------------------------:|:-----------------------------:|
-|        master       | mmcv-full>=1.3.8, <1.4.0 |       MMDetection>=2.14.0      |
-|        0.6.0        | mmcv-full>=1.3.8, <1.4.0 |       MMDetection>=2.14.0     |
-|        0.7.0        | mmcv-full>=1.3.8, <1.4.0 |       MMDetection>=2.14.0     |
+|        master       | mmcv-full>=1.3.17, <1.5.0 |       MMDetection>=2.19.1     |
+|        0.9.0        | mmcv-full>=1.3.17, <1.5.0 |       MMDetection>=2.19.1     |
 |        0.8.0        | mmcv-full>=1.3.8, <1.4.0 |       MMDetection>=2.14.0     |
+|        0.7.0        | mmcv-full>=1.3.8, <1.4.0 |       MMDetection>=2.14.0     |
+|        0.6.0        | mmcv-full>=1.3.8, <1.4.0 |       MMDetection>=2.14.0     |
 
 ## Installation
 
@@ -68,12 +69,6 @@ The compatible MMTracking, MMCV, and MMDetection versions are as below. Please i
     cd mmcv
     MMCV_WITH_OPS=1 pip install -e .  # package mmcv-full will be installed after this step
     cd ..
-    ```
-
-    Or directly run
-
-    ```shell
-    pip install mmcv-full
     ```
 
 4. Install MMDetection
@@ -160,5 +155,5 @@ To verify whether MMTracking and the required environment are installed correctl
 For example, run MOT demo and you will see a output video named `mot.mp4`:
 
 ```shell
-python demo/demo_mot.py configs/mot/deepsort/sort_faster-rcnn_fpn_4e_mot17-private.py --input demo/demo.mp4 --output mot.mp4
+python demo/demo_mot_vis.py configs/mot/deepsort/sort_faster-rcnn_fpn_4e_mot17-private.py --input demo/demo.mp4 --output mot.mp4
 ```
