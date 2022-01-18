@@ -27,7 +27,7 @@ class Crop:
         self.track_id = int(track_id)
         self.cam_id = int(cam_id)
         self.crop_id = int(crop_id)
-        self.video_name = video_name
+        self.video_name = video_name # note the name must be already 'clean' prior to crop Init
         self.label = None
         self.unique_crop_name = None
         self.update_hash()
@@ -38,8 +38,7 @@ class Crop:
         self.update_hash() # update unique_hash
 
     def update_hash(self):
-         # save format - f'video_name:{self.video_name[9:]}_track_id:{self.track_id}_cam_id:{self.cam_id}_frame_id:{self.frame_id}_crop_id:{self.crop_id}_label:{self.label}'
-        self.unique_crop_name = f'{self.label}_v{self.video_name[8:]}_f{self.frame_id}_b{str(list(self.bbox))}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
+        self.unique_crop_name = f'{self.label}_v{self.video_name}_f{self.frame_id}_b{str(list(self.bbox))}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
 
     def save_crop(self, datapath):
         mmcv.imwrite(self.crop_img, os.path.join(datapath, f'{self.unique_crop_name}.png'))

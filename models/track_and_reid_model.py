@@ -121,6 +121,13 @@ def replace_ids(result, q_feat, g_feat, g_pids):
         result['track_results'][0][k][0] = reid_ids[k]
 
 def create_data_by_re_id_and_track():
+    """
+    This function takes a video and runs both tracking, face-id and re-id models to create and label tracklets
+    within the video. Note that for the video_name we skip the first 8 chars as the fit the IP_Camera video name
+    convention, if entering a different video name note this and adpat your name accordingly.
+    Returns: None. Creates and saves Crops according to --crops_folder arg
+
+    """
     args = get_args()
     print(args.crops_folder)
     print(args)
@@ -130,7 +137,7 @@ def create_data_by_re_id_and_track():
     le = pickle.load(open('/home/bar_cohen/KinderGuardian/FaceDetection/data/le.pkl','rb'))
     faceClassifer = FaceClassifer(num_classes=19,label_encoder=le)
 
-    faceClassifer.model_ft.load_state_dict(torch.load("/home/bar_cohen/KinderGuardian/FaceDetection/best_model3.pth"))
+    faceClassifer.model_ft.load_state_dict(torch.load("/home/bar_cohen/KinderGuardian/FaceDetection/checkpoints/best_model3.pth"))
     faceClassifer.model_ft.eval()
 
     reid_cfg = set_reid_cfgs(args)
@@ -154,7 +161,7 @@ def create_data_by_re_id_and_track():
     # iterate over all images and collect tracklets
     print('create tracklets')
     tracklets = defaultdict(list)
-    for image_index, img in enumerate(imgs):
+    for image_index, img in tqdm.tqdm(enumerate(imgs),total=len(imgs)):
         if isinstance(img, str):
             img = os.path.join(args.input, img)
         result = tracking_inference(tracking_model, img, image_index, acc_threshold=float(args.acc_th))
@@ -167,7 +174,9 @@ def create_data_by_re_id_and_track():
             if face_img is not None and face_img is not face_img.numel():
                 # face_img = face_img.permute(1, 2, 0).int()
                 pass
-            crop_obj = Crop(video_name=args.input.split('/')[-1][:-4] ,
+            # for video_name we skip the first 8 chars as the fit the IP_Camera video name convention, if entering
+            # a different video name note this.
+            crop_obj = Crop(video_name=args.input.split('/')[-1][8:-4] ,
                             frame_id=image_index,
                             bbox=crops_bboxes[i],
                             crop_img=crop,
@@ -180,7 +189,7 @@ def create_data_by_re_id_and_track():
     print('make prediction and save crop')
     crops_db = []
     os.makedirs(args.crops_folder, exist_ok=True)
-    for track_id, crops in tracklets.items():
+    for track_id, crops in tqdm.tqdm(tracklets.items(), total=len(tracklets.keys())):
         track_imgs = [crop.crop_img for crop in crops]
         # if len(track_imgs) < 5: #todo add this as a param
         #     continue/
