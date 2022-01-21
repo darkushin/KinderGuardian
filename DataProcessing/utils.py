@@ -143,8 +143,46 @@ def viz_data_on_video(input_vid, output_path, pre_labeled_pkl_path=None,path_to_
     mmcv.frames2video(temp_path, output_path, fps=fps, fourcc='mp4v', filename_tmpl='{:03d}.png')
     temp_dir.cleanup()
 
+
+def create_tracklet_hist(pre_labeled_pkl_path):
+    import seaborn as sns
+    from matplotlib import pyplot as plt
+    import pandas as pd
+    crops = pickle.load(open(pre_labeled_pkl_path, 'rb'))
+    crop_dict_by_frame = defaultdict(int)
+    for crop in crops:
+        crop_dict_by_frame[crop.track_id] += 1
+
+    short_track = 0
+    medium_track = 0
+    long_track = 0
+    for track_length in crop_dict_by_frame.values():
+        if track_length < 10:
+            short_track += 1
+        elif track_length < 100:
+            medium_track+= 1
+        else:
+            long_track += 1
+
+    df = pd.DataFrame([[short_track, medium_track, long_track]], columns=['Short Track <10', 'Medium Track <100', 'Long Track >= 100'])
+    sns.barplot(data=df)
+    # plt.xlabel("Number of crops in track")
+    plt.ylabel("Count of tracks")
+    plt.title('Track Count of 500 frame video')
+    plt.show()
+
 if __name__ == '__main__':
-    viz_data_on_video(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
-                      output_path="/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_labled1.mp4",
-                      pre_labeled_pkl_path='/mnt/raid1/home/bar_cohen/DB_Crops/_crop_db.pkl')
+    create_tracklet_hist(pre_labeled_pkl_path="/mnt/raid1/home/bar_cohen/DB_Crops_tracktor98/_crop_db.pkl")
+    # viz_data_on_video(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
+    #                   output_path="/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_labled_Tracktor_MOT20.mp4",
+    #                   pre_labeled_pkl_path="/mnt/raid1/home/bar_cohen/DB_Crops_tracktor98/_crop_db.pkl")
+    # db_crops = pickle.load(open("/mnt/raid1/home/bar_cohen/DB_Crops_tracktor98/_crop_db.pkl",'wb'))
+    # track_to_crops = defaultdict(list)
+    # for crop in db_crops:
+    #     track_to_crops[crop.track_id].append(crop)
+
+
+
+    # import torch
+    # print(torch.cuda.device_count())
                       # path_to_crops="/mnt/raid1/home/bar_cohen/DB_Crops/")
