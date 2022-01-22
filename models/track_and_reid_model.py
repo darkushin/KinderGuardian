@@ -11,7 +11,7 @@ import numpy as np
 import mmcv
 import torch.nn.functional as F
 
-from DataProcessing.dataHandler import Crop
+from DataProcessing.Crop import Crop
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 from FaceDetection.faceClassifer import FaceClassifer
 from FaceDetection.faceDetector import FaceDetector
@@ -171,9 +171,10 @@ def create_data_by_re_id_and_track():
         for i, (id, crop) in enumerate(zip(ids,crops_imgs)):
             face_img = faceDetector.facenet_detecor(crop)
             # face_img = None
+            is_face = False
             if face_img is not None and face_img is not face_img.numel():
                 # face_img = face_img.permute(1, 2, 0).int()
-                pass
+                is_face = True
             # for video_name we skip the first 8 chars as the fit the IP_Camera video name convention, if entering
             # a different video name note this.
             crop_obj = Crop(video_name=args.input.split('/')[-1][8:-4] ,
@@ -183,7 +184,8 @@ def create_data_by_re_id_and_track():
                             face_img=face_img,
                             track_id=id,
                             cam_id=1,
-                            crop_id=-1)
+                            crop_id=-1,
+                            is_face=is_face)
             tracklets[id].append(crop_obj)
 
     print('make prediction and save crop')
