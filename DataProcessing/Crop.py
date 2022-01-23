@@ -30,10 +30,9 @@ class Crop:
 
     def set_label(self, label):
         self.label = label
-        self.update_hash() # update unique_hash
 
     def update_hash(self):
-        self.unique_crop_name = f'{self.label}_v{self.video_name}_f{self.frame_id}_b{str(list(self.bbox))}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
+        self.unique_crop_name = f'v{self.video_name}_f{self.frame_id}_b{str(list(self.bbox))}'
 
     def save_crop(self, datapath):
         mmcv.imwrite(self.crop_img, os.path.join(datapath, f'{self.unique_crop_name}.png'))
@@ -45,5 +44,5 @@ class Crop:
         self.is_face = self.face_img is not None and self.face_img is not self.face_img.numel()
         return self.is_face
 
-    def manually_set_is_face(self, is_face): # used for deserializing Crop obj only
+    def manually_set_is_face(self, is_face):  # used for deserializing Crop obj only
         self.is_face = is_face
