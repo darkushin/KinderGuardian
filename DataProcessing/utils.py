@@ -74,23 +74,43 @@ def read_labeled_croped_images(file_dir, file_type='jpg') -> dict:
     return imgs
 
 
-def trim_video(input_path, output_path, limit):
+def trim_videos_from_dir(dir, output_path, limit, create_every=45000):
+    for i, vid in enumerate(os.listdir(dir)):
+        print("Creating trimmed vid ", i )
+        cur_out = os.path.join(output_path,vid[:-4])
+        os.makedirs(cur_out, exist_ok=True)
+        trim_video(os.path.join(dir,vid), cur_out, limit, create_every)
+
+def trim_video(input_path, output_path, limit, create_every=40000):
     """
-    Given a path to a video and the number of frames that should be taken from it, trim the video to the first `limit` frames. Saves the output to the `output_path` location.
+    Given a path to a video and the number of frames that should be taken from it,
+    trim the video to the first `limit` frames. Saves the output to the `output_path` location.
+    by default creates a video every 45K frames, e.g. ~Half an hour
     """
+    print(" Loading video to imgs...")
     imgs = mmcv.VideoReader(input_path)
+    print(f' Loaded {len(imgs)}')
     temp_dir = tempfile.TemporaryDirectory()
     temp_path = temp_dir.name
     fps = int(imgs.fps)
-    print('Starting to save imgs:')
-    for i, img in enumerate(imgs):
-        if not i % 100:
-            print(f'{i} frames done.')
-        if i > limit:
-            break
-        mmcv.imwrite(img, f'{temp_path}/{i:03d}.png')
-    mmcv.frames2video(temp_path, output_path, fps=fps, fourcc='mp4v', filename_tmpl='{:03d}.png')
-    temp_dir.cleanup()
+    print(" Starting trim iter")
+    for batch in range(0, len(imgs), create_every):
+        cur_imgs = imgs[batch:min(batch+limit+1, len(imgs))]
+        for i, img in enumerate(cur_imgs):
+            mmcv.imwrite(img, f'{temp_path}/{i:03d}.png')
+            if not i % 100:
+                print(f'    {i} frames done.')
+            if i == limit:
+                print(f'    Captured {limit} frames. Creating vid...')
+                vid_name = os.path.split(output_path)[-1]
+                mmcv.frames2video(temp_path, os.path.join(output_path ,f'{vid_name}_s{batch}_e{batch+len(cur_imgs)}.mp4'),
+                                  fps=fps, fourcc='mp4v', filename_tmpl='{:03d}.png')
+                temp_dir.cleanup()
+                print('     done.')
+                break
+        print(' Cleaning up residue..')
+        temp_dir.cleanup()
+    print(" Done trimming vid.")
 
 
 def viz_data_on_video(input_vid, output_path, pre_labeled_pkl_path=None,path_to_crops=None):
@@ -161,8 +181,15 @@ def create_tracklet_hist(pre_labeled_pkl_path):
     plt.title('Track Count of 500 frame video')
     plt.show()
 
+
+
 if __name__ == '__main__':
-    create_tracklet_hist(pre_labeled_pkl_path="/mnt/raid1/home/bar_cohen/DB_Crops_tracktor98/_crop_db.pkl")
+    trim_videos_from_dir(dir='/home/bar_cohen/Data-Shoham/1.8.21_cam1/videos/',
+                         output_path='/mnt/raid1/home/bar_cohen/trimmed_videos/', limit=500,
+                         create_every=40000)
+
+
+    # create_tracklet_hist(pre_labeled_pkl_path="/mnt/raid1/home/bar_cohen/DB_Crops_tracktor98/_crop_db.pkl")
     # viz_data_on_video(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
     #                   output_path="/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_labled_Tracktor_MOT20.mp4",
     #                   pre_labeled_pkl_path="/mnt/raid1/home/bar_cohen/DB_Crops_tracktor98/_crop_db.pkl")

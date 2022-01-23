@@ -98,5 +98,5 @@ def label_tracklets(crop_db_path:str):
             _label_tracklet(crops_pkl, track)
 
 if __name__ == '__main__':
-    label_tracklets("C://BarDir//KG_data//DB_Crops_tracktor98")
+    label_tracklets('/mnt/raid1/home/bar_cohen/DB_Crops_tracktor98')
 
