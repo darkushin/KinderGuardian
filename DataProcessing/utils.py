@@ -153,20 +153,10 @@ def create_tracklet_hist(pre_labeled_pkl_path):
     for crop in crops:
         crop_dict_by_frame[crop.track_id] += 1
 
-    short_track = 0
-    medium_track = 0
-    long_track = 0
-    for track_length in crop_dict_by_frame.values():
-        if track_length < 10:
-            short_track += 1
-        elif track_length < 100:
-            medium_track+= 1
-        else:
-            long_track += 1
-
-    df = pd.DataFrame([[short_track, medium_track, long_track]], columns=['Short Track <10', 'Medium Track <100', 'Long Track >= 100'])
-    sns.barplot(data=df)
-    # plt.xlabel("Number of crops in track")
+    df = pd.DataFrame({'Track Length' : crop_dict_by_frame.values()})
+    sns.histplot(data=df, bins=50)
+    # plt.xticks(list(range(0,501,10)))
+    plt.xlabel("Number of crops in track")
     plt.ylabel("Count of tracks")
     plt.title('Track Count of 500 frame video')
     plt.show()
