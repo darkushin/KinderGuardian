@@ -179,7 +179,7 @@ def create_data_by_re_id_and_track():
         if isinstance(img, str):
             img = os.path.join(args.input, img)
         result = tracking_inference(tracking_model, img, image_index, acc_threshold=float(args.acc_th))
-        ids = result['track_results'][0][:, 0]
+        ids = list(map(int, result['track_results'][0][:, 0]))
         crops_bboxes = result['track_results'][0][:, 1:-1]
         crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
         for i, (id, crop_im) in enumerate(zip(ids, crops_imgs)):
@@ -235,7 +235,7 @@ def create_data_by_re_id_and_track():
 
         # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
         for crop_id, crop_dict in enumerate(crop_dicts):
-            crop = crop_dict.get('crop')
+            crop = crop_dict.get('Crop')
             crop.crop_id = crop_id
             crop.label = label
             face_img = crop_dict.get('face_img')
