@@ -2,7 +2,7 @@ from sqlalchemy import create_engine, Column, Integer, String, MetaData, ARRAY, 
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
-DB_LOCATION = 'Shoham_KG.db'
+DB_LOCATION = '/mnt/raid1/home/bar_cohen/Shoham_KG.db'
 Base = declarative_base()
 
 
@@ -10,7 +10,6 @@ class Crop(Base):
     __tablename__ = 'shoham_kg'
     label = Column(String)
     im_name = Column(String, primary_key=True)  # unique name for every crop
-    date = Column(Integer)
     frame_num = Column(Integer)
     bbox = ARRAY(Integer)
     vid_name = Column(String)
@@ -20,6 +19,9 @@ class Crop(Base):
     crop_id = Column(Integer)
     is_face = Column(Boolean)
     is_vague = Column(Boolean)
+
+    def set_im_name(self):
+        self.im_name = f'v{self.vid_name}_f{self.frame_num}_b{str(list(self.bbox))}.png'
 
 
 def create_session(db_location: str = DB_LOCATION):
@@ -37,12 +39,12 @@ def create_table(db_location: str = DB_LOCATION):
     Base.metadata.create_all(engine)
 
 
-def add_entry(crop: Crop):
+def add_entries(crops: list, db_location: str = DB_LOCATION):
     """
     Adds the given DbCrop object to the database
     """
-    session = create_session()
-    session.add(crop)
+    session = create_session(db_location)
+    session.add_all(crops)
     session.commit()
 
 
@@ -57,7 +59,7 @@ def get_entries():
 
 
 # if __name__ == '__main__':
-#     # create_table()
+#     create_table()
 #     crop = '0001_c1_f0307006.jpg'
 #     parts = crop.split('_')
 #     crop1 = DbCrops(person_id=parts[0], im_name=crop, cam_id=int(parts[1][1:]), frame=int(parts[2][1:-4]), x=1, y=2,
