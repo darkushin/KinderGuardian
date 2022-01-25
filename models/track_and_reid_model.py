@@ -236,7 +236,7 @@ def main():
     test_loader, num_query = build_reid_test_loader(reid_cfg, dataset_name='DukeMTMC')  # will take the dataset given as argument
 
     # build re-id inference model:
-    reid_model = FeatureExtractionDemo(reid_cfg, parallel=True)
+    reid_model = FeatureExtractionDemo(reid_cfg, parallel=False)
 
     # run re-id model on all images in the test gallery and query folders:
     feats, g_feat, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
@@ -285,4 +285,4 @@ def main():
 
 if __name__ == '__main__':
     create_data_by_re_id_and_track()
-
+    # main()

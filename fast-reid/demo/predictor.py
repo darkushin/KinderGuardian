@@ -121,6 +121,8 @@ class AsyncPredictor:
         self.result_queue = mp.Queue(maxsize=num_workers * 3)
         self.procs = []
         for gpuid in range(max(num_gpus, 1)):
+            if f'cuda:{gpuid}' != cfg.MODEL.DEVICE:
+                continue
             cfg = cfg.clone()
             cfg.defrost()
             cfg.MODEL.DEVICE = "cuda:{}".format(gpuid) if num_gpus > 0 else "cpu"
