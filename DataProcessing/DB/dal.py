@@ -7,7 +7,7 @@ Base = declarative_base()
 
 
 class Crop(Base):
-    __tablename__ = 'shoham_kg_2'
+    __tablename__ = 'shoham_kg'
     label = Column(String)
     im_name = Column(String, primary_key=True)  # unique name for every crop
     frame_num = Column(Integer)
