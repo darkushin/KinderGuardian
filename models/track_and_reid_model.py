@@ -111,14 +111,12 @@ def reid_inference(reid_model, img, result, frame_id, crops_folder=None):
             mmcv.imwrite(crop, os.path.join(crops_folder, f'frame_{frame_id}_crop_{j}.jpg'))
     return q_feat
 
-
-def reid_track_inference(reid_model, track_imgs: list):
+def reid_track_inference(reid_model, track_imgs:list):
     q_feat = torch.empty((len(track_imgs), 2048))
-    for j, crop in enumerate(track_imgs):
+    for j,crop in enumerate(track_imgs):
         crop = np.array(crop)
         q_feat[j] = reid_model.run_on_image(crop)
     return q_feat
-
 
 def replace_ids(result, q_feat, g_feat, g_pids):
     """
@@ -127,7 +125,6 @@ def replace_ids(result, q_feat, g_feat, g_pids):
     reid_ids = find_best_reid_match(q_feat, g_feat, g_pids)
     for k in range(len(result['track_results'][0])):
         result['track_results'][0][k][0] = reid_ids[k]
-
 
 def create_data_by_re_id_and_track():
     """
@@ -138,122 +135,111 @@ def create_data_by_re_id_and_track():
 
     """
     args = get_args()
-    print(f'Saving the output crops to: {args.crops_folder}')
-    print(f'Args: {args}')
-    assert args.crops_folder, "You must insert crop_folder param in order to create data"
+    print(args.crops_folder)
+    print(args)
+    assert args.crops_folder , "You must insert crop_folder param in order to create data"
 
     faceDetector = FaceDetector()
-    le = pickle.load(open('/home/bar_cohen/KinderGuardian/FaceDetection/data/le.pkl', 'rb'))
-    faceClassifer = FaceClassifer(num_classes=19, label_encoder=le)
+    le = pickle.load(open('/home/bar_cohen/KinderGuardian/FaceDetection/data/le.pkl','rb'))
+    faceClassifer = FaceClassifer(num_classes=19,label_encoder=le)
 
-    faceClassifer.model_ft.load_state_dict(
-        torch.load("/home/bar_cohen/KinderGuardian/FaceDetection/checkpoints/best_model3.pth"))
+    faceClassifer.model_ft.load_state_dict(torch.load("/home/bar_cohen/KinderGuardian/FaceDetection/checkpoints/best_model3.pth"))
     faceClassifer.model_ft.eval()
 
     reid_cfg = set_reid_cfgs(args)
 
     # build re-id test set. NOTE: query dir of the dataset should be empty!
-    test_loader, num_query = build_reid_test_loader(reid_cfg,
-                                                    dataset_name='DukeMTMC')  # will take the dataset given as argument
+    test_loader, num_query = build_reid_test_loader(reid_cfg, dataset_name='DukeMTMC')  # will take the dataset given as argument
 
     # build re-id inference model:
     reid_model = FeatureExtractionDemo(reid_cfg, parallel=True)
 
     # run re-id model on all images in the test gallery and query folders:
-    feats, g_feats, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
+    feats, g_feat, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
 
     # initialize tracking model:
     tracking_model = init_model(args.track_config, args.track_checkpoint, device=args.device)
 
-    # load images:
+    # load images and set temp folders for output creation:
     imgs = mmcv.VideoReader(args.input)
+    fps = int(imgs.fps)
 
     # iterate over all images and collect tracklets
-    print('******* Creating tracklets: *******')
-
-    # initialize a dictionary that will hold all the crops according to tracks
-    # key: track_id, value: a dict representing a crop in the track, consists of: Crop object, crop img, face img
+    print('create tracklets')
     tracklets = defaultdict(list)
-
-    for image_index, img in tqdm.tqdm(enumerate(imgs), total=len(imgs)):
+    for image_index, img in tqdm.tqdm(enumerate(imgs),total=len(imgs)):
         if isinstance(img, str):
             img = os.path.join(args.input, img)
         result = tracking_inference(tracking_model, img, image_index, acc_threshold=float(args.acc_th))
-        ids = list(map(int, result['track_results'][0][:, 0]))
-        confs = result['track_results'][0][:, -1]
+        ids = result['track_results'][0][:,0]
         crops_bboxes = result['track_results'][0][:, 1:-1]
         crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
-        for i, (id, conf, crop_im) in enumerate(zip(ids, confs, crops_imgs)):
-            face_img = faceDetector.facenet_detecor(crop_im)
-            # for video_name we skip the first 8 chars as to fit the IP_Camera video name convention, if entering
+        for i, (id, crop) in enumerate(zip(ids,crops_imgs)):
+            face_img = faceDetector.facenet_detecor(crop)
+            # face_img = None
+            if face_img is not None and face_img is not face_img.numel():
+                # face_img = face_img.permute(1, 2, 0).int()
+                pass
+            # for video_name we skip the first 8 chars as the fit the IP_Camera video name convention, if entering
             # a different video name note this.
-            x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to ints
-            crop = Crop(vid_name=args.input.split('/')[-1][8:-4],
-                        frame_num=image_index,
-                        track_id=id,
-                        x1=x1, y1=y1, x2=x2, y2=y2,
-                        conf=conf,
-                        cam_id=CAM_ID,
-                        crop_id=-1,
-                        reviewed=False,
-                        is_vague=False)
-            crop.set_im_name()
-            tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop})
+            crop_obj = Crop(video_name=args.input.split('/')[-1][8:-4] ,
+                            frame_id=image_index,
+                            bbox=crops_bboxes[i],
+                            crop_img=crop,
+                            face_img=face_img,
+                            track_id=id,
+                            cam_id=1,
+                            crop_id=-1)
+            tracklets[id].append(crop_obj)
 
-    print('******* Making predictions and saving crops to DB *******')
-    db_entries = []
+    print('make prediction and save crop')
+    crops_db = []
     os.makedirs(args.crops_folder, exist_ok=True)
+    for track_id, crops in tqdm.tqdm(tracklets.items(), total=len(tracklets.keys())):
+        track_imgs = [crop.crop_img for crop in crops]
+        # if len(track_imgs) < 5: #todo add this as a param
+        #     continue/
 
-    # iterate over all tracklets and make a prediction for every tracklet
-    for track_id, crop_dicts in tqdm.tqdm(tracklets.items(), total=len(tracklets.keys())):
-        track_imgs = [crop_dict.get('crop_img') for crop_dict in crop_dicts]
-        q_feats = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
-        reid_ids = find_best_reid_match(q_feats, g_feats, g_pids)
+        q_feat = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
+        reid_ids = find_best_reid_match(q_feat, g_feat, g_pids)
         bincount = np.bincount(reid_ids)
         reid_maj_vote = np.argmax(bincount)
         reid_maj_conf = bincount[reid_maj_vote] / len(reid_ids)
         label = ID_TO_NAME[reid_maj_vote]
+        face_imgs = [crop.face_img for crop in crops if crop.check_if_face_img()]
+        if len(face_imgs) > 0: # at least 1 face was detected
+            face_classifer_preds = faceClassifer.predict(torch.stack(face_imgs))
+            bincount_face = torch.bincount(face_classifer_preds.cpu())
+            face_label = ID_TO_NAME[faceClassifer.le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
+            if len(face_imgs) > 1:
+                # faceClassifer.imshow(face_imgs[0:2], labels=[face_label] * 2)
+                pass # uncomment above to show faces
+            print(face_label)
+            print(f'reid label: {label}, face label: {face_label}')
+            print(f'do the predictors agree? f{label == face_label}')
 
-        # todo: currently in the part commented out we don't use the label predicted by the face - consult with Bar how
-        #  to make use of it
-        # face_imgs = [crop.face_img for crop in crop_dicts if crop.check_if_face_img()]
-        # if len(face_imgs) > 0:  # at least 1 face was detected
-        #     face_classifer_preds = faceClassifer.predict(torch.stack(face_imgs))
-        #     bincount_face = torch.bincount(face_classifer_preds.cpu())
-        #     face_label = ID_TO_NAME[faceClassifer.le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
-        #     if len(face_imgs) > 1:
-        #         # faceClassifer.imshow(face_imgs[0:2], labels=[face_label] * 2)
-        #         pass  # uncomment above to show faces
-        #     print(face_label)
-        #     print(f'reid label: {label}, face label: {face_label}')
-        #     print(f'do the predictors agree? f{label == face_label}')
-        #
-        #     # if reid_maj_conf < 0.5: # silly heuristic todo do this according to the prob of the faceid model
-        #     #     print(f'do the predictors agree? f{label==face_label}')
-        #     #     print("Take Faceanyways due to low conf rom reid")
-        #     #     label = face_label
+            # if reid_maj_conf < 0.5: # silly heuristic todo do this according to the prob of the faceid model
+            #     print(f'do the predictors agree? f{label==face_label}')
+            #     print("Take Faceanyways due to low conf rom reid")
+            #     label = face_label
 
-        # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
-        for crop_id, crop_dict in enumerate(crop_dicts):
-            crop = crop_dict.get('Crop')
+        for crop_id, crop in enumerate(crops):
             crop.crop_id = crop_id
-            crop.label = label
-            face_img = crop_dict.get('face_img')
-            crop.is_face = face_img is not None and face_img is not face_img.numel()
-            mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder, crop.im_name))
-            db_entries.append(crop)
+            crop.set_label(label)
+            crop.save_crop(datapath=args.crops_folder)
+            del crop.crop_img # we dont want to keep this info in the crop obj
+            del crop.face_img
+            crops_db.append(crop)
 
-    add_entries(db_entries, DB_LOCATION)
+    pickle.dump(crops_db, open(f'{args.crops_folder}_crop_db.pkl','wb'))
     print("Done")
-
 
 def main():
     args = get_args()
     reid_cfg = set_reid_cfgs(args)
 
     # build re-id test set. NOTE: query dir of the dataset should be empty!
-    test_loader, num_query = build_reid_test_loader(reid_cfg,
-                                                    dataset_name='DukeMTMC')  # will take the dataset given as argument
+    test_loader, num_query = build_reid_test_loader(reid_cfg, dataset_name='DukeMTMC')  # will take the dataset given as argument
 
     # build re-id inference model:
     reid_model = FeatureExtractionDemo(reid_cfg, parallel=True)

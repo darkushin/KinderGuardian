@@ -34,7 +34,8 @@ def create_reid_opts() -> List:
     if args.reid_opts:
         for opt in args.reid_opts:
             reid_opts.append(opt)
-    reid_opts.extend(['MODEL.DEVICE', args.device])
+    if args.device:
+        reid_opts.extend(['MODEL.DEVICE', args.device])
     return reid_opts
 
 
@@ -105,6 +106,12 @@ def execute_combined_model():
     --output ./Results/Reid-Eval2-2.8-test.mp4 --acc_th 0.98 --crops_folder /mnt/raid1/home/bar_cohen/DB_Crops/
     --reid_opts DATASETS.DATASET inference_on_train_data MODEL.WEIGHTS ./fast-reid/checkpoints/scratch-id-by-day.pth
 
+    ByteTracker:
+    re-id-and-tracking --track_config ./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private -half.py
+    --mmtrack_checkpoint /home/bar_cohen/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth
+    --reid_config ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml --input /home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4
+    --output ./Results/trimmed-bytetrack_labeled.mp4 --acc_th 0.7 --crops_folder /mnt/raid1/home/bar_cohen/DB_Test/
+    --device cuda:1 --reid_opts DATASETS.DATASET inference_on_train_data MODEL.WEIGHTS ./fast-reid/checkpoints/1.8.21-model.pth
     """
     reid_opts: List = create_reid_opts()
     optional_args: List = create_optional_args()
