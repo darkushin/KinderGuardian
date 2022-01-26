@@ -107,7 +107,7 @@ def execute_combined_model():
     --reid_opts DATASETS.DATASET inference_on_train_data MODEL.WEIGHTS ./fast-reid/checkpoints/scratch-id-by-day.pth
 
     ByteTracker:
-    re-id-and-tracking --track_config ./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private -half.py
+    re-id-and-tracking --track_config ./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py
     --mmtrack_checkpoint /home/bar_cohen/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth
     --reid_config ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml --input /home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4
     --output ./Results/trimmed-bytetrack_labeled.mp4 --acc_th 0.7 --crops_folder /mnt/raid1/home/bar_cohen/DB_Test/
