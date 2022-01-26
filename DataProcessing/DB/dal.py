@@ -77,7 +77,7 @@ def get_entries(filters: tuple = None, op: str = 'AND', order=None, group=None, 
         sql_query = sql_query.group_by(group)
     if distinct_by:
         sql_query = sql_query.distinct(distinct_by)
-    return sql_query.all()
+    return sql_query  # .all()
 
 def generate_new_track_id(db_path):
     session = create_session(db_path)

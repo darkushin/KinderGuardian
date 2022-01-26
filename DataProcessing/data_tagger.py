@@ -60,13 +60,13 @@ def discard_crops(track, crop_inds):
     for crop_id in crop_inds:
         track[crop_id].delete()
 
+
 def split_track(track, split_start, split_end, new_label, new_track_id):
     splitted_track = track[split_start:split_end]
 
     for crop in splitted_track:
-        pkl_index = pkl.index(crop)
-        pkl[pkl_index].track_id = new_track_id
-        pkl[pkl_index].set_label(new_label)
+        crop.track_id = new_track_id
+        crop.label = new_label
 
 
 def insert_new_label():
@@ -76,7 +76,7 @@ def insert_new_label():
     return new_label_name
 
 def label_tracks_DB(vid_name:str,crops_folder:str, DB_path: str):
-    def _label_track_DB(DB_path, track: list):
+    def _label_track_DB(DB_path, db_query):
         """
 
         Args:
@@ -86,6 +86,7 @@ def label_tracks_DB(vid_name:str,crops_folder:str, DB_path: str):
         # todo deal with face images
         NUM_OF_CROPS_TO_VIEW = 25
         counter = 0
+        track = db_query.all()
         for batch in range(0, len(track), NUM_OF_CROPS_TO_VIEW):
             cur_batch = track[batch:min(batch + NUM_OF_CROPS_TO_VIEW, len(track))]
             _, axes = plt.subplots(5, 5, figsize=(10, 10))
@@ -137,7 +138,7 @@ def label_tracks_DB(vid_name:str,crops_folder:str, DB_path: str):
         track_crops = get_entries(filters=(Crop.vid_name == vid_name, Crop.track_id == track_id),
                                   order=Crop.crop_id,
                                   db_path=DB_path)
-        _label_track_DB(DB_path=DB_path, track=track_crops)
+        _label_track_DB(DB_path=DB_path, db_query=track_crops)
 
     #
     # crop_dict_by_frame = defaultdict(list)
