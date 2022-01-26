@@ -180,16 +180,19 @@ def create_data_by_re_id_and_track():
             img = os.path.join(args.input, img)
         result = tracking_inference(tracking_model, img, image_index, acc_threshold=float(args.acc_th))
         ids = list(map(int, result['track_results'][0][:, 0]))
+        confs = result['track_results'][0][:, -1]
         crops_bboxes = result['track_results'][0][:, 1:-1]
         crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
-        for i, (id, crop_im) in enumerate(zip(ids, crops_imgs)):
+        for i, (id, conf, crop_im) in enumerate(zip(ids, confs, crops_imgs)):
             face_img = faceDetector.facenet_detecor(crop_im)
             # for video_name we skip the first 8 chars as to fit the IP_Camera video name convention, if entering
             # a different video name note this.
+            x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to ints
             crop = Crop(vid_name=args.input.split('/')[-1][8:-4],
                         frame_num=image_index,
-                        bbox=list(map(int, crops_bboxes[i])),  # convert the bbox floats to ints
                         track_id=id,
+                        x1=x1, y1=y1, x2=x2, y2=y2,
+                        conf=conf,
                         cam_id=CAM_ID,
                         crop_id=-1,
                         reviewed=False,
@@ -204,9 +207,6 @@ def create_data_by_re_id_and_track():
     # iterate over all tracklets and make a prediction for every tracklet
     for track_id, crop_dicts in tqdm.tqdm(tracklets.items(), total=len(tracklets.keys())):
         track_imgs = [crop_dict.get('crop_img') for crop_dict in crop_dicts]
-        # if len(track_imgs) < 5: #todo add this as a param
-        #     continue/
-
         q_feats = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
         reid_ids = find_best_reid_match(q_feats, g_feats, g_pids)
         bincount = np.bincount(reid_ids)
