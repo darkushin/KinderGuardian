@@ -8,6 +8,7 @@ from collections import defaultdict
 import numpy as np
 from mmtrack.core.utils.visualization import _cv2_show_tracks as plot_tracks
 import mmcv
+from DataProcessing.DB.dal import *
 
 from DataProcessing.dataHandler import create_Crop_from_str
 
@@ -33,7 +34,8 @@ def im_name_format(path):
 
 def im_id_format(path):
     """
-    Reformat all images in the given directory so that the id of the person is different according to the different days.
+    Reformat all images in the given directory so that the id of the person is different according to the different
+    days.
     """
     for im in os.listdir(os.path.join(path)):
         day_num = im.split('_')[-1][1:3]
@@ -61,7 +63,7 @@ def read_labeled_croped_images(file_dir, file_type='jpg') -> dict:
 
     # '/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned' cur path for labled data
 
-    assert os.path.isdir(file_dir) , 'Read labeled data must get a valid dir path'
+    assert os.path.isdir(file_dir), 'Read labeled data must get a valid dir path'
     imgs = defaultdict(list)
     print('reading imgs from dir...')
     for img in tqdm(Path(file_dir).rglob(f'*.{file_type}')):
@@ -69,7 +71,7 @@ def read_labeled_croped_images(file_dir, file_type='jpg') -> dict:
         if not os.path.isfile(img):
             continue
         im_path = os.path.split(img)[1]
-        img_id = im_path[:4] # xxxx id format
+        img_id = im_path[:4]  # xxxx id format
         imgs[img_id].append(imread(img))
     return imgs
 
@@ -113,7 +115,7 @@ def trim_video(input_path, output_path, limit, create_every=40000):
     print(" Done trimming vid.")
 
 
-def viz_data_on_video(input_vid, output_path, pre_labeled_pkl_path=None,path_to_crops=None):
+def viz_data_on_video_using_pickle(input_vid, output_path, pre_labeled_pkl_path=None, path_to_crops=None):
     """
     This func assumes that the input video has been run by the track and reid model data creator to
     create a pre-annoted set.
@@ -124,18 +126,18 @@ def viz_data_on_video(input_vid, output_path, pre_labeled_pkl_path=None,path_to_
     Returns:
 
     """
-    assert pre_labeled_pkl_path or path_to_crops , "You must enter either a pkl to cropsDB or the crops folder"
+    assert pre_labeled_pkl_path or path_to_crops, "You must enter either a pkl to cropsDB or the crops folder"
     crops = None
     if path_to_crops:
-        assert os.path.isdir(path_to_crops) , "Path must be a CropDB folder"
+        assert os.path.isdir(path_to_crops), "Path must be a CropDB folder"
         crops = []
         for file in os.listdir(path_to_crops):
             crop_path = os.path.join(path_to_crops, file)
-            _ , extention = os.path.splitext(crop_path)
-            if os.path.split(crop_path)[-1][0] != 'Face' and extention in ['.jpg', '.png']: # skip face crops for viz
+            _, extention = os.path.splitext(crop_path)
+            if os.path.split(crop_path)[-1][0] != 'Face' and extention in ['.jpg', '.png']:  # skip face crops for viz
                 crops.append(create_Crop_from_str(crop_path))
     elif pre_labeled_pkl_path:
-        assert os.path.isfile(pre_labeled_pkl_path) , "Path must be a CropDB file"
+        assert os.path.isfile(pre_labeled_pkl_path), "Path must be a CropDB file"
         crops = pickle.load(open(pre_labeled_pkl_path, 'rb'))
 
     # create frame_to_crops dict
@@ -148,13 +150,15 @@ def viz_data_on_video(input_vid, output_path, pre_labeled_pkl_path=None,path_to_
     temp_path = temp_dir.name
     fps = int(imgs.fps)
 
-    for i,frame in enumerate(imgs):
+    for i, frame in enumerate(imgs):
         cur_crops = crop_dict_by_frame.get(i)
         if cur_crops:
             # at least single crop was found in frame
-            crops_bboxes = [np.append(crop.bbox, [1]) for crop in cur_crops] ## adding 1 for keeping up with plot requirements
+            crops_bboxes = [np.append(crop.bbox, [1]) for crop in
+                            cur_crops]  ## adding 1 for keeping up with plot requirements
             crops_labels = [crop.label for crop in cur_crops]
-            cur_img = plot_tracks(img=frame,bboxes=np.array(crops_bboxes), ids=np.array(crops_labels), labels=np.array(crops_labels))
+            cur_img = plot_tracks(img=frame, bboxes=np.array(crops_bboxes), ids=np.array(crops_labels),
+                                  labels=np.array(crops_labels))
             mmcv.imwrite(cur_img, f'{temp_path}/{i:03d}.png')
         else:
             # no crops detected, write the original frame
@@ -183,23 +187,45 @@ def create_tracklet_hist(pre_labeled_pkl_path):
 
 
 
+
+def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
+    """
+    Use the labeled data from the DB to visualize the labels on a given video.
+    Args:
+        - input_vid: the video that should be visualized. NOTE: the DB will be queried according to this video name!
+        - output_path: the path in which the labeled output video should be created.
+        - DB_path: the path to the DB that holds the labeled crops of the video.
+    """
+    vid_name = input_vid.split('/')[-1][8:-4]
+
+    imgs = mmcv.VideoReader(input_vid)
+    temp_dir = tempfile.TemporaryDirectory()
+    temp_path = temp_dir.name
+    fps = int(imgs.fps)
+
+    for i, frame in enumerate(imgs):
+        # retrieve all crops of the current frame from the DB:
+        frame_crops = get_entries(filters=(Crop.vid_name == vid_name, Crop.frame_num == i), db_path=DB_path)
+        if frame_crops:
+            # at least single crop was found in frame
+            crops_bboxes = [np.array([crop.x1, crop.y1, crop.x2, crop.y2, crop.conf]) for crop in frame_crops]
+            crops_labels = [crop.label for crop in frame_crops]
+            cur_img = plot_tracks(img=frame, bboxes=np.array(crops_bboxes), ids=np.array(crops_labels),
+                                  labels=np.array(crops_labels))
+            mmcv.imwrite(cur_img, f'{temp_path}/{i:03d}.png')
+        else:
+            # no crops detected, write the original frame
+            mmcv.imwrite(frame, f'{temp_path}/{i:03d}.png')
+
+    mmcv.frames2video(temp_path, output_path, fps=fps, fourcc='mp4v', filename_tmpl='{:03d}.png')
+    temp_dir.cleanup()
+
+
 if __name__ == '__main__':
-    trim_videos_from_dir(dir='/home/bar_cohen/Data-Shoham/1.8.21_cam1/videos/',
-                         output_path='/mnt/raid1/home/bar_cohen/trimmed_videos/', limit=500,
-                         create_every=40000)
+    # viz_data_on_video_using_pickle(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
+    #                   output_path="/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_labled1.mp4",
+    #                   pre_labeled_pkl_path='/mnt/raid1/home/bar_cohen/DB_Crops/_crop_db.pkl')
+    # path_to_crops="/mnt/raid1/home/bar_cohen/DB_Crops/")
 
-
-    # create_tracklet_hist(pre_labeled_pkl_path="/mnt/raid1/home/bar_cohen/DB_Crops_tracktor98/_crop_db.pkl")
-    # viz_data_on_video(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
-    #                   output_path="/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_labled_Tracktor_MOT20.mp4",
-    #                   pre_labeled_pkl_path="/mnt/raid1/home/bar_cohen/DB_Crops_tracktor98/_crop_db.pkl")
-    # db_crops = pickle.load(open("/mnt/raid1/home/bar_cohen/DB_Crops_tracktor98/_crop_db.pkl",'wb'))
-    # track_to_crops = defaultdict(list)
-    # for crop in db_crops:
-    #     track_to_crops[crop.track_id].append(crop)
-
-
-
-    # import torch
-    # print(torch.cuda.device_count())
-                      # path_to_crops="/mnt/raid1/home/bar_cohen/DB_Crops/")
+    viz_DB_data_on_video(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
+                         output_path='/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_from_DB.mp4')

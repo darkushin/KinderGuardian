@@ -63,6 +63,7 @@ def _train_loader_from_config(cfg, *, train_set=None, transforms=None, sampler=N
             raise ValueError("Unknown training sampler: {}".format(sampler_name))
 
     return {
+        "device": cfg.MODEL.DEVICE,
         "train_set": train_set,
         "sampler": sampler,
         "total_batch_size": cfg.SOLVER.IMS_PER_BATCH,
@@ -72,7 +73,7 @@ def _train_loader_from_config(cfg, *, train_set=None, transforms=None, sampler=N
 
 @configurable(from_config=_train_loader_from_config)
 def build_reid_train_loader(
-        train_set, *, sampler=None, total_batch_size, num_workers=0,
+        device, train_set, *, sampler=None, total_batch_size, num_workers=0,
 ):
     """
     Build a dataloader for object re-identification with some default features.
@@ -87,7 +88,8 @@ def build_reid_train_loader(
     batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, mini_batch_size, True)
 
     train_loader = DataLoaderX(
-        comm.get_local_rank(),
+        # comm.get_local_rank(),
+        device,
         dataset=train_set,
         num_workers=num_workers,
         batch_sampler=batch_sampler,
@@ -114,6 +116,7 @@ def _test_loader_from_config(cfg, *, dataset_name=None, test_set=None, num_query
         num_query = len(data.query)
 
     return {
+        "device": cfg.MODEL.DEVICE,
         "test_set": test_set,
         "test_batch_size": cfg.TEST.IMS_PER_BATCH,
         "num_query": num_query,
@@ -121,7 +124,7 @@ def _test_loader_from_config(cfg, *, dataset_name=None, test_set=None, num_query
 
 
 @configurable(from_config=_test_loader_from_config)
-def build_reid_test_loader(test_set, test_batch_size, num_query, num_workers=4):
+def build_reid_test_loader(device, test_set, test_batch_size, num_query, num_workers=4):
     """
     Similar to `build_reid_train_loader`. This sampler coordinates all workers to produce
     the exact set of all samples
@@ -148,7 +151,8 @@ def build_reid_test_loader(test_set, test_batch_size, num_query, num_workers=4):
     data_sampler = samplers.InferenceSampler(len(test_set))
     batch_sampler = torch.utils.data.BatchSampler(data_sampler, mini_batch_size, False)
     test_loader = DataLoaderX(
-        comm.get_local_rank(),
+        # comm.get_local_rank(),
+        device,
         dataset=test_set,
         batch_sampler=batch_sampler,
         num_workers=num_workers,  # save some memory
