@@ -11,7 +11,8 @@ import numpy as np
 import mmcv
 import torch.nn.functional as F
 
-from DataProcessing.dataHandler import Crop
+# from DataProcessing.dataHandler import Crop
+from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 from FaceDetection.faceClassifer import FaceClassifer
 from FaceDetection.faceDetector import FaceDetector
@@ -22,6 +23,9 @@ from fastreid.config import get_cfg
 from fastreid.data import build_reid_test_loader
 from demo.predictor import FeatureExtractionDemo
 from mmtrack.apis import inference_mot, init_model
+
+CAM_ID = 1
+
 
 def get_args():
     parser = ArgumentParser()
@@ -36,8 +40,10 @@ def get_args():
     parser.add_argument('--backend', choices=['cv2', 'plt'], default='cv2', help='the backend to visualize the results')
     parser.add_argument('--fps', help='FPS of the output video')
     parser.add_argument('--crops_folder', help='Path to the folder in which the generated crops should be saved')
-    parser.add_argument("--reid_opts", help="Modify reid-config options using the command-line 'KEY VALUE' pairs", default=[], nargs=REMAINDER,)
-    parser.add_argument("--acc_th", help="The accuracy threshold that should be used for the tracking model", default=0.8)
+    parser.add_argument("--reid_opts", help="Modify reid-config options using the command-line 'KEY VALUE' pairs",
+                        default=[], nargs=REMAINDER, )
+    parser.add_argument("--acc_th", help="The accuracy threshold that should be used for the tracking model",
+                        default=0.8)
     args = parser.parse_args()
     return args
 
@@ -236,7 +242,7 @@ def main():
     test_loader, num_query = build_reid_test_loader(reid_cfg, dataset_name='DukeMTMC')  # will take the dataset given as argument
 
     # build re-id inference model:
-    reid_model = FeatureExtractionDemo(reid_cfg, parallel=False)
+    reid_model = FeatureExtractionDemo(reid_cfg, parallel=True)
 
     # run re-id model on all images in the test gallery and query folders:
     feats, g_feat, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
@@ -285,4 +291,3 @@ def main():
 
 if __name__ == '__main__':
     create_data_by_re_id_and_track()
-    # main()
