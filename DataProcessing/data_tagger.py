@@ -1,5 +1,6 @@
 import os
 import pickle
+import sys
 import warnings
 from collections import defaultdict
 from matplotlib import pyplot as plt
@@ -12,19 +13,23 @@ def mark_vague(track, crop_inds):
     for crop_id in crop_inds:
         track[crop_id].is_vague = True
 
+
 def relabel_all(track, new_label):
     for crop in track:
         crop.label = new_label
 
+
 def discard_crops(track, crops_inds):
     for crop_id in crops_inds:
         track[crop_id].invalid = True
+
 
 def split_track(track, split_start, split_end, new_label, new_track_id):
     splitted_track = track[split_start:split_end]
     for crop in splitted_track:
         crop.track_id = new_track_id
         crop.label = new_label
+
 
 def reviewed(track):
     for crop in track:
@@ -42,21 +47,23 @@ def insert_new_label():
         return None
     return new_label_name
 
-def parse_input(inp:str):
+
+def parse_input(inp: str):
     ret = []
     arr = inp.split(' ')
     for elem in arr:
         r = elem.split('-')
         if len(r) == 1:
-            ret.append(int(r[0])) # this is a single crop_id
+            ret.append(int(r[0]))  # this is a single crop_id
         elif len(r) == 2:
-            ret.extend(list(range(int(r[0]),int(r[1])+1))) # this is a range
+            ret.extend(list(range(int(r[0]), int(r[1]) + 1)))  # this is a range
         else:
             print('Invalid input, try again')
             return []
     return ret
 
-def label_tracks_DB(vid_name:str, crops_folder:str, session):
+
+def label_tracks_DB(vid_name: str, crops_folder: str, session):
     def _label_track_DB(session, track_query):
         """
 
@@ -69,13 +76,13 @@ def label_tracks_DB(vid_name:str, crops_folder:str, session):
         track = track_query.all()
         for batch in range(0, len(track), NUM_OF_CROPS_TO_VIEW):
             cur_batch = track[batch:min(batch + NUM_OF_CROPS_TO_VIEW, len(track))]
-            _, axes = plt.subplots(X_AXIS_NUM_CROPS,Y_AXIS_NUM_CROPS , figsize=(13, 13))
+            _, axes = plt.subplots(X_AXIS_NUM_CROPS, Y_AXIS_NUM_CROPS, figsize=(13, 13))
             axes = axes.flatten()
             for a in axes:
                 a.axis('off')
             for crop, ax in zip(cur_batch, axes):
                 # using / on to adapt to windows env
-                img_path = os.path.join(crops_folder , crop.im_name)
+                img_path = os.path.join(crops_folder, crop.im_name)
                 img = plt.imread(img_path)
                 ax.imshow(img)
                 ax.set_title(counter)
@@ -109,7 +116,7 @@ def label_tracks_DB(vid_name:str, crops_folder:str, session):
                 if max(parsed_input) > len(track):
                     print('Some values are not valid crop ids, try again')
                     continue
-                actions_taken.append((DISCARD, parsed_input))
+                actions_taken.append((DISCARD, discard_input))
 
             elif user_input == VAGUE:
                 # vagues = [int(x) for x in input('Enter crop_ids to set as Vague').split()]
@@ -127,7 +134,7 @@ def label_tracks_DB(vid_name:str, crops_folder:str, session):
                 new_label = insert_new_label()
                 if not new_label:
                     continue
-                new_track_id =  session.query(func.max(Crop.track_id)).scalar() + 1
+                new_track_id = session.query(func.max(Crop.track_id)).scalar() + 1
                 split_track(track, start, end, new_label, new_track_id)
                 actions_taken.append((SPLIT_TRACK, start, end, new_label, new_track_id))
 
@@ -135,6 +142,17 @@ def label_tracks_DB(vid_name:str, crops_folder:str, session):
                 new_label = insert_new_label()
                 relabel_all(track, new_label)
                 actions_taken.append((RELABEL, new_label))
+            elif user_input == QUIT:
+                save_work = input('Save changes to DB? [y/n]')
+                if save_work == 'y':
+                    print('Saving changes to DB and quiting')
+                    session.commit()
+                    sys.exit(0)
+                elif save_work == 'n':
+                    print('Quiting without saving changes to DB')
+                    sys.exit(0)
+                else:
+                    print('invalid input for quiting, sit down and continue labeling!')
             else:
                 warnings.warn('Please Insert one of the supported actions')
 
@@ -146,8 +164,7 @@ def label_tracks_DB(vid_name:str, crops_folder:str, session):
         try:
             track_query = get_entries(filters=(Crop.vid_name == vid_name,
                                                Crop.track_id == track_id,
-                                               Crop.reviewed_one == False
-                                               ),
+                                               Crop.reviewed_one == False),
                                       order=Crop.crop_id,
                                       session=session)
             _label_track_DB(session=session, track_query=track_query)
@@ -155,9 +172,9 @@ def label_tracks_DB(vid_name:str, crops_folder:str, session):
             warnings.warn(f'Error! {e}')
     session.commit()
 
+
 if __name__ == '__main__':
-    db_path = "/mnt/raid1/home/bar_cohen/Shoham_KG.db"
-    session = create_session(db_path)
-    label_tracks_DB(vid_name='1.8.21-095724' ,
-                    crops_folder = "/mnt/raid1/home/bar_cohen/DB_Test/",
+    session = create_session()
+    label_tracks_DB(vid_name='1.8.21-095724',
+                    crops_folder="/mnt/raid1/home/bar_cohen/DB_Test/",
                     session=session)

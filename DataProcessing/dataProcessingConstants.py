@@ -42,4 +42,5 @@ DISCARD = 'discard'
 SPLIT_TRACK = 's'
 RELABEL = 'r'
 VAGUE = 'v'
+QUIT = 'q'
 
