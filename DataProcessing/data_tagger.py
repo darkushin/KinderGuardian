@@ -1,48 +1,10 @@
 import os
 import pickle
 from collections import defaultdict
-
-import numpy as np
 from matplotlib import pyplot as plt
-
-# todo all of these actions need to be done to the db, currently they all run in O(n) for each Crop changed !
-from DataProcessing.DB.dal import get_entries, Crop, generate_new_track_id, create_session
+from sqlalchemy import func
+from DataProcessing.DB.dal import get_entries, Crop, create_session
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
-
-#
-# def mark_vague(pkl, track, crop_inds):
-#     for crop_id in crop_inds:
-#         pkl_index = pkl.index(track[crop_id])
-#         pkl[pkl_index].is_vague = True
-#
-#
-# def relabel_all(pkl, track, new_label):
-#     for crop in track:
-#         pkl_index = pkl.index(crop)
-#         pkl[pkl_index].set_label(new_label)
-#
-#
-# def discard_crops(pkl, track, crop_inds):
-#     # todo this should be done later to keep presistance of ids, or at the end of the track
-#     for crop_id in crop_inds:
-#         pkl_index = pkl.index(track[crop_id])
-#         del pkl[pkl_index]  # todo should we del the actual crops as well?
-#
-#
-# def split_track(pkl, track, split_start, split_end, new_label):
-#     splitted_track = track[split_start:split_end]
-#     new_track_id = max(crop.track_id for crop in pkl) + 1
-#     for crop in splitted_track:
-#         pkl_index = pkl.index(crop)
-#         pkl[pkl_index].track_id = new_track_id
-#         pkl[pkl_index].set_label(new_label)
-#
-#
-# def insert_new_label():
-#     print("Please insert of of the following Ids:")
-#     print(ID_TO_NAME)
-#     new_label_name = ID_TO_NAME[int(input())]
-#     return new_label_name
 
 def mark_vague(track, crop_inds):
     for crop_id in crop_inds:
@@ -81,18 +43,15 @@ def label_tracks_DB(vid_name:str, crops_folder:str, session):
             track: A list of Crop objects representing the track
         Returns:
         """
-        NUM_OF_CROPS_TO_VIEW = 25
         counter = 0
+        NUM_OF_CROPS_TO_VIEW = 25
         track = track_query.all()
-        relabel_all(session , track,'maol')
-        mark_vague()
         for batch in range(0, len(track), NUM_OF_CROPS_TO_VIEW):
             cur_batch = track[batch:min(batch + NUM_OF_CROPS_TO_VIEW, len(track))]
             _, axes = plt.subplots(5, 5, figsize=(10, 10))
             axes = axes.flatten()
             for a in axes:
                 a.axis('off')
-            # axes = [a.axis('off') for a in axes]
             for crop, ax in zip(cur_batch, axes):
                 # using / on to adapt to windows env
                 img_path = os.path.join(crops_folder , crop.im_name)
@@ -104,8 +63,17 @@ def label_tracks_DB(vid_name:str, crops_folder:str, session):
             plt.show()
 
         while True:
-            user_input = input("Y for next Track, S for split, D for discard crops, V for mark vauge, R for relabel")
+            user_input = input("Y for approve and move to next Track,"
+                               "S for split, "
+                               "discard for discard crops,"
+                               "V for mark vague,"
+                               "R for relabel,"
+                               "skip if you are unsure of changes and want to skip review")
+
             if user_input == 'Y':
+                reviewed(track)
+                break
+            if user_input == 'Skip':
                 break
             elif user_input == 'discard':  # receives a sequence of size >= 1
                 discards = [int(x) for x in input('Enter crop_ids to Discard').split()]
@@ -115,87 +83,27 @@ def label_tracks_DB(vid_name:str, crops_folder:str, session):
                 mark_vague(track, vagues)
             elif user_input == 'S':
                 start = int(input('Enter start of split'))
-                end = int(input('Enter end of split, plus 1'))
+                end = int(input('Enter end of split')) + 1
                 new_label = insert_new_label()
-                new_track_id = generate_new_track_id(session)
-                split_track(track, start, end, new_label, new_track_id)
+                max_track_id =  session.query(func.max(Crop.track_id)).scalar() + 1
+                split_track(track, start, end, new_label, max_track_id)
             elif user_input == 'R':
                 new_label = insert_new_label()
-                relabel_all(session, track, new_label)
-            elif user_input == 'STOP IT':
-                return
+                relabel_all(track, new_label)
             else:
                 print('Please Insert one of the supported actions')
 
     track_ids = [track.track_id for track in get_entries(filters=({Crop.vid_name == vid_name}),
                                                          group=Crop.track_id, session=session)]
-    # tracks = np.unique([crop.track_id for crop in video_crops])
+
     for track_id in track_ids:
+        # todo dont iter over reviewed tracks
         track_query = get_entries(filters=(Crop.vid_name == vid_name, Crop.track_id == track_id),
                                   order=Crop.crop_id,
                                   session=session)
-        # session, query, corp_obj
         _label_track_DB(session=session, track_query=track_query)
+        break
     session.commit()
-
-
-# def label_tracklets(crop_pkl_path: str):
-#     def _label_tracklet(crops_pkl, track: list):
-#         """
-#
-#         Args:
-#             track: A list of Crop objects representing the track
-#         Returns:
-#         """
-#         # todo deal with face images
-#         NUM_OF_CROPS_TO_VIEW = 25
-#         counter = 0
-#         for batch in range(0, len(track), NUM_OF_CROPS_TO_VIEW):
-#             cur_batch = track[batch:min(batch + NUM_OF_CROPS_TO_VIEW, len(track))]
-#             _, axes = plt.subplots(5, 5, figsize=(10, 10))
-#             axes = axes.flatten()
-#             for a in axes:
-#                 a.axis('off')
-#             # axes = [a.axis('off') for a in axes]
-#             for crop, ax in zip(cur_batch, axes):
-#                 # using / on to adapt to windows env
-#                 img_path = os.path.join(crop_pkl_path + '//' + crop.unique_crop_name + '.png')
-#                 img = plt.imread(img_path)
-#                 ax.imshow(img)
-#                 ax.set_title(counter)
-#                 counter += 1
-#             plt.title(f'Label == {cur_batch[0].label}')
-#             plt.show()
-#         while True:
-#             user_input = input("Y for next Track, S for split, D for discard crops, V for mark vauge, R for relabel")
-#             if user_input == 'Y':
-#                 break
-#             elif user_input == 'D':  # receives a sequence of size >= 1
-#                 discards = [int(x) for x in input('Enter crop_ids to Discard').split()]
-#                 discard_crops(crops_pkl, track, discards)
-#             elif user_input == 'V':
-#                 vagues = [int(x) for x in input('Enter crop_ids to set as Vague').split()]
-#                 mark_vague(crops_pkl, track, vagues)
-#             elif user_input == 'S':
-#                 start = int(input('Enter start of split'))
-#                 end = int(input('Enter end of split, plus 1'))
-#                 new_label = insert_new_label()
-#                 split_track(crops_pkl, track, start, end, new_label)
-#             elif user_input == 'R':
-#                 new_label = insert_new_label()
-#                 relabel_all(crops_pkl, track, new_label)
-#             else:
-#                 print('Please Insert one of the supported actions')
-#
-#     crops_pkl = pickle.load(open(os.path.join(crop_pkl_path, '_crop_db.pkl'), 'rb'))  # todo make crop_db.pkl a const
-#     crop_dict_by_frame = defaultdict(list)
-#     for crop in crops_pkl:
-#         crop_dict_by_frame[crop.track_id].append(crop)
-#     for track in crop_dict_by_frame.values():
-#         if len(track) > 25:
-#             # track = [crop for crop in track] # todo lets deal with faces later
-#             _label_tracklet(crops_pkl, track)
-
 
 if __name__ == '__main__':
     db_path = "/mnt/raid1/home/bar_cohen/Shoham_KG.db"

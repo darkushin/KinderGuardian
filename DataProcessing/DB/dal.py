@@ -19,7 +19,8 @@ class Crop(Base):
     vid_name = Column(String)
     track_id = Column(Integer)
     cam_id = Column(Integer)
-    reviewed = Column(Boolean)
+    reviewed_one = Column(Boolean)
+    reviewed_two = Column(Boolean)
     crop_id = Column(Integer)
     is_face = Column(Boolean)
     is_vague = Column(Boolean)
@@ -79,16 +80,6 @@ def get_entries(session, filters: tuple = None, op: str = 'AND', order=None, gro
     if distinct_by:
         sql_query = sql_query.distinct(distinct_by)
     return sql_query  # .all()
-
-def generate_new_track_id(db_path):
-    session = create_session(db_path)
-    sql_query = session.query(Crop.track_id), func.max(Crop.track_id)
-    sql_query += 1
-    return sql_query
-
-
-
-
 
 
 if __name__ == '__main__':
