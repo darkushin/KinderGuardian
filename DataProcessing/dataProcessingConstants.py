@@ -32,3 +32,14 @@ ID_TO_NAME = {v:k for k,v in NAME_TO_ID.items()}
 
 # clustering hyper params defaults
 K_CLUSTERS = 10
+Y_AXIS_NUM_CROPS = 10
+X_AXIS_NUM_CROPS = 5
+NUM_OF_CROPS_TO_VIEW = X_AXIS_NUM_CROPS * Y_AXIS_NUM_CROPS
+
+SKIP_TRACK = 'skip'
+APPROVE_TRACK = 'y'
+DISCARD = 'discard'
+SPLIT_TRACK = 's'
+RELABEL = 'r'
+VAGUE = 'v'
+

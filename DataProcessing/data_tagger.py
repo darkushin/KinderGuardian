@@ -1,10 +1,12 @@
 import os
 import pickle
+import warnings
 from collections import defaultdict
 from matplotlib import pyplot as plt
 from sqlalchemy import func
 from DataProcessing.DB.dal import get_entries, Crop, create_session
-from DataProcessing.dataProcessingConstants import ID_TO_NAME
+from DataProcessing.dataProcessingConstants import *
+
 
 def mark_vague(track, crop_inds):
     for crop_id in crop_inds:
@@ -14,8 +16,8 @@ def relabel_all(track, new_label):
     for crop in track:
         crop.label = new_label
 
-def discard_crops(track, crop_inds):
-    for crop_id in crop_inds:
+def discard_crops(track, crops_inds):
+    for crop_id in crops_inds:
         track[crop_id].invalid = True
 
 def split_track(track, split_start, split_end, new_label, new_track_id):
@@ -32,8 +34,27 @@ def reviewed(track):
 def insert_new_label():
     print("Please insert of of the following Ids:")
     print(ID_TO_NAME)
-    new_label_name = ID_TO_NAME[int(input())]
+    new_label_id = int(input())
+    if new_label_id in ID_TO_NAME.keys():
+        new_label_name = ID_TO_NAME[new_label_id]
+    else:
+        print('Please enter a valid Id from the dict keys')
+        return None
     return new_label_name
+
+def parse_input(inp:str):
+    ret = []
+    arr = inp.split(' ')
+    for elem in arr:
+        r = elem.split('-')
+        if len(r) == 1:
+            ret.append(int(r[0])) # this is a single crop_id
+        elif len(r) == 2:
+            ret.extend(list(range(int(r[0]),int(r[1])+1))) # this is a range
+        else:
+            print('Invalid input, try again')
+            return []
+    return ret
 
 def label_tracks_DB(vid_name:str, crops_folder:str, session):
     def _label_track_DB(session, track_query):
@@ -44,11 +65,11 @@ def label_tracks_DB(vid_name:str, crops_folder:str, session):
         Returns:
         """
         counter = 0
-        NUM_OF_CROPS_TO_VIEW = 25
+        actions_taken = []
         track = track_query.all()
         for batch in range(0, len(track), NUM_OF_CROPS_TO_VIEW):
             cur_batch = track[batch:min(batch + NUM_OF_CROPS_TO_VIEW, len(track))]
-            _, axes = plt.subplots(5, 5, figsize=(10, 10))
+            _, axes = plt.subplots(X_AXIS_NUM_CROPS,Y_AXIS_NUM_CROPS , figsize=(13, 13))
             axes = axes.flatten()
             for a in axes:
                 a.axis('off')
@@ -63,46 +84,75 @@ def label_tracks_DB(vid_name:str, crops_folder:str, session):
             plt.show()
 
         while True:
-            user_input = input("Y for approve and move to next Track,"
-                               "S for split, "
-                               "discard for discard crops,"
-                               "V for mark vague,"
-                               "R for relabel,"
-                               "skip if you are unsure of changes and want to skip review")
+            user_input = input(f"{APPROVE_TRACK} to approve,"
+                               f"{SPLIT_TRACK} to split, "
+                               f"{DISCARD} to discard,"
+                               f"{VAGUE} to mark vague,"
+                               f"{RELABEL} for relabel,"
+                               f"{SKIP_TRACK} to skip review")
 
-            if user_input == 'Y':
-                reviewed(track)
+            if user_input == APPROVE_TRACK:
+                print('The following actions were taken : ')
+                print(actions_taken)
+                if input(f"{APPROVE_TRACK} to approve, other input to cont. tagging") == APPROVE_TRACK:
+                    reviewed(track)
+                    break
+                else:
+                    continue
+            if user_input == SKIP_TRACK:
                 break
-            if user_input == 'Skip':
-                break
-            elif user_input == 'discard':  # receives a sequence of size >= 1
-                discards = [int(x) for x in input('Enter crop_ids to Discard').split()]
-                discard_crops(track, discards)
-            elif user_input == 'V':
-                vagues = [int(x) for x in input('Enter crop_ids to set as Vague').split()]
+            elif user_input == DISCARD:  # receives a sequence of size >= 1
+                # discards = [int(x) for x in input('Enter crop_ids to Discard').split()]
+                discard_input = input('Enter crop_ids to Discard')
+                parsed_input = parse_input(discard_input)
+                discard_crops(track, parsed_input)
+                if max(parsed_input) > len(track):
+                    print('Some values are not valid crop ids, try again')
+                    continue
+                actions_taken.append((DISCARD, parsed_input))
+
+            elif user_input == VAGUE:
+                # vagues = [int(x) for x in input('Enter crop_ids to set as Vague').split()]
+                vague_input = input('Enter crop_ids to set as Vague')
+                vagues = parse_input(vague_input)
+                if max(vagues) > len(track):
+                    print('Some values are not valid crop ids, try again')
+                    continue
                 mark_vague(track, vagues)
-            elif user_input == 'S':
+                actions_taken.append((VAGUE, vague_input))
+
+            elif user_input == SPLIT_TRACK:
                 start = int(input('Enter start of split'))
                 end = int(input('Enter end of split')) + 1
                 new_label = insert_new_label()
-                max_track_id =  session.query(func.max(Crop.track_id)).scalar() + 1
-                split_track(track, start, end, new_label, max_track_id)
-            elif user_input == 'R':
+                if not new_label:
+                    continue
+                new_track_id =  session.query(func.max(Crop.track_id)).scalar() + 1
+                split_track(track, start, end, new_label, new_track_id)
+                actions_taken.append((SPLIT_TRACK, start, end, new_label, new_track_id))
+
+            elif user_input == RELABEL:
                 new_label = insert_new_label()
                 relabel_all(track, new_label)
+                actions_taken.append((RELABEL, new_label))
             else:
-                print('Please Insert one of the supported actions')
+                warnings.warn('Please Insert one of the supported actions')
 
     track_ids = [track.track_id for track in get_entries(filters=({Crop.vid_name == vid_name}),
                                                          group=Crop.track_id, session=session)]
 
     for track_id in track_ids:
-        # todo dont iter over reviewed tracks
-        track_query = get_entries(filters=(Crop.vid_name == vid_name, Crop.track_id == track_id),
-                                  order=Crop.crop_id,
-                                  session=session)
-        _label_track_DB(session=session, track_query=track_query)
-        break
+        print()
+        try:
+            track_query = get_entries(filters=(Crop.vid_name == vid_name,
+                                               Crop.track_id == track_id,
+                                               Crop.reviewed_one == False
+                                               ),
+                                      order=Crop.crop_id,
+                                      session=session)
+            _label_track_DB(session=session, track_query=track_query)
+        except Exception as e:
+            warnings.warn(f'Error! {e}')
     session.commit()
 
 if __name__ == '__main__':

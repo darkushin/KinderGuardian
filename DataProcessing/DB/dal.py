@@ -1,3 +1,5 @@
+import os
+
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float, MetaData, and_, or_, func
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
@@ -54,7 +56,8 @@ def add_entries(crops: list, db_location: str = DB_LOCATION):
     session.commit()
 
 
-def get_entries(session, filters: tuple = None, op: str = 'AND', order=None, group=None, distinct_by=None):
+def get_entries(session=None, filters: tuple = None, op: str = 'AND', order=None, group=None, distinct_by=None,
+                db_path=None):
     """
     Return all entries from the database according to the given filters. If no filters are given, return all entries.
     Args:
@@ -65,7 +68,8 @@ def get_entries(session, filters: tuple = None, op: str = 'AND', order=None, gro
     Return:
         The returned result is a list of Crops objects matching the given filters.
     """
-    # session = create_session(db_path)
+    if not session:
+        session = create_session(db_path)
     if op == 'AND':
         query = and_(*filters)
     elif op == 'OR':
