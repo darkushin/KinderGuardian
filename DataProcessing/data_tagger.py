@@ -6,7 +6,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # todo all of these actions need to be done to the db, currently they all run in O(n) for each Crop changed !
-from DataProcessing.DB.dal import get_entries, Crop, generate_new_track_id
+from DataProcessing.DB.dal import get_entries, Crop, generate_new_track_id, create_session
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 
 #
@@ -50,10 +50,13 @@ def mark_vague(track, crop_inds):
         track[crop_id].is_vague = True
 
 
-def relabel_all(track, new_label):
-    for crop in track:
-        crop.set_label(new_label)
 
+
+def relabel_all(session, track, new_label):
+    for crop in track:
+        # crop.update({Crop.label : new_label})
+        crop.label = new_label
+        session.commit()
 
 def discard_crops(track, crop_inds):
     # todo do we really want to do this?
@@ -75,18 +78,19 @@ def insert_new_label():
     new_label_name = ID_TO_NAME[int(input())]
     return new_label_name
 
-def label_tracks_DB(vid_name:str,crops_folder:str, DB_path: str):
-    def _label_track_DB(DB_path, db_query):
+def label_tracks_DB(vid_name:str, crops_folder:str, session):
+    def _label_track_DB(session, track_query):
         """
 
         Args:
             track: A list of Crop objects representing the track
         Returns:
         """
-        # todo deal with face images
         NUM_OF_CROPS_TO_VIEW = 25
         counter = 0
-        track = db_query.all()
+        track = track_query.all()
+        relabel_all(session , track,'maol')
+        return
         for batch in range(0, len(track), NUM_OF_CROPS_TO_VIEW):
             cur_batch = track[batch:min(batch + NUM_OF_CROPS_TO_VIEW, len(track))]
             _, axes = plt.subplots(5, 5, figsize=(10, 10))
@@ -103,25 +107,28 @@ def label_tracks_DB(vid_name:str,crops_folder:str, DB_path: str):
                 counter += 1
             plt.title(f'Label == {cur_batch[0].label}')
             plt.show()
+
         while True:
             user_input = input("Y for next Track, S for split, D for discard crops, V for mark vauge, R for relabel")
             if user_input == 'Y':
                 break
             elif user_input == 'D':  # receives a sequence of size >= 1
                 discards = [int(x) for x in input('Enter crop_ids to Discard').split()]
-                discard_crops(track, discards)
+                discard_crops(track_query, discards)
             elif user_input == 'V':
                 vagues = [int(x) for x in input('Enter crop_ids to set as Vague').split()]
-                mark_vague(track, vagues)
+                mark_vague(track_query, vagues)
             elif user_input == 'S':
                 start = int(input('Enter start of split'))
                 end = int(input('Enter end of split, plus 1'))
                 new_label = insert_new_label()
-                new_track_id = generate_new_track_id(DB_path)
-                split_track(track, start, end, new_label, new_track_id)
+                new_track_id = generate_new_track_id(session)
+                split_track(track_query, start, end, new_label, new_track_id)
             elif user_input == 'R':
                 new_label = insert_new_label()
-                relabel_all(track, new_label)
+                relabel_all(track_query, new_label)
+            elif user_input == 'STOP IT':
+                return
             else:
                 print('Please Insert one of the supported actions')
 
@@ -131,14 +138,14 @@ def label_tracks_DB(vid_name:str,crops_folder:str, DB_path: str):
     # for each track id get all crops of track
     # run submodel of relabel track
 
-    track_ids = [track.track_id for track in
-              get_entries(filters=({Crop.vid_name == vid_name}), group=Crop.track_id, db_path=DB_path)]
+    track_ids = [track.track_id for track in get_entries(filters=({Crop.vid_name == vid_name}),
+                                                         group=Crop.track_id, session=session)]
     # tracks = np.unique([crop.track_id for crop in video_crops])
     for track_id in track_ids:
-        track_crops = get_entries(filters=(Crop.vid_name == vid_name, Crop.track_id == track_id),
+        track_query = get_entries(filters=(Crop.vid_name == vid_name, Crop.track_id == track_id),
                                   order=Crop.crop_id,
-                                  db_path=DB_path)
-        _label_track_DB(DB_path=DB_path, db_query=track_crops)
+                                  session=session)
+        _label_track_DB(session=session, track_query=track_query)
 
     #
     # crop_dict_by_frame = defaultdict(list)
@@ -208,6 +215,8 @@ def label_tracks_DB(vid_name:str,crops_folder:str, DB_path: str):
 
 
 if __name__ == '__main__':
+    db_path = "/mnt/raid1/home/bar_cohen/Shoham_KG.db"
+    session = create_session(db_path)
     label_tracks_DB(vid_name='1.8.21-095724' ,
                     crops_folder = "/mnt/raid1/home/bar_cohen/DB_Test/",
-                    DB_path="/mnt/raid1/home/bar_cohen/Shoham_KG.db")
+                    session=session)

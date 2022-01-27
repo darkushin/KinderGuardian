@@ -52,7 +52,7 @@ def add_entries(crops: list, db_location: str = DB_LOCATION):
     session.commit()
 
 
-def get_entries(filters: tuple = None, op: str = 'AND', order=None, group=None, distinct_by=None, db_path=DB_LOCATION):
+def get_entries(session, filters: tuple = None, op: str = 'AND', order=None, group=None, distinct_by=None):
     """
     Return all entries from the database according to the given filters. If no filters are given, return all entries.
     Args:
@@ -63,7 +63,7 @@ def get_entries(filters: tuple = None, op: str = 'AND', order=None, group=None, 
     Return:
         The returned result is a list of Crops objects matching the given filters.
     """
-    session = create_session(db_path)
+    # session = create_session(db_path)
     if op == 'AND':
         query = and_(*filters)
     elif op == 'OR':
