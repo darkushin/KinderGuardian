@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float, M
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
-DB_LOCATION = '/mnt/raid1/home/bar_cohen/Shoham_KG-old.db'
+DB_LOCATION = '/mnt/raid1/home/bar_cohen/Shoham_KG.db'
 Base = declarative_base()
 
 

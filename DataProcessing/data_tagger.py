@@ -33,7 +33,7 @@ def split_track(track, split_start, split_end, new_label, new_track_id):
 
 def reviewed(track):
     for crop in track:
-        crop.reviewed = True
+        crop.reviewed_one = True
 
 
 def insert_new_label():
@@ -70,27 +70,27 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
             track: A list of Crop objects representing the track
         Returns:
         """
-        try:
-            counter = 0
-            actions_taken = []
-            track = track_query.all()
-            for batch in range(0, len(track), NUM_OF_CROPS_TO_VIEW):
-                cur_batch = track[batch:min(batch + NUM_OF_CROPS_TO_VIEW, len(track))]
-                _, axes = plt.subplots(X_AXIS_NUM_CROPS, Y_AXIS_NUM_CROPS, figsize=(13, 13))
-                axes = axes.flatten()
-                for a in axes:
-                    a.axis('off')
-                for crop, ax in zip(cur_batch, axes):
-                    # using / on to adapt to windows env
-                    img_path = os.path.join(crops_folder, crop.im_name)
-                    img = plt.imread(img_path)
-                    ax.imshow(img)
-                    ax.set_title(counter)
-                    counter += 1
-                plt.title(f'Label == {cur_batch[0].label}')
-                plt.show()
+        counter = 0
+        actions_taken = []
+        track = track_query.all()
+        for batch in range(0, len(track), NUM_OF_CROPS_TO_VIEW):
+            cur_batch = track[batch:min(batch + NUM_OF_CROPS_TO_VIEW, len(track))]
+            _, axes = plt.subplots(X_AXIS_NUM_CROPS, Y_AXIS_NUM_CROPS, figsize=(13, 13))
+            axes = axes.flatten()
+            for a in axes:
+                a.axis('off')
+            for crop, ax in zip(cur_batch, axes):
+                # using / on to adapt to windows env
+                img_path = os.path.join(crops_folder, crop.im_name)
+                img = plt.imread(img_path)
+                ax.imshow(img)
+                ax.set_title(counter)
+                counter += 1
+            plt.title(f'Label == {cur_batch[0].label}')
+            plt.show()
 
-            while True:
+        while True:
+            try:
                 user_input = input(f"{APPROVE_TRACK} to approve,"
                                    f"{SPLIT_TRACK} to split, "
                                    f"{DISCARD} to discard,"
@@ -154,24 +154,29 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
                         print('invalid input for quiting, sit down and continue labeling!')
                 else:
                     warnings.warn('Please Insert one of the supported actions')
-        except Exception as e:
-            warnings.warn(f'Error! {e}')
+            except Exception as e:
+                warnings.warn(f'Error! {e}')
 
     track_ids = [track.track_id for track in get_entries(filters=({Crop.vid_name == vid_name}),
                                                          group=Crop.track_id, session=session)]
     for i, track_id in enumerate(track_ids):
-        print(f'Labeling track {i}/{len(track_ids)}')
+        print(f'cur track {i+1}/{len(track_ids)}')
         track_query = get_entries(filters=(Crop.vid_name == vid_name,
                                            Crop.track_id == track_id,
                                            Crop.reviewed_one == False),
                                   order=Crop.crop_id,
                                   session=session)
-        _label_track_DB(session=session, track_query=track_query)
+        if track_query.count() > 0:
+            print('Begin Tagging...')
+            _label_track_DB(session=session, track_query=track_query)
+        else:
+            print('Already Reviewed')
+
     session.commit()
 
 
 if __name__ == '__main__':
     session = create_session()
-    label_tracks_DB(vid_name='1.8.21-095724',
-                    crops_folder="/mnt/raid1/home/bar_cohen/DB_Test/",
+    label_tracks_DB(vid_name='_20210801115410_s0_e501',
+                    crops_folder="/mnt/raid1/home/bar_cohen/20210801115410_s0_e501/",
                     session=session)
