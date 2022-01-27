@@ -57,7 +57,7 @@ def add_entries(crops: list, db_location: str = DB_LOCATION):
 
 
 def get_entries(session=None, filters: tuple = None, op: str = 'AND', order=None, group=None, distinct_by=None,
-                db_path=None):
+                db_path=DB_LOCATION):
     """
     Return all entries from the database according to the given filters. If no filters are given, return all entries.
     Args:

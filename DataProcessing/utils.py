@@ -203,7 +203,7 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
     temp_path = temp_dir.name
     fps = int(imgs.fps)
 
-    for i, frame in tqdm(enumerate(imgs)):
+    for i, frame in tqdm(enumerate(imgs),total=len(imgs)):
         # retrieve all crops of the current frame from the DB:
         frame_crops = get_entries(filters=(Crop.vid_name == vid_name, Crop.frame_num == i)).all()
         if frame_crops:

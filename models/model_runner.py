@@ -2,6 +2,8 @@ from argparse import ArgumentParser, REMAINDER
 from subprocess import call
 
 import sys
+
+from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import *
 import DataProcessing.dataFactory
 from typing import List
@@ -122,6 +124,7 @@ def execute_combined_model():
     script_args.extend(reid_opts)
     print(script_args)
     call(script_args)
+    viz_DB_data_on_video(args.input, args.output)
 
 
 def runner():
