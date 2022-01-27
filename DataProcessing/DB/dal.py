@@ -23,6 +23,7 @@ class Crop(Base):
     crop_id = Column(Integer)
     is_face = Column(Boolean)
     is_vague = Column(Boolean)
+    invalid = Column(Boolean)
 
     def set_im_name(self):
         self.im_name = f'v{self.vid_name}_f{self.frame_num}_bbox_{self.x1}_{self.y1}_{self.x2}_{self.y2}.png'
