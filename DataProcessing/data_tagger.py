@@ -177,6 +177,6 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
 
 if __name__ == '__main__':
     session = create_session()
-    label_tracks_DB(vid_name='_20210801115410_s0_e501',
-                    crops_folder="/mnt/raid1/home/bar_cohen/20210801115410_s0_e501/",
+    label_tracks_DB(vid_name='_20210802122552_s0_e501',
+                    crops_folder="/mnt/raid1/home/bar_cohen/20210802122552_s0_e501/",
                     session=session)
