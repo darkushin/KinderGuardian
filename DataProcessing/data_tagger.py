@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 from sqlalchemy import func
 from DataProcessing.DB.dal import get_entries, Crop, create_session
 from DataProcessing.dataProcessingConstants import *
-
+from DataProcessing.utils import create_bbox_color
 
 def mark_vague(track, crop_inds):
     for crop_id in crop_inds:
@@ -77,14 +77,19 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
             cur_batch = track[batch:min(batch + NUM_OF_CROPS_TO_VIEW, len(track))]
             _, axes = plt.subplots(X_AXIS_NUM_CROPS, Y_AXIS_NUM_CROPS, figsize=(13, 13))
             axes = axes.flatten()
-            for a in axes:
-                a.axis('off')
             for crop, ax in zip(cur_batch, axes):
                 # using / on to adapt to windows env
                 img_path = os.path.join(crops_folder, crop.im_name)
                 img = plt.imread(img_path)
                 ax.imshow(img)
                 ax.set_title(counter)
+                # set the color of the figure according to the image status: reviewed/vague/invalid
+                for spine in ax.spines.values():
+                    color = create_bbox_color([{'invalid': crop.invalid, 'vague': crop.is_vague, 'reviewed_1': crop.reviewed_one}])
+                    spine.set_edgecolor(color[0])
+                ax.axes.xaxis.set_ticklabels([])
+                ax.axes.yaxis.set_ticklabels([])
+                plt.setp(ax.spines.values(), linewidth=3)
                 counter += 1
             plt.title(f'Label == {cur_batch[0].label}')
             plt.show()

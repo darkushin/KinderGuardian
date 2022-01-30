@@ -18,6 +18,13 @@ This folder holds functions that can be useful for data handling, such as renami
 """
 
 
+COLOR_TO_RGB = {
+    'yellow': [1, 1, 0],
+    'blue': [0, 0, 1],
+    'green': [0, 1, 0],
+    'red': [1, 0, 0]
+}
+
 def im_name_format(path):
     """
     Convert all images in the given path from its current malformed format to the `xxxx_c1_f1234567.jpg` format which is
@@ -203,17 +210,17 @@ def create_bbox_color(crop_props: list) -> list:
     @param crop_props: a list of dictionaries for each crop. Each dictionary is of the form: {'invalid':
     crop.invalid, 'vague': crop.vague, 'reviewed_1': crop.reviewed_one}
 
-    @return a list with the bbox_color for each crop
+    @return a list with the bbox_color string for each crop
     """
     bbox_colors = []
     for crop in crop_props:
-        bbox_color = [1, 1, 0]  # yellow, if crop wasn't review yet
+        bbox_color = 'yellow'  # yellow, if crop wasn't review yet
         if crop.get('reviewed_1'):  # green, if crop was reviewed and not marked as invalid / vague
-            bbox_color = [0, 1, 0]
+            bbox_color = 'green'
         if crop.get('vague'):  # blue, if crop was marked as vague
-            bbox_color = [0, 0, 1]
+            bbox_color = 'blue'
         if crop.get('invalid'):  # red, if crop was marked as invalid
-            bbox_color = [1, 0, 0]
+            bbox_color = 'red'
         bbox_colors.append(bbox_color)
     return bbox_colors
 
@@ -312,8 +319,9 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
             crops_bboxes = [np.array([crop.x1, crop.y1, crop.x2, crop.y2, crop.conf]) for crop in frame_crops]
             crops_labels = [crop.label for crop in frame_crops]
             bbox_colors = create_bbox_color([{'invalid': crop.invalid, 'vague': crop.is_vague, 'reviewed_1': crop.reviewed_one} for crop in frame_crops])
+            bbox_colors_RGB = [COLOR_TO_RGB[bbox] for bbox in bbox_colors]
             cur_img = plot_tracks(img=frame, bboxes=np.array(crops_bboxes), ids=np.array(crops_labels),
-                                  labels=np.array(crops_labels), bbox_colors=bbox_colors)
+                                  labels=np.array(crops_labels), bbox_colors=bbox_colors_RGB)
             mmcv.imwrite(cur_img, f'{temp_path}/{i:03d}.png')
         else:
             # no crops detected, write the original frame
