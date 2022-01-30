@@ -306,7 +306,7 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
 
     for i, frame in tqdm(enumerate(imgs), total=len(imgs)):
         # retrieve all crops of the current frame from the DB:
-        frame_crops = get_entries(filters=(Crop.vid_name == vid_name, Crop.frame_num == i)).all()
+        frame_crops = get_entries(filters=(Crop.vid_name == vid_name, Crop.frame_num == i, Crop.invalid == False)).all()
         if frame_crops:
             # at least single crop was found in frame
             crops_bboxes = [np.array([crop.x1, crop.y1, crop.x2, crop.y2, crop.conf]) for crop in frame_crops]
