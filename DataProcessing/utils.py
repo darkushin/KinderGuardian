@@ -1,12 +1,13 @@
 import os
 from cv2 import imread
+import cv2
 from pathlib import Path
 from tqdm import tqdm
 import pickle
 import tempfile
 from collections import defaultdict
 import numpy as np
-from mmtrack.core.utils.visualization import _cv2_show_tracks as plot_tracks
+from mmtrack.core.utils.visualization import random_color
 import mmcv
 from DataProcessing.DB.dal import *
 
@@ -78,10 +79,11 @@ def read_labeled_croped_images(file_dir, file_type='jpg') -> dict:
 
 def trim_videos_from_dir(dir, output_path, limit, create_every=45000):
     for i, vid in enumerate(os.listdir(dir)):
-        print("Creating trimmed vid ", i )
-        cur_out = os.path.join(output_path,vid[:-4])
+        print("Creating trimmed vid ", i)
+        cur_out = os.path.join(output_path, vid[:-4])
         os.makedirs(cur_out, exist_ok=True)
-        trim_video(os.path.join(dir,vid), cur_out, limit, create_every)
+        trim_video(os.path.join(dir, vid), cur_out, limit, create_every)
+
 
 def trim_video(input_path, output_path, limit, create_every=40000):
     """
@@ -97,7 +99,7 @@ def trim_video(input_path, output_path, limit, create_every=40000):
     fps = int(imgs.fps)
     print(" Starting trim iter")
     for batch in range(0, len(imgs), create_every):
-        cur_imgs = imgs[batch:min(batch+limit+1, len(imgs))]
+        cur_imgs = imgs[batch:min(batch + limit + 1, len(imgs))]
         for i, img in enumerate(cur_imgs):
             mmcv.imwrite(img, f'{temp_path}/{i:03d}.png')
             if not i % 100:
@@ -105,7 +107,8 @@ def trim_video(input_path, output_path, limit, create_every=40000):
             if i == limit:
                 print(f'    Captured {limit} frames. Creating vid...')
                 vid_name = os.path.split(output_path)[-1]
-                mmcv.frames2video(temp_path, os.path.join(output_path ,f'{vid_name}_s{batch}_e{batch+len(cur_imgs)}.mp4'),
+                mmcv.frames2video(temp_path,
+                                  os.path.join(output_path, f'{vid_name}_s{batch}_e{batch + len(cur_imgs)}.mp4'),
                                   fps=fps, fourcc='mp4v', filename_tmpl='{:03d}.png')
                 temp_dir.cleanup()
                 print('     done.')
@@ -113,6 +116,106 @@ def trim_video(input_path, output_path, limit, create_every=40000):
         print(' Cleaning up residue..')
         temp_dir.cleanup()
     print(" Done trimming vid.")
+
+
+def plot_tracks(img, bboxes, labels, ids, masks=None, classes=None, score_thr=0.0, thickness=2, font_scale=0.4,
+                show=False, wait_time=0, out_file=None, bbox_colors=None):
+    """Show the tracks with opencv."""
+    assert bboxes.ndim == 2
+    assert labels.ndim == 1
+    assert ids.ndim == 1
+    assert bboxes.shape[0] == labels.shape[0]
+    assert bboxes.shape[1] == 5
+    if isinstance(img, str):
+        img = mmcv.imread(img)
+
+    img_shape = img.shape
+    bboxes[:, 0::2] = np.clip(bboxes[:, 0::2], 0, img_shape[1])
+    bboxes[:, 1::2] = np.clip(bboxes[:, 1::2], 0, img_shape[0])
+
+    inds = np.where(bboxes[:, -1] > score_thr)[0]
+    bboxes = bboxes[inds]
+    labels = labels[inds]
+    ids = ids[inds]
+    if masks is not None:
+        assert masks.ndim == 3
+        masks = masks[inds]
+        assert masks.shape[0] == bboxes.shape[0]
+
+    text_width, text_height = 9, 13
+    for i, (bbox, label, id, bbox_color) in enumerate(zip(bboxes, labels, ids, bbox_colors)):
+        x1, y1, x2, y2 = bbox[:4].astype(np.int32)
+        score = float(bbox[-1])
+
+        # bbox
+        if not bbox_color:
+            bbox_color = random_color(id)
+        bbox_color = [int(255 * _c) for _c in bbox_color][::-1]
+        cv2.rectangle(img, (x1, y1), (x2, y2), bbox_color, thickness=thickness)
+
+        # score
+        text = '{:.02f}'.format(score)
+        if classes is not None:
+            text += f'|{classes[label]}'
+        width = len(text) * text_width
+        img[y1:y1 + text_height, x1:x1 + width, :] = bbox_color
+        cv2.putText(
+            img,
+            text, (x1, y1 + text_height - 2),
+            cv2.FONT_HERSHEY_COMPLEX,
+            font_scale,
+            color=(0, 0, 0))
+
+        # id
+        text = str(id)
+        width = len(text) * text_width
+        img[y1 + text_height:y1 + 2 * text_height,
+        x1:x1 + width, :] = bbox_color
+        cv2.putText(
+            img,
+            str(id), (x1, y1 + 2 * text_height - 2),
+            cv2.FONT_HERSHEY_COMPLEX,
+            font_scale,
+            color=(0, 0, 0))
+
+        # mask
+        if masks is not None:
+            mask = masks[i].astype(bool)
+            mask_color = np.array(bbox_color, dtype=np.uint8).reshape(1, -1)
+            img[mask] = img[mask] * 0.5 + mask_color * 0.5
+
+    if show:
+        mmcv.imshow(img, wait_time=wait_time)
+    if out_file is not None:
+        mmcv.imwrite(img, out_file)
+
+    return img
+
+
+def create_bbox_color(crop_props: list) -> list:
+    """
+    Given a list of crops properties (crop.invalid, crop.vague, crop.reviewed_one) for each crop, return a color for
+    a bbox according to the following convention:
+        - RED: crop was marked as discarded
+        - BLUE: crop was marked as vague
+        - YELLOW: crop was reviewed yet
+        - GREEN: crop was reviewed and wasn't marked as invalid or vague.
+    @param crop_props: a list of dictionaries for each crop. Each dictionary is of the form: {'invalid':
+    crop.invalid, 'vague': crop.vague, 'reviewed_1': crop.reviewed_one}
+
+    @return a list with the bbox_color for each crop
+    """
+    bbox_colors = []
+    for crop in crop_props:
+        bbox_color = [1, 1, 0]  # yellow, if crop wasn't review yet
+        if crop.get('reviewed_1'):  # green, if crop was reviewed and not marked as invalid / vague
+            bbox_color = [0, 1, 0]
+        if crop.get('vague'):  # blue, if crop was marked as vague
+            bbox_color = [0, 0, 1]
+        if crop.get('invalid'):  # red, if crop was marked as invalid
+            bbox_color = [1, 0, 0]
+        bbox_colors.append(bbox_color)
+    return bbox_colors
 
 
 def viz_data_on_video_using_pickle(input_vid, output_path, pre_labeled_pkl_path=None, path_to_crops=None):
@@ -177,15 +280,13 @@ def create_tracklet_hist(pre_labeled_pkl_path):
     for crop in crops:
         crop_dict_by_frame[crop.track_id] += 1
 
-    df = pd.DataFrame({'Track Length' : crop_dict_by_frame.values()})
+    df = pd.DataFrame({'Track Length': crop_dict_by_frame.values()})
     sns.histplot(data=df, bins=50)
     # plt.xticks(list(range(0,501,10)))
     plt.xlabel("Number of crops in track")
     plt.ylabel("Count of tracks")
     plt.title('Track Count of 500 frame video')
     plt.show()
-
-
 
 
 def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
@@ -203,15 +304,16 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
     temp_path = temp_dir.name
     fps = int(imgs.fps)
 
-    for i, frame in tqdm(enumerate(imgs),total=len(imgs)):
+    for i, frame in tqdm(enumerate(imgs), total=len(imgs)):
         # retrieve all crops of the current frame from the DB:
         frame_crops = get_entries(filters=(Crop.vid_name == vid_name, Crop.frame_num == i)).all()
         if frame_crops:
             # at least single crop was found in frame
             crops_bboxes = [np.array([crop.x1, crop.y1, crop.x2, crop.y2, crop.conf]) for crop in frame_crops]
             crops_labels = [crop.label for crop in frame_crops]
+            bbox_colors = create_bbox_color([{'invalid': crop.invalid, 'vague': crop.is_vague, 'reviewed_1': crop.reviewed_one} for crop in frame_crops])
             cur_img = plot_tracks(img=frame, bboxes=np.array(crops_bboxes), ids=np.array(crops_labels),
-                                  labels=np.array(crops_labels))
+                                  labels=np.array(crops_labels), bbox_colors=bbox_colors)
             mmcv.imwrite(cur_img, f'{temp_path}/{i:03d}.png')
         else:
             # no crops detected, write the original frame
@@ -227,5 +329,8 @@ if __name__ == '__main__':
     #                   pre_labeled_pkl_path='/mnt/raid1/home/bar_cohen/DB_Crops/_crop_db.pkl')
     # path_to_crops="/mnt/raid1/home/bar_cohen/DB_Crops/")
 
-    viz_DB_data_on_video(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
-                         output_path='/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_from_DB.mp4')
+    # im_name_format('/home/bar_cohen/D-KinderGuardian/fast-reid/datasets/2.8.21-dataset/query')
+
+    viz_DB_data_on_video(
+        input_vid='/home/bar_cohen/raid/trimmed_videos/IPCamera_20210801095724/IPCamera_20210801095724_s0_e501.mp4',
+        output_path='/home/bar_cohen/D-KinderGuardian/DataProcessing/Data/_20210801095724_s0_e501/20210801095724_s0_e501_labeled_reviewed1.mp4')
