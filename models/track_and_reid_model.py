@@ -185,10 +185,10 @@ def create_data_by_re_id_and_track():
         crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
         for i, (id, conf, crop_im) in enumerate(zip(ids, confs, crops_imgs)):
             face_img = faceDetector.facenet_detecor(crop_im)
-            # for video_name we skip the first 8 chars as to fit the IP_Camera video name convention, if entering
+            # for video_name we skip the first 8 chars as to fit the IP_Camera_ video name convention, if entering
             # a different video name note this.
             x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to ints
-            crop = Crop(vid_name=args.input.split('/')[-1][8:-4],
+            crop = Crop(vid_name=args.input.split('/')[-1][9:-4],
                         frame_num=image_index,
                         track_id=id,
                         x1=x1, y1=y1, x2=x2, y2=y2,
