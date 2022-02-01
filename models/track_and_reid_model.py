@@ -195,7 +195,9 @@ def create_data_by_re_id_and_track():
                         conf=conf,
                         cam_id=CAM_ID,
                         crop_id=-1,
-                        reviewed=False,
+                        reviewed_one=False,
+                        reviewed_two=False,
+                        invalid=False,
                         is_vague=False)
             crop.set_im_name()
             tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop})

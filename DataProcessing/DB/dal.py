@@ -1,4 +1,6 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float, MetaData, and_, or_
+import os
+
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float, MetaData, and_, or_, func
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -19,10 +21,12 @@ class Crop(Base):
     vid_name = Column(String)
     track_id = Column(Integer)
     cam_id = Column(Integer)
-    reviewed = Column(Boolean)
+    reviewed_one = Column(Boolean)
+    reviewed_two = Column(Boolean)
     crop_id = Column(Integer)
     is_face = Column(Boolean)
     is_vague = Column(Boolean)
+    invalid = Column(Boolean)
 
     def set_im_name(self):
         self.im_name = f'v{self.vid_name}_f{self.frame_num}_bbox_{self.x1}_{self.y1}_{self.x2}_{self.y2}.png'
@@ -52,7 +56,8 @@ def add_entries(crops: list, db_location: str = DB_LOCATION):
     session.commit()
 
 
-def get_entries(filters: tuple = None, op: str = 'AND', order=None, group=None, db_path=DB_LOCATION):
+def get_entries(session=None, filters: tuple = None, op: str = 'AND', order=None, group=None, distinct_by=None,
+                db_path=DB_LOCATION):
     """
     Return all entries from the database according to the given filters. If no filters are given, return all entries.
     Args:
@@ -63,7 +68,8 @@ def get_entries(filters: tuple = None, op: str = 'AND', order=None, group=None, 
     Return:
         The returned result is a list of Crops objects matching the given filters.
     """
-    session = create_session(db_path)
+    if not session:
+        session = create_session(db_path)
     if op == 'AND':
         query = and_(*filters)
     elif op == 'OR':
@@ -75,11 +81,13 @@ def get_entries(filters: tuple = None, op: str = 'AND', order=None, group=None, 
         sql_query = sql_query.order_by(order)
     if group:
         sql_query = sql_query.group_by(group)
-    return sql_query.all()
+    if distinct_by:
+        sql_query = sql_query.distinct(distinct_by)
+    return sql_query
 
 
-if __name__ == '__main__':
-    create_table()
+# if __name__ == '__main__':
+#     create_table()
     # vid_name = '1.8.21-095724'
     # crops = get_entries(filters=({Crop.vid_name == vid_name}), db_path=DB_LOCATION_ORIG)
 #     crop = '0001_c1_f0307006.jpg'
