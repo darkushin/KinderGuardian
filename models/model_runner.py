@@ -2,8 +2,6 @@ from argparse import ArgumentParser, REMAINDER
 from subprocess import call
 
 import sys
-
-from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import *
 import DataProcessing.dataFactory
 from typing import List
@@ -115,16 +113,15 @@ def execute_combined_model():
     --output ./Results/trimmed-bytetrack_labeled.mp4 --acc_th 0.7 --crops_folder /mnt/raid1/home/bar_cohen/DB_Test/
     --device cuda:1 --reid_opts DATASETS.DATASET inference_on_train_data MODEL.WEIGHTS ./fast-reid/checkpoints/1.8.21-model.pth
     """
-    # reid_opts: List = create_reid_opts()
-    # optional_args: List = create_optional_args()
-    # script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
-    #       args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
-    # script_args.extend(optional_args)
-    # script_args.append('--reid_opts')
-    # script_args.extend(reid_opts)
-    # print(script_args)
-    # call(script_args)
-    viz_DB_data_on_video(args.input, args.output)
+    reid_opts: List = create_reid_opts()
+    optional_args: List = create_optional_args()
+    script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
+          args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
+    script_args.extend(optional_args)
+    script_args.append('--reid_opts')
+    script_args.extend(reid_opts)
+    print(script_args)
+    call(script_args)
 
 
 def runner():
