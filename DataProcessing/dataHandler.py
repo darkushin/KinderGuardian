@@ -1,46 +1,13 @@
-from DataProcessing.Crop import Crop
+import glob
 import logging
-import pickle
-from collections import defaultdict
-
+import os
+import shutil
+import cv2
 import mmcv
 import numpy as np
-import torch
-from mmtrack.apis import inference_mot, init_model
-import os, glob, shutil
 import tensorflow as tf
+from mmtrack.apis import inference_mot, init_model
 from sklearn.cluster import KMeans
-import cv2
-import ast
-
-
-
-def create_Crop_from_str(img_path):
-    """
-    Given a labeled image name, convert the name to a Crop object.
-    The name of the file needs to fit the following convention:
-    '?Face_{self.label}_v{self.video_name[9:]}_f{self.frame_id}_b{str(self.bbox)}_t{self.track_id}_c{self.cam_id}_cid{self.crop_id}'
-    Note that a crop Obj can be a face Crop or a regular crop, this func deals with both situations
-    """
-    is_face = False
-    splitted = os.path.split(img_path)[-1]
-    splitted = splitted.split('_')
-    if splitted[0] == 'Face':
-        is_face = True
-        splitted = splitted[1:]
-    label = splitted[0]
-    video_name = splitted[1][1:]
-    frame_id = int(splitted[2][1:])
-    bbox = np.array(ast.literal_eval(splitted[3][1:]))
-    track_id = int(splitted[4][1:])
-    cam = int(splitted[5][1:])
-    cid = int(splitted[6][3:-4])
-    crop_obj = Crop(frame_id=frame_id, bbox=bbox, crop_img=None, face_img=None,
-                    track_id=track_id, cam_id=cam, crop_id=cid, video_name=video_name)
-    if is_face:
-        crop_obj.manually_set_is_face(True)
-    crop_obj.set_label(label)
-    return crop_obj
 
 
 class DataHandler:
@@ -58,7 +25,8 @@ class DataHandler:
         @param input_folder_path: Input folder for videos to parse. must be non-empty with avi format videos
         @param output_video_path: Output Folder for crops and clusters
         @param config: the config file path for the mm-track module
-        @param checkpoint: the checkpoint file path for the mm-track module, if non entered downloads checkpoint during runtime.
+        @param checkpoint: the checkpoint file path for the mm-track module, if non entered downloads checkpoint
+        during runtime.
         @param device: the device to run script from. Defaults to GPU if one exists.
         """
 
@@ -118,9 +86,11 @@ class DataHandler:
                         for j in range(len(croped_im)):
                             per_crop = np.array(croped_im[j])
                             # data set example "0005_c2_f0046985.jpg"
-                            # add the name of the video to avoid overwriting of crops with the same name from different videos:
+                            # add the name of the video to avoid overwriting of crops with the same name from
+                            # different videos:
                             vid_suffix = vid.split('.avi')[0]
-                            cropped_out = f'{self.crop_folder_path}/{int(ids[j]):04d}_c{self.cam_id}_f{i:07d}_vid-{vid_suffix}.jpg'
+                            cropped_out = f'{self.crop_folder_path}/{int(ids[j]):04d}_c{self.cam_id}_f{i:07d}_vid-' \
+                                          f'{vid_suffix}.jpg'
                             cv2.imwrite(cropped_out, per_crop)
                         prog_bar.update()
                 else:
@@ -138,10 +108,10 @@ class DataHandler:
         # if generating the crops in the same run, the input for the clustering should be the output arg
 
         os.makedirs(self.cluster_folder_path, exist_ok=True)
-        joined_path_to_files = os.path.join(self.crop_folder_path,'*.*')
+        joined_path_to_files = os.path.join(self.crop_folder_path, '*.*')
         images = [cv2.resize(cv2.imread(file), (224, 224)) for file in glob.glob(joined_path_to_files)]
         paths = [file for file in glob.glob(joined_path_to_files)]
-        assert images and paths , "crops folder must be non-empty"
+        assert images and paths, "crops folder must be non-empty"
         images = np.array(np.float32(images).reshape(len(images), -1) / 255)
         model = tf.keras.applications.MobileNetV2(include_top=False, weights="imagenet", input_shape=(224, 224, 3))
         predictions = model.predict(images.reshape(-1, 224, 224, 3))

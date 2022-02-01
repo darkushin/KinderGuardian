@@ -1,13 +1,12 @@
 import os
-import pickle
 import sys
 import warnings
-from collections import defaultdict
 from matplotlib import pyplot as plt
 from sqlalchemy import func
 from DataProcessing.DB.dal import get_entries, Crop, create_session
 from DataProcessing.dataProcessingConstants import *
 from DataProcessing.utils import create_bbox_color
+
 
 def mark_vague(track, crop_inds):
     for crop_id in crop_inds:
@@ -37,7 +36,7 @@ def reviewed(track):
 
 
 def insert_new_label():
-    print("Please insert of of the following Ids:")
+    print("Please insert one of the following Ids:")
     print(ID_TO_NAME)
     new_label_id = int(input())
     if new_label_id in ID_TO_NAME.keys():
@@ -185,3 +184,4 @@ if __name__ == '__main__':
     label_tracks_DB(vid_name='_20210802122552_s0_e501',
                     crops_folder="/mnt/raid1/home/bar_cohen/20210802122552_s0_e501/",
                     session=session)
+

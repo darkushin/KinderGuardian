@@ -278,22 +278,22 @@ def viz_data_on_video_using_pickle(input_vid, output_path, pre_labeled_pkl_path=
     temp_dir.cleanup()
 
 
-def create_tracklet_hist(pre_labeled_pkl_path):
-    import seaborn as sns
-    from matplotlib import pyplot as plt
-    import pandas as pd
-    crops = pickle.load(open(pre_labeled_pkl_path, 'rb'))
-    crop_dict_by_frame = defaultdict(int)
-    for crop in crops:
-        crop_dict_by_frame[crop.track_id] += 1
-
-    df = pd.DataFrame({'Track Length': crop_dict_by_frame.values()})
-    sns.histplot(data=df, bins=50)
-    # plt.xticks(list(range(0,501,10)))
-    plt.xlabel("Number of crops in track")
-    plt.ylabel("Count of tracks")
-    plt.title('Track Count of 500 frame video')
-    plt.show()
+# def create_tracklet_hist(pre_labeled_pkl_path):
+#     import seaborn as sns
+#     from matplotlib import pyplot as plt
+#     import pandas as pd
+#     crops = pickle.load(open(pre_labeled_pkl_path, 'rb'))
+#     crop_dict_by_frame = defaultdict(int)
+#     for crop in crops:
+#         crop_dict_by_frame[crop.track_id] += 1
+#
+#     df = pd.DataFrame({'Track Length': crop_dict_by_frame.values()})
+#     sns.histplot(data=df, bins=50)
+#     # plt.xticks(list(range(0,501,10)))
+#     plt.xlabel("Number of crops in track")
+#     plt.ylabel("Count of tracks")
+#     plt.title('Track Count of 500 frame video')
+#     plt.show()
 
 
 def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
