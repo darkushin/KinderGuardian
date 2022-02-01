@@ -327,6 +327,7 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
             # no crops detected, write the original frame
             mmcv.imwrite(frame, f'{temp_path}/{i:03d}.png')
 
+    print(f'Saving video into: {output_path}')
     mmcv.frames2video(temp_path, output_path, fps=fps, fourcc='mp4v', filename_tmpl='{:03d}.png')
     temp_dir.cleanup()
 
@@ -339,6 +340,11 @@ if __name__ == '__main__':
 
     # im_name_format('/home/bar_cohen/D-KinderGuardian/fast-reid/datasets/2.8.21-dataset/query')
 
+    vid_name = '20210804151703_s45000_e45501'
+    vid_date = vid_name.split('_')[0]
+    kinder_guardian_path = '/home/bar_cohen/KinderGuardian'
+    os.makedirs(f'{kinder_guardian_path}/DataProcessing/Data/_{vid_name}/', exist_ok=True)
     viz_DB_data_on_video(
-        input_vid='/home/bar_cohen/raid/trimmed_videos/IPCamera_20210801095724/IPCamera_20210801095724_s0_e501.mp4',
-        output_path='/home/bar_cohen/D-KinderGuardian/DataProcessing/Data/_20210801095724_s0_e501/20210801095724_s0_e501_labeled_reviewed1.mp4')
+        input_vid=f'/home/bar_cohen/raid/trimmed_videos/IPCamera_{vid_date}/IPCamera_{vid_name}.mp4',
+        output_path=f'{kinder_guardian_path}/DataProcessing/Data/_{vid_name}/{vid_name}_reviewed1.mp4')
+        # output_path=f'/home/bar_cohen/D-KinderGuardian/DataProcessing/Data/_{vid_name}/{vid_name}.mp4')
