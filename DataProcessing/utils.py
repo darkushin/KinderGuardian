@@ -11,7 +11,6 @@ from mmtrack.core.utils.visualization import random_color
 import mmcv
 from DataProcessing.DB.dal import *
 
-from DataProcessing.dataHandler import create_Crop_from_str
 
 """
 This folder holds functions that can be useful for data handling, such as renaming images etc.
@@ -25,19 +24,22 @@ COLOR_TO_RGB = {
     'red': [1, 0, 0]
 }
 
+
 def im_name_format(path):
     """
     Convert all images in the given path from its current malformed format to the `xxxx_c1_f1234567.jpg` format which is
      the correct format for the DukeMTMC dataset.
      Change this function according to the current corrections you need to do.
     """
-    for im in os.listdir(os.path.join(path)):
-        if '.jpg' not in im:
-            continue
-        # new_im_name = im.split('.jpg')[0]
-        new_im_name = im.replace('c1', 'c6')
+    # for im in os.listdir(os.path.join(path)):
+    for p, subdirs, files in os.walk(path):
+        for im in files:
+            if '.png' not in im:
+                continue
+            # new_im_name = im.split('.jpg')[0]
+            new_im_name = im.replace('C1', 'C6')
 
-        os.rename(f'{path}/{im}', f'{path}/{new_im_name}')
+            os.rename(f'{p}/{im}', f'{p}/{new_im_name}')
 
 
 def im_id_format(path):
@@ -362,11 +364,16 @@ if __name__ == '__main__':
 
     # im_name_format('/home/bar_cohen/D-KinderGuardian/fast-reid/datasets/2.8.21-dataset/query')
 
-    vid_name = '20210804151703_s45000_e45501'
-    vid_date = vid_name.split('_')[0]
-    kinder_guardian_path = '/home/bar_cohen/KinderGuardian'
-    os.makedirs(f'{kinder_guardian_path}/DataProcessing/Data/_{vid_name}/', exist_ok=True)
-    viz_DB_data_on_video(
-        input_vid=f'/home/bar_cohen/raid/trimmed_videos/IPCamera_{vid_date}/IPCamera_{vid_name}.mp4',
-        output_path=f'{kinder_guardian_path}/DataProcessing/Data/_{vid_name}/{vid_name}_reviewed1.mp4')
-        # output_path=f'/home/bar_cohen/D-KinderGuardian/DataProcessing/Data/_{vid_name}/{vid_name}.mp4')
+    # Data Visualization:
+    # vid_name = '20210804151703_s45000_e45501'
+    # vid_date = vid_name.split('_')[0]
+    # kinder_guardian_path = '/home/bar_cohen/KinderGuardian'
+    # os.makedirs(f'{kinder_guardian_path}/DataProcessing/Data/_{vid_name}/', exist_ok=True)
+    # viz_DB_data_on_video(
+    #     input_vid=f'/home/bar_cohen/raid/trimmed_videos/IPCamera_{vid_date}/IPCamera_{vid_name}.mp4',
+    #     output_path=f'{kinder_guardian_path}/DataProcessing/Data/_{vid_name}/{vid_name}_reviewed1.mp4')
+    #     # output_path=f'/home/bar_cohen/D-KinderGuardian/DataProcessing/Data/_{vid_name}/{vid_name}.mp4')
+
+    # Duke Video Dataset Rename:
+    im_name_format('/mnt/raid1/home/bar_cohen/OUR_DATASETS/DukeMTMC-VideoReID/query')
+
