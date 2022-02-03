@@ -10,7 +10,9 @@ import numpy as np
 from mmtrack.core.utils.visualization import random_color
 import mmcv
 from DataProcessing.DB.dal import *
-
+from matplotlib import  pyplot as plt
+import pandas as pd
+import seaborn as sns
 
 """
 This folder holds functions that can be useful for data handling, such as renaming images etc.
@@ -334,14 +336,23 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
     temp_dir.cleanup()
 
 
-    # def build_samples_hist(self, samples_dict:dict, title:str=None):
-    #     """Create a Bar plot that represented the number of face samples from every id"""
-    #     # cnt = {ID_TO_NAME[int(k)] : [len(samples_dict[k])] for k in samples_dict.keys()}
-    #     df = pd.DataFrame(samples_dict, index=samples_dict.keys())
-    #     ax= sns.barplot(data=df)
-    #     ax.set_xticklabels(df.columns, rotation=45)
-    #     plt.title(title)
-    #     plt.show()
+def build_samples_hist(title:str=None):
+    crops = get_entries(filters=({Crop.invalid == False, Crop.reviewed_one == True}))
+    track_counter = defaultdict(set)
+    for crop in crops:
+        track_counter[crop.label].add(str(crop.vid_name) +'_' + str(crop.track_id))
+
+    ret = {}
+    for k,v in track_counter.items():
+        ret[k] = len(v)
+
+    """Create a Bar plot that represented the number of face samples from every id"""
+    # cnt = {ID_TO_NAME[int(k)] : [len(samples_dict[k])] for k in samples_dict.keys()}
+    df = pd.DataFrame(ret, index=ret.keys())
+    ax= sns.barplot(data=df)
+    ax.set_xticklabels(df.columns, rotation=45)
+    plt.title(title)
+    plt.show()
 
 # def main():
 #     """Simple test of FaceDetector"""
@@ -357,6 +368,7 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
 
 
 if __name__ == '__main__':
+    build_samples_hist()
     # viz_data_on_video_using_pickle(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
     #                   output_path="/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_labled1.mp4",
     #                   pre_labeled_pkl_path='/mnt/raid1/home/bar_cohen/DB_Crops/_crop_db.pkl')
@@ -375,5 +387,5 @@ if __name__ == '__main__':
     #     # output_path=f'/home/bar_cohen/D-KinderGuardian/DataProcessing/Data/_{vid_name}/{vid_name}.mp4')
 
     # Duke Video Dataset Rename:
-    im_name_format('/mnt/raid1/home/bar_cohen/OUR_DATASETS/DukeMTMC-VideoReID/query')
+    # im_name_format('/mnt/raid1/home/bar_cohen/OUR_DATASETS/DukeMTMC-VideoReID/query')
 
