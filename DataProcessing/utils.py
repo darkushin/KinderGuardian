@@ -308,7 +308,7 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
         - output_path: the path in which the labeled output video should be created.
         - DB_path: the path to the DB that holds the labeled crops of the video.
     """
-    vid_name = input_vid.split('/')[-1][8:-4]
+    vid_name = input_vid.split('/')[-1][9:-4]
 
     imgs = mmcv.VideoReader(input_vid)
     temp_dir = tempfile.TemporaryDirectory()
@@ -368,7 +368,9 @@ def build_samples_hist(title:str=None):
 
 
 if __name__ == '__main__':
-    build_samples_hist()
+    # build_samples_hist()
+    trim_videos_from_dir(dir='/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/', output_path='/mnt/raid1/home/bar_cohen/trimmed_videos/',
+                         limit=500, create_every=33000)
     # viz_data_on_video_using_pickle(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
     #                   output_path="/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_labled1.mp4",
     #                   pre_labeled_pkl_path='/mnt/raid1/home/bar_cohen/DB_Crops/_crop_db.pkl')
