@@ -337,9 +337,11 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
 
 
 def build_samples_hist(title:str=None):
-    crops = get_entries(filters=({Crop.invalid == False, Crop.reviewed_one == True}))
+    crops = get_entries(filters=(Crop.invalid == False, Crop.reviewed_one == True))
     track_counter = defaultdict(set)
     for crop in crops:
+        if '20210804' not in crop.vid_name:
+            continue
         track_counter[crop.label].add(str(crop.vid_name) +'_' + str(crop.track_id))
 
     ret = {}
