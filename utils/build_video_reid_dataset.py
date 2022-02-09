@@ -31,7 +31,6 @@ def im_name_in_img_duke(crop:Crop, crop_id):
 
 def convert_to_img_reid_duke_naming(dataset_path:str, test_day, query_day):
     df = pd.DataFrame(columns=['file_name', 'vid_name', 'track_id'])
-
     if test_day == query_day:
         warnings.warn("Query will be taken from same day as test")
     video_names = [vid.vid_name for vid in get_entries(filters=(),group=Crop.vid_name)]
@@ -160,7 +159,7 @@ def convert_to_duke_naming(dataset_path: str, test_day, query_day):
                         exist_ok=True)
 
                     shutil.copy(orig_crop_path, dataset_crop_path)
-                    add_file_data_base(df,output_name, crop)
+                    df = add_file_data_base(df,output_name, crop)
 
                 track_counter += 1
         df.to_csv(os.path.join(DATASET_OUTPUT_LOCATION,'img_to_info.csv'))
@@ -202,6 +201,7 @@ def create_query_from_video_gallery(num_tracks, dataset_path):
 
 if __name__ == '__main__':
     convert_to_duke_naming(DATASET_OUTPUT_LOCATION, test_day='20210804',query_day='20210802')
+    convert_to_img_reid_duke_naming()
     # create_query_from_img_gallery(DATASET_OUTPUT_LOCATION)
     # convert_to_duke_naming(DATASET_OUTPUT_LOCATION, test_day='20210804',query_day='20210802')
     create_query_from_gallery(DATASET_OUTPUT_LOCATION, is_video=True)
