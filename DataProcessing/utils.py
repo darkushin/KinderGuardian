@@ -27,23 +27,23 @@ COLOR_TO_RGB = {
 }
 
 
-def im_name_format(path):
+def im_name_format(path, is_video=False):
     """
     Convert all images in the given path from its current malformed format to the `xxxx_c1_f1234567.jpg` format which is
      the correct format for the DukeMTMC dataset.
      Change this function according to the current corrections you need to do.
     """
-    # for im in os.listdir(os.path.join(path)):
-    selected = set()
+    C1 = 'c1'
+    C6 = 'c6'
+    if is_video:
+        C1 = 'C1'
+        C6 = 'C6'
     for p, subdirs, files in os.walk(path):
         for im in files:
             if '.png' not in im and '.jpg' not in im:
                 continue
-            # if im[0:4] in selected:
-            #     os.remove(f'{p}/{im}')
-            #     continue
             # new_im_name = im.split('.jpg')[0]
-            new_im_name = im.replace('c1', 'c6')
+            new_im_name = im.replace(C1, C6)
             # selected.add(new_im_name[0:4])
             os.rename(f'{p}/{im}', f'{p}/{new_im_name}')
 
