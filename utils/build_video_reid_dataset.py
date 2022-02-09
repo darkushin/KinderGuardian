@@ -5,10 +5,14 @@ import shutil
 
 from DataProcessing.DB.dal import get_entries, Crop, create_session
 from DataProcessing.dataProcessingConstants import NAME_TO_ID
+from DataProcessing.utils import im_name_format
 
 BASE_CROPS_LOCATION = '/mnt/raid1/home/bar_cohen/'
-DATASET_OUTPUT_LOCATION = '/mnt/raid1/home/bar_cohen/OUR_DATASETS/DukeMTMC-VideoReID'
+# DATASET_OUTPUT_LOCATION = '/mnt/raid1/home/bar_cohen/OUR_DATASETS/DukeMTMC-VideoReID'
+
+DATASET_OUTPUT_LOCATION = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/NewData'
 TRAIN_PERCENT = 0.8
+QUERY_PRECENT = 0.95
 
 
 def im_name_in_mars(crop: Crop, track_counter, crop_id):
@@ -17,6 +21,38 @@ def im_name_in_mars(crop: Crop, track_counter, crop_id):
 
 def im_name_in_duke(crop: Crop, crop_id):
     return f'{NAME_TO_ID[crop.label]:04d}_C{crop.cam_id}_F{crop_id + 1:04d}_X{crop.frame_num:05d}.png'
+
+def im_name_in_img_duke(crop:Crop, crop_id):
+    # 0012_c2_f0211013.jpg
+    return f'{NAME_TO_ID[crop.label]:04d}_c{crop.cam_id}_f{crop_id:07d}.jpg'
+
+def convert_to_img_reid_duke_naming(dataset_path:str):
+    video_names = [vid.vid_name for vid in get_entries(filters=(),group=Crop.vid_name)]
+    crop_counter  = 0
+    for vid_name in video_names:
+        print('running', vid_name)
+        set_folder = 'bounding_box_train'
+        if vid_name[0:8] == '20210804':
+            set_folder = 'bounding_box_test'
+            if random.uniform(0, 1) > 0.75:
+                set_folder = 'query'
+
+
+        tracks = [track.track_id for track in get_entries(filters=({Crop.vid_name == vid_name}), group=Crop.track_id)]
+        for track in tracks:
+
+            track_crops = get_entries(filters=(Crop.vid_name == vid_name,
+                                               Crop.track_id == track,
+                                               Crop.reviewed_one == True,
+                                               Crop.invalid == False)).all()
+
+            for crop in track_crops:
+                output_name = im_name_in_img_duke(crop, crop_counter)
+                orig_crop_path = os.path.join(BASE_CROPS_LOCATION, crop.vid_name, crop.im_name)
+                dataset_crop_path = os.path.join(dataset_path, set_folder, output_name)
+                os.makedirs(os.path.join(dataset_path, set_folder), exist_ok=True)
+                shutil.copy(orig_crop_path, dataset_crop_path)
+                crop_counter += 1
 
 
 def convert_to_mars_naming(dataset_path: str):
@@ -72,6 +108,8 @@ def convert_to_duke_naming(dataset_path: str):
     # Filter according to the different persons:
     labels = [person.label for person in get_entries(filters=(), group=Crop.label)]
     for person_id, label in enumerate(labels):
+        if label in ['Guy', 'Halel']:
+            continue
         print(f'{person_id}/{len(labels)} Creating tracks for: {label} ({NAME_TO_ID[label]:04d})')
         numerical_label = NAME_TO_ID[label]
         # os.makedirs(os.path.join(dataset_path, f'{numerical_label:04d}'), exist_ok=True)
@@ -113,7 +151,18 @@ def convert_to_duke_naming(dataset_path: str):
         pickle.dump(unique_track_mapping, open(os.path.join(DATASET_OUTPUT_LOCATION, 'track_ids_mapping.pkl'), 'wb'))
 
 
-def create_query_from_gallery(num_tracks, dataset_path):
+def create_query_from_img_gallery(dataset_path, query_size = 100):
+    """
+    Given a gallery set with crops, move query_size of crops from the gallery to the query
+    # note this is is currently random and does not depend on class dist
+    """
+    test_gallery = os.listdir(path=os.path.join(dataset_path, 'bounding_box_test'))
+    queries = random.sample(test_gallery, query_size)
+    os.makedirs(os.path.join(dataset_path, 'query'), exist_ok=True)
+    for query in queries:
+        shutil.move(os.path.join(dataset_path, 'bounding_box_test', query), os.path.join(dataset_path, 'query', query))
+
+def create_query_from_video_gallery(num_tracks, dataset_path):
     """
     Given a gallery set with tracklets, move <num_tracks> tracklets from the gallery to the query
     """
@@ -132,5 +181,7 @@ def create_query_from_gallery(num_tracks, dataset_path):
 
 
 if __name__ == '__main__':
-    # convert_to_duke_naming(DATASET_OUTPUT_LOCATION)
-    create_query_from_gallery(1, DATASET_OUTPUT_LOCATION)
+    convert_to_img_reid_duke_naming(DATASET_OUTPUT_LOCATION)
+    im_name_format(DATASET_OUTPUT_LOCATION + '/query')
+
+

@@ -34,13 +34,17 @@ def im_name_format(path):
      Change this function according to the current corrections you need to do.
     """
     # for im in os.listdir(os.path.join(path)):
+    selected = set()
     for p, subdirs, files in os.walk(path):
         for im in files:
-            if '.png' not in im:
+            if '.png' not in im and '.jpg' not in im:
                 continue
+            # if im[0:4] in selected:
+            #     os.remove(f'{p}/{im}')
+            #     continue
             # new_im_name = im.split('.jpg')[0]
-            new_im_name = im.replace('C1', 'C6')
-
+            new_im_name = im.replace('c1', 'c6')
+            # selected.add(new_im_name[0:4])
             os.rename(f'{p}/{im}', f'{p}/{new_im_name}')
 
 
@@ -340,8 +344,9 @@ def build_samples_hist(title:str=None):
     crops = get_entries(filters=(Crop.invalid == False, Crop.reviewed_one == True))
     track_counter = defaultdict(set)
     for crop in crops:
-        if '20210804' not in crop.vid_name:
-            continue
+        # if '20210804' not in crop.vid_name:
+        #     continue
+        # if '20210804' in crop.vid_name :
         track_counter[crop.label].add(str(crop.vid_name) +'_' + str(crop.track_id))
 
     ret = {}
@@ -370,9 +375,9 @@ def build_samples_hist(title:str=None):
 
 
 if __name__ == '__main__':
-    # build_samples_hist()
-    trim_videos_from_dir(dir='/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/', output_path='/mnt/raid1/home/bar_cohen/trimmed_videos/',
-                         limit=500, create_every=33000)
+    build_samples_hist()
+    # trim_videos_from_dir(dir='/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/', output_path='/mnt/raid1/home/bar_cohen/trimmed_videos/',
+    #                      limit=500, create_every=33000)
     # viz_data_on_video_using_pickle(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
     #                   output_path="/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_labled1.mp4",
     #                   pre_labeled_pkl_path='/mnt/raid1/home/bar_cohen/DB_Crops/_crop_db.pkl')
