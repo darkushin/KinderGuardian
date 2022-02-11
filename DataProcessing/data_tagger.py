@@ -180,14 +180,14 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
 
 
 if __name__ == '__main__':
-    print('hey')
-    session = create_session()
-    label_tracks_DB(vid_name='20210804145114_s66000_e66501',
-                    crops_folder="/mnt/raid1/home/bar_cohen/20210804145114_s66000_e66501/",
-                    session=session)
-    vid_name = '20210804145114_s66000_e66501'
-    vid_date = '20210804145114'
+    # print('hey')
+    # session = create_session()
+    # # label_tracks_DB(vid_name='20210804145114_s66000_e66501',
+    # #                 crops_folder="/mnt/raid1/home/bar_cohen/20210804145114_s66000_e66501/",
+    # #                 session=session)
+    vid_name = '20210802084808_s0_e501'
+    vid_date = '20210802084808'
 
-    # viz_DB_data_on_video(
-    #     input_vid=f'/home/bar_cohen/raid/trimmed_videos/IPCamera_{vid_date}/IPCamera_{vid_name}.mp4',
-    #     output_path=f'/mnt/raid1/home/bar_cohen/labled_videos//{vid_name}_reviewed1.mp4')
+    viz_DB_data_on_video(
+        input_vid=f'/home/bar_cohen/raid/trimmed_videos/IPCamera_{vid_date}/IPCamera_{vid_name}.mp4',
+        output_path=f'/mnt/raid1/home/bar_cohen/labled_videos/{vid_name}_not_reviewed.mp4')
