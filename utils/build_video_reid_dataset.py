@@ -13,7 +13,7 @@ from DataProcessing.utils import im_name_format
 BASE_CROPS_LOCATION = '/mnt/raid1/home/bar_cohen/'
 # DATASET_OUTPUT_LOCATION = '/mnt/raid1/home/bar_cohen/OUR_DATASETS/DukeMTMC-VideoReID'
 
-DATASET_OUTPUT_LOCATION = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/diff_day2'
+DATASET_OUTPUT_LOCATION = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/diff_day_test_as_train_query_03'
 TRAIN_PERCENT = 0.8
 QUERY_PRECENT = 0.95
 
@@ -37,9 +37,9 @@ def convert_to_img_reid_duke_naming(dataset_path:str, test_day, query_day):
     crop_counter  = 0
     for vid_name in video_names:
         print('running', vid_name)
-        if vid_name[0:8] == test_day:
-            set_folder = 'bounding_box_test'
-        elif vid_name[0:8] == query_day:
+        # if vid_name[0:8] == test_day:
+        #     set_folder = 'bounding_box_test'
+        if vid_name[0:8] == query_day:
             set_folder = 'query'
         else:
             set_folder = 'bounding_box_train'
@@ -58,6 +58,11 @@ def convert_to_img_reid_duke_naming(dataset_path:str, test_day, query_day):
                 dataset_crop_path = os.path.join(dataset_path, set_folder, output_name)
                 os.makedirs(os.path.join(dataset_path, set_folder), exist_ok=True)
                 shutil.copy(orig_crop_path, dataset_crop_path)
+                if set_folder == 'bounding_box_train':  # add to gallery as well
+                    dataset_crop_path = os.path.join(dataset_path, 'bounding_box_test', output_name)
+                    os.makedirs(os.path.join(dataset_path, 'bounding_box_test'), exist_ok=True)
+                    shutil.copy(orig_crop_path, dataset_crop_path)
+
                 crop_counter += 1
                 df = add_file_data_base(df, output_name, crop)
     df.to_csv(os.path.join(DATASET_OUTPUT_LOCATION, 'img_to_info.csv'))
@@ -103,14 +108,14 @@ def convert_to_mars_naming(dataset_path: str):
 
                 track_counter += 1
             # return
-        pickle.dump(unique_track_mapping, open(os.path.join(MARS_TRACKS_LOCATION, 'track_ids_mapping.pkl'), 'wb'))
+        pickle.dump(unique_track_mapping, open(os.path.join('MARS_TRACKS_LOCATION', 'track_ids_mapping.pkl'), 'wb'))
 
 def add_file_data_base(df:pd.DataFrame, file_name:str, crop:Crop):
-    df.append({'file_name':file_name, 'vid_name':crop.vid_name, 'track_id':crop.track_id}, ignore_index=True)
+    df = df.append({'file_name':file_name, 'vid_name':crop.vid_name, 'track_id':crop.track_id}, ignore_index=True)
     return df
 
 
-def convert_to_duke_naming(dataset_path: str, test_day, query_day):
+def convert_to_video_reid_duke_naming(dataset_path: str, test_day, query_day):
     df = pd.DataFrame(columns=['file_name', 'vid_name', 'track_id'])
     session = create_session()
     unique_track_mapping = {}
@@ -135,12 +140,12 @@ def convert_to_duke_naming(dataset_path: str, test_day, query_day):
             tracks = [track.track_id for track in
                       get_entries(filters=(Crop.label == label, Crop.vid_name == vid_name), group=Crop.track_id)]
             for track in tracks:
-                if vid_name == test_day:
-                    set_folder = 'gallery'
-                elif vid_name == query_day:
+                # if vid_name[0:8] == test_day:
+                #     set_folder = 'gallery'
+                if vid_name[0:8] == query_day:
                     set_folder = 'query'
                 else:
-                    set_folder = 'query'
+                    set_folder = 'train'
                 track_crops = get_entries(filters=(Crop.vid_name == vid_name,
                                                    Crop.label == label,
                                                    Crop.track_id == track,
@@ -159,11 +164,19 @@ def convert_to_duke_naming(dataset_path: str, test_day, query_day):
                         exist_ok=True)
 
                     shutil.copy(orig_crop_path, dataset_crop_path)
+                    if set_folder == 'train': # add to gallery as well
+                        dataset_crop_path = os.path.join(dataset_path, 'gallery', f'{numerical_label:04d}',
+                                                         f'{track_counter:04d}', output_name)
+                        os.makedirs(
+                            os.path.join(dataset_path, 'gallery', f'{numerical_label:04d}', f'{track_counter:04d}'),
+                            exist_ok=True)
+                        shutil.copy(orig_crop_path, dataset_crop_path)
+
                     df = add_file_data_base(df,output_name, crop)
 
                 track_counter += 1
-        df.to_csv(os.path.join(DATASET_OUTPUT_LOCATION,'img_to_info.csv'))
-        pickle.dump(unique_track_mapping, open(os.path.join(DATASET_OUTPUT_LOCATION, 'track_ids_mapping.pkl'), 'wb'))
+    df.to_csv(os.path.join(DATASET_OUTPUT_LOCATION,'img_to_info.csv'))
+    pickle.dump(unique_track_mapping, open(os.path.join(DATASET_OUTPUT_LOCATION, 'track_ids_mapping.pkl'), 'wb'))
 
 
 def create_query_from_gallery(dataset_path, is_video=False):
@@ -181,32 +194,11 @@ def create_query_from_gallery(dataset_path, is_video=False):
         if query[0:4] not in test_gallery_ids:
             shutil.move(os.path.join(dataset_path, 'query', query), os.path.join(dataset_path, GALLERY_NAME, query))
 
-def create_query_from_video_gallery(num_tracks, dataset_path):
-    """
-    Given a gallery set with tracklets, move <num_tracks> tracklets from the gallery to the query
-    """
-    for id in os.listdir(os.path.join(dataset_path, 'gallery')):
-        gallery_tracks = os.listdir(os.path.join(dataset_path, 'gallery', id))
-        sample_size = num_tracks
-        if len(gallery_tracks) <= num_tracks:
-            if num_tracks > 1:
-                sample_size = 1
-            else:
-                continue
-        query_tracks = random.sample(gallery_tracks, sample_size)
-        os.makedirs(os.path.join(dataset_path, 'query', id))
-        for track in query_tracks:
-            shutil.move(os.path.join(dataset_path, 'gallery', id, track), os.path.join(dataset_path, 'query', id, track))
-
-
 if __name__ == '__main__':
-    convert_to_duke_naming(DATASET_OUTPUT_LOCATION, test_day='20210804',query_day='20210802')
-    convert_to_img_reid_duke_naming()
-    # create_query_from_img_gallery(DATASET_OUTPUT_LOCATION)
-    # convert_to_duke_naming(DATASET_OUTPUT_LOCATION, test_day='20210804',query_day='20210802')
-    create_query_from_gallery(DATASET_OUTPUT_LOCATION, is_video=True)
-    im_name_format(DATASET_OUTPUT_LOCATION + '/query', is_video=True)
+    # convert_to_duke_naming(DATASET_OUTPUT_LOCATION, test_day='20210804',query_day='20210803')
+    convert_to_img_reid_duke_naming(DATASET_OUTPUT_LOCATION, test_day='20210804',query_day='20210803')
+    create_query_from_gallery(DATASET_OUTPUT_LOCATION, is_video=False)
+    im_name_format(DATASET_OUTPUT_LOCATION + '/query', is_video=False)
 
-    # create_query_from_video_gallery(DATASET_OUTPUT_LOCATION)
 
 
