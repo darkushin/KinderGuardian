@@ -16,6 +16,7 @@ from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 from FaceDetection.faceClassifer import FaceClassifer
 from FaceDetection.faceDetector import FaceDetector
+from DataProcessing.utils import viz_DB_data_on_video
 
 sys.path.append('fast-reid')
 
@@ -44,6 +45,7 @@ def get_args():
                         default=[], nargs=REMAINDER, )
     parser.add_argument("--acc_th", help="The accuracy threshold that should be used for the tracking model",
                         default=0.8)
+    parser.add_argument('--inference_only', action='store_true', help='use the tracking and reid model for inference')
     args = parser.parse_args()
     return args
 
@@ -138,9 +140,16 @@ def create_data_by_re_id_and_track():
 
     """
     args = get_args()
-    print(f'Saving the output crops to: {args.crops_folder}')
     print(f'Args: {args}')
-    assert args.crops_folder, "You must insert crop_folder param in order to create data"
+    db_location = DB_LOCATION
+    if args.inference_only:
+        print('*** Running in inference-only mode ***')
+        db_location = '/mnt/raid1/home/bar_cohen/inference_db.db'
+        create_table(db_location)
+        print(f'Created temp DB in: {db_location}')
+    else:
+        print(f'Saving the output crops to: {args.crops_folder}')
+        assert args.crops_folder, "You must insert crop_folder param in order to create data"
 
     faceDetector = FaceDetector()
     le = pickle.load(open('/home/bar_cohen/KinderGuardian/FaceDetection/data/le.pkl', 'rb'))
@@ -204,7 +213,12 @@ def create_data_by_re_id_and_track():
 
     print('******* Making predictions and saving crops to DB *******')
     db_entries = []
-    os.makedirs(args.crops_folder, exist_ok=True)
+
+    if args.inference_only:
+        correct = 0
+        total_crops = 0
+    else:
+        os.makedirs(args.crops_folder, exist_ok=True)
 
     # iterate over all tracklets and make a prediction for every tracklet
     for track_id, crop_dicts in tqdm.tqdm(tracklets.items(), total=len(tracklets.keys())):
@@ -240,12 +254,27 @@ def create_data_by_re_id_and_track():
             crop = crop_dict.get('Crop')
             crop.crop_id = crop_id
             crop.label = label
+
+            if args.inference_only:
+                tagged_label = get_entries(filters={Crop.im_name == crop.im_name}).all()[0].label
+                print(f'DB label is: {tagged_label}, Inference label is: {label}')
+                if tagged_label == label:
+                    correct += 1
+                total_crops += 1
             face_img = crop_dict.get('face_img')
             crop.is_face = face_img is not None and face_img is not face_img.numel()
-            mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder, crop.im_name))
+            if not args.inference_only:
+                mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder, crop.im_name))
             db_entries.append(crop)
 
-    add_entries(db_entries, DB_LOCATION)
+    add_entries(db_entries, db_location)
+
+    if args.inference_only:
+        print(f'Total accuracy: {correct/total_crops}')
+        print('Making visualization using temp DB')
+        viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location)
+        assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
+        # os.remove(db_location)
     print("Done")
 
 

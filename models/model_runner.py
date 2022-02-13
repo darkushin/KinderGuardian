@@ -1,3 +1,4 @@
+import warnings
 from argparse import ArgumentParser, REMAINDER
 from subprocess import call
 
@@ -22,6 +23,7 @@ def get_args():
                         help='If running track and crop on Data Processing, or if running track-and-reid model')
     parser.add_argument('--reid_opts', help='Modify config options using the command-line', default=None, nargs=REMAINDER)
     parser.add_argument('--crops_folder')
+    parser.add_argument('--inference_only', action='store_true', help='use the tracking and reid model for inference')
 
     return parser.parse_args()
 
@@ -52,6 +54,8 @@ def create_optional_args() -> List:
         optional_args.extend(['--acc_th', args.acc_threshold])
     if args.crops_folder:
         optional_args.extend(['--crops_folder', args.crops_folder])
+    if args.inference_only:
+        optional_args.extend(['--inference_only'])
     return optional_args
 
 
@@ -148,5 +152,6 @@ def runner():
 
 
 if __name__ == '__main__':
+    warnings.filterwarnings("ignore")
     args = get_args()
     runner()
