@@ -89,8 +89,7 @@ def execute_reid_action():
 
     if args.action == RE_ID_EVAL:
         script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './fast-reid/tools/train_net.py',
-                       '--config-file', args.reid_config, '--eval-only', 'MODEL.DEVICE', 'cuda:1', 'DATASETS.DATASET',
-                       args.dataset]
+                       '--config-file', args.reid_config, '--eval-only']
         script_args.extend(reid_opts)
         call(script_args)
 

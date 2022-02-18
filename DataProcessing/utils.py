@@ -23,6 +23,27 @@ COLOR_TO_RGB = {
     'red': [1, 0, 0]
 }
 
+
+def resize_images(input_path, output_path, size):
+    """
+    Resize all images in the input_path according to the given size and place them in the output_path
+    """
+    os.makedirs(output_path, exist_ok=True)
+    for im_path in os.listdir(input_path):
+        original_image = cv2.imread(os.path.join(input_path, im_path))
+        im = cv2.resize(original_image, size, interpolation=cv2.INTER_CUBIC)
+        cv2.imwrite(os.path.join(output_path, im_path), im)
+
+
+def create_video_from_imgs(input_path, output_path, fps=24):
+    """
+    Given a folder of images, create a video from these images.
+    """
+    mmcv.frames2video(input_path, output_path, fps=fps, fourcc='mp4v', filename_tmpl='{:05d}.png')
+
+
+
+
 def im_name_format(path):
     """
     Convert all images in the given path from its current malformed format to the `xxxx_c1_f1234567.jpg` format which is
@@ -30,11 +51,11 @@ def im_name_format(path):
      Change this function according to the current corrections you need to do.
     """
     for im in os.listdir(os.path.join(path)):
-        if '.jpg' not in im:
+        if '.png' not in im:
             continue
         # new_im_name = im.split('.jpg')[0]
-        new_im_name = im.replace('c1', 'c6')
-
+        # new_im_name = im.replace('c1', 'c6')
+        new_im_name = im.split('X')[-1]
         os.rename(f'{path}/{im}', f'{path}/{new_im_name}')
 
 
@@ -302,7 +323,7 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
         - output_path: the path in which the labeled output video should be created.
         - DB_path: the path to the DB that holds the labeled crops of the video.
     """
-    vid_name = input_vid.split('/')[-1][8:-4]
+    vid_name = input_vid.split('/')[-1][9:-4]
 
     imgs = mmcv.VideoReader(input_vid)
     temp_dir = tempfile.TemporaryDirectory()
@@ -312,7 +333,8 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
     for i, frame in tqdm(enumerate(imgs), total=len(imgs)):
         # retrieve all crops of the current frame from the DB:
         session = create_session(DB_path)
-        frame_crops = get_entries(session=session, filters=(Crop.vid_name == vid_name, Crop.frame_num == i, Crop.invalid == False)).all()
+        # frame_crops = get_entries(session=session, filters=(Crop.vid_name == vid_name, Crop.frame_num == i, Crop.invalid == False)).all()
+        frame_crops = get_entries(session=session, filters=(Crop.vid_name == vid_name, Crop.frame_num == i)).all()
         if frame_crops:
             # at least single crop was found in frame
             crops_bboxes = [np.array([crop.x1, crop.y1, crop.x2, crop.y2, crop.conf]) for crop in frame_crops]
@@ -339,11 +361,19 @@ if __name__ == '__main__':
 
     # im_name_format('/home/bar_cohen/D-KinderGuardian/fast-reid/datasets/2.8.21-dataset/query')
 
-    vid_name = '20210804151703_s45000_e45501'
+    # DB Visualizations:
+    vid_name = '20210729151129_s45000_e45501'
     vid_date = vid_name.split('_')[0]
-    kinder_guardian_path = '/home/bar_cohen/KinderGuardian'
-    os.makedirs(f'{kinder_guardian_path}/DataProcessing/Data/_{vid_name}/', exist_ok=True)
+    kinder_guardian_path = '/home/bar_cohen/D-KinderGuardian'
+    os.makedirs(f'{kinder_guardian_path}/Results/{vid_name}/', exist_ok=True)
     viz_DB_data_on_video(
         input_vid=f'/home/bar_cohen/raid/trimmed_videos/IPCamera_{vid_date}/IPCamera_{vid_name}.mp4',
-        output_path=f'{kinder_guardian_path}/DataProcessing/Data/_{vid_name}/{vid_name}_reviewed1.mp4')
+        output_path=f'{kinder_guardian_path}/Results/{vid_name}/{vid_name}_reviewed1.mp4')
         # output_path=f'/home/bar_cohen/D-KinderGuardian/DataProcessing/Data/_{vid_name}/{vid_name}.mp4')
+
+    # Im resize:
+    # resize_images('/home/bar_cohen/D-KinderGuardian/Results/0003', '/home/bar_cohen/D-KinderGuardian/Results/0003-resized', (128, 256))
+
+    # Create Video:
+    # create_video_from_imgs('/home/bar_cohen/D-KinderGuardian/Results/0003-resized', '/home/bar_cohen/D-KinderGuardian/Results/0003.mp4')
+    # im_name_format('/home/bar_cohen/D-KinderGuardian/Results/0003-resized')
