@@ -3,6 +3,8 @@ from argparse import ArgumentParser, REMAINDER
 from subprocess import call
 
 import sys
+
+from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import *
 import DataProcessing.dataFactory
 from typing import List
@@ -104,10 +106,29 @@ def validate_tracking_args():
 def execute_combined_model():
     """
     Usage example:
-    re-id-and-tracking --track_config ./mmtracking/configs/mot/deepsort/sort_faster-rcnn_fpn_4e_mot17-private.py
-    --reid_config ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml --input ../Data-Shoham/1.8.21_cam1/videos/IPCamera_20210801095724.avi
-    --output ./Results/Reid-Eval2-2.8-test.mp4 --acc_th 0.98 --crops_folder /mnt/raid1/home/bar_cohen/DB_Crops/
-    --reid_opts DATASETS.DATASET inference_on_train_data MODEL.WEIGHTS ./fast-reid/checkpoints/scratch-id-by-day.pth
+    re-id-and-tracking
+    --track_config
+    ./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py
+    --mmtrack_checkpoint
+    /home/bar_cohen/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth
+    --reid_config
+    ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml
+    --input
+    /mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210803105422/IPCamera_20210803105422_s0_e501.mp4
+    --output
+    /mnt/raid1/home/bar_cohen/labled_videos/20210803105422_s0_e501_new_model.mp4
+    --acc_th
+    0.8
+    --crops_folder
+    /mnt/raid1/home/bar_cohen/DB_Test/
+    --device
+    cuda:1
+    --reid_opts
+    DATASETS.DATASET
+    diff_day_test_as_train_query_03
+    MODEL.WEIGHTS
+    ./fast-reid/checkpoints/diff_day_test_all_query_3.8.pth
+
 
     ByteTracker:
     re-id-and-tracking --track_config ./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py

@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 from sqlalchemy import func
 from DataProcessing.DB.dal import get_entries, Crop, create_session
 from DataProcessing.dataProcessingConstants import *
-from DataProcessing.utils import create_bbox_color
+from DataProcessing.utils import create_bbox_color, viz_DB_data_on_video
 
 
 def mark_vague(track, crop_inds):
@@ -178,10 +178,15 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
 
     session.commit()
 
+def tag_and_create_vid():
+    session = create_session()
+    label_tracks_DB(vid_name='20210729115131_s0_e501',
+                    crops_folder="/mnt/raid1/home/bar_cohen/20210729115131_s0_e501/",
+                    session=session)
+    viz_DB_data_on_video(
+        '/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210729115131/IPCamera_20210729115131_s0_e501.mp4',
+        output_path='/mnt/raid1/home/bar_cohen/labled_videos/20210729115131_s0_e501_reviewed_1.mp4')
+
 
 if __name__ == '__main__':
-    session = create_session()
-    label_tracks_DB(vid_name='_20210802122552_s0_e501',
-                    crops_folder="/mnt/raid1/home/bar_cohen/20210802122552_s0_e501/",
-                    session=session)
-
+    pass

@@ -1,3 +1,4 @@
+import glob
 import os
 from cv2 import imread
 import cv2
@@ -51,11 +52,11 @@ def im_name_format(path):
      Change this function according to the current corrections you need to do.
     """
     for im in os.listdir(os.path.join(path)):
-        if '.png' not in im:
+        if '.jpg' not in im or '.png' not in im:
             continue
         # new_im_name = im.split('.jpg')[0]
-        # new_im_name = im.replace('c1', 'c6')
-        new_im_name = im.split('X')[-1]
+        new_im_name = im.replace('c1', 'c6')
+
         os.rename(f'{path}/{im}', f'{path}/{new_im_name}')
 
 
@@ -243,6 +244,21 @@ def create_bbox_color(crop_props: list) -> list:
         bbox_colors.append(bbox_color)
     return bbox_colors
 
+def create_bbox_color_for_eval(crops):
+    bbox_colors = []
+    for inference_crop in crops:
+        db_crop = get_entries(filters={Crop.im_name == inference_crop.im_name}).all()[0] # using the tagged DB!
+        if db_crop.invalid:
+            bbox_color = 'blue'
+        elif db_crop.label == inference_crop.label: # compare between db crop and inference crop
+            bbox_color = 'green'
+        else:
+            bbox_color = 'red'
+        bbox_colors.append(bbox_color)
+    return bbox_colors
+
+
+
 
 def viz_data_on_video_using_pickle(input_vid, output_path, pre_labeled_pkl_path=None, path_to_crops=None):
     """
@@ -315,15 +331,16 @@ def viz_data_on_video_using_pickle(input_vid, output_path, pre_labeled_pkl_path=
 #     plt.show()
 
 
-def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
+def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION,eval=False):
     """
     Use the labeled data from the DB to visualize the labels on a given video.
     Args:
         - input_vid: the video that should be visualized. NOTE: the DB will be queried according to this video name!
         - output_path: the path in which the labeled output video should be created.
         - DB_path: the path to the DB that holds the labeled crops of the video.
+        - eval: use this for inference only. if data is tagged by DB bboxes color will be adapted
     """
-    vid_name = input_vid.split('/')[-1][9:-4]
+    vid_name = input_vid.split('/')[-1][8:-4]
 
     imgs = mmcv.VideoReader(input_vid)
     temp_dir = tempfile.TemporaryDirectory()
@@ -333,13 +350,15 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
     for i, frame in tqdm(enumerate(imgs), total=len(imgs)):
         # retrieve all crops of the current frame from the DB:
         session = create_session(DB_path)
-        # frame_crops = get_entries(session=session, filters=(Crop.vid_name == vid_name, Crop.frame_num == i, Crop.invalid == False)).all()
         frame_crops = get_entries(session=session, filters=(Crop.vid_name == vid_name, Crop.frame_num == i)).all()
         if frame_crops:
             # at least single crop was found in frame
             crops_bboxes = [np.array([crop.x1, crop.y1, crop.x2, crop.y2, crop.conf]) for crop in frame_crops]
             crops_labels = [crop.label for crop in frame_crops]
-            bbox_colors = create_bbox_color([{'invalid': crop.invalid, 'vague': crop.is_vague, 'reviewed_1': crop.reviewed_one} for crop in frame_crops])
+            if eval:
+                bbox_colors = create_bbox_color_for_eval([crop for crop in frame_crops])
+            else:
+                bbox_colors = create_bbox_color([{'invalid': crop.invalid, 'vague': crop.is_vague, 'reviewed_1': crop.reviewed_one} for crop in frame_crops])
             bbox_colors_RGB = [COLOR_TO_RGB[bbox] for bbox in bbox_colors]
             cur_img = plot_tracks(img=frame, bboxes=np.array(crops_bboxes), ids=np.array(crops_labels),
                                   labels=np.array(crops_labels), bbox_colors=bbox_colors_RGB)
@@ -361,19 +380,11 @@ if __name__ == '__main__':
 
     # im_name_format('/home/bar_cohen/D-KinderGuardian/fast-reid/datasets/2.8.21-dataset/query')
 
-    # DB Visualizations:
-    vid_name = '20210729151129_s45000_e45501'
+    vid_name = '20210804151703_s45000_e45501'
     vid_date = vid_name.split('_')[0]
-    kinder_guardian_path = '/home/bar_cohen/D-KinderGuardian'
-    os.makedirs(f'{kinder_guardian_path}/Results/{vid_name}/', exist_ok=True)
+    kinder_guardian_path = '/home/bar_cohen/KinderGuardian'
+    os.makedirs(f'{kinder_guardian_path}/DataProcessing/Data/_{vid_name}/', exist_ok=True)
     viz_DB_data_on_video(
         input_vid=f'/home/bar_cohen/raid/trimmed_videos/IPCamera_{vid_date}/IPCamera_{vid_name}.mp4',
-        output_path=f'{kinder_guardian_path}/Results/{vid_name}/{vid_name}_reviewed1.mp4')
+        output_path=f'{kinder_guardian_path}/DataProcessing/Data/_{vid_name}/{vid_name}_reviewed1.mp4')
         # output_path=f'/home/bar_cohen/D-KinderGuardian/DataProcessing/Data/_{vid_name}/{vid_name}.mp4')
-
-    # Im resize:
-    # resize_images('/home/bar_cohen/D-KinderGuardian/Results/0003', '/home/bar_cohen/D-KinderGuardian/Results/0003-resized', (128, 256))
-
-    # Create Video:
-    # create_video_from_imgs('/home/bar_cohen/D-KinderGuardian/Results/0003-resized', '/home/bar_cohen/D-KinderGuardian/Results/0003.mp4')
-    # im_name_format('/home/bar_cohen/D-KinderGuardian/Results/0003-resized')

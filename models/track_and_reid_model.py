@@ -1,3 +1,4 @@
+import csv
 import os
 import pickle
 import tempfile
@@ -84,10 +85,9 @@ def find_best_reid_match(q_feat, g_feat, g_pids):
     features = F.normalize(q_feat, p=2, dim=1)
     others = F.normalize(g_feat, p=2, dim=1)
     distmat = 1 - torch.mm(features, others.t())
-
     distmat = distmat.numpy()
     best_match_in_gallery = np.argmin(distmat, axis=1)
-    return g_pids[best_match_in_gallery]
+    return g_pids[best_match_in_gallery] , distmat
 
 
 def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
@@ -131,6 +131,12 @@ def replace_ids(result, q_feat, g_feat, g_pids):
         result['track_results'][0][k][0] = reid_ids[k]
 
 
+def crop_top_third(crop_img):
+    y,x = crop_img.shape
+    crop_img = crop_img[y*0.7:y, x*0.7:x]
+    mmcv.imshow(crop_img)
+    return crop_img
+
 def create_data_by_re_id_and_track():
     """
     This function takes a video and runs both tracking, face-id and re-id models to create and label tracklets
@@ -144,7 +150,7 @@ def create_data_by_re_id_and_track():
     db_location = DB_LOCATION
     if args.inference_only:
         print('*** Running in inference-only mode ***')
-        db_location = '/mnt/raid1/home/bar_cohen/inference_db.db'
+        db_location = '/mnt/raid1/home/bar_cohen/inference_db5.db'
         create_table(db_location)
         print(f'Created temp DB in: {db_location}')
     else:
@@ -224,30 +230,31 @@ def create_data_by_re_id_and_track():
     for track_id, crop_dicts in tqdm.tqdm(tracklets.items(), total=len(tracklets.keys())):
         track_imgs = [crop_dict.get('crop_img') for crop_dict in crop_dicts]
         q_feats = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
-        reid_ids = find_best_reid_match(q_feats, g_feats, g_pids)
+        reid_ids, distmat = find_best_reid_match(q_feats, g_feats, g_pids)
+        # reid_ids = np.where(reid_ids[np.min(distmat,axis=1)] <0.02) # todo min dist task
         bincount = np.bincount(reid_ids)
         reid_maj_vote = np.argmax(bincount)
         reid_maj_conf = bincount[reid_maj_vote] / len(reid_ids)
         label = ID_TO_NAME[reid_maj_vote]
 
-        # todo: currently in the part commented out we don't use the label predicted by the face - consult with Bar how
-        #  to make use of it
-        # face_imgs = [crop.face_img for crop in crop_dicts if crop.check_if_face_img()]
-        # if len(face_imgs) > 0:  # at least 1 face was detected
-        #     face_classifer_preds = faceClassifer.predict(torch.stack(face_imgs))
-        #     bincount_face = torch.bincount(face_classifer_preds.cpu())
-        #     face_label = ID_TO_NAME[faceClassifer.le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
-        #     if len(face_imgs) > 1:
-        #         # faceClassifer.imshow(face_imgs[0:2], labels=[face_label] * 2)
-        #         pass  # uncomment above to show faces
-        #     print(face_label)
-        #     print(f'reid label: {label}, face label: {face_label}')
-        #     print(f'do the predictors agree? f{label == face_label}')
-        #
-        #     # if reid_maj_conf < 0.5: # silly heuristic todo do this according to the prob of the faceid model
-        #     #     print(f'do the predictors agree? f{label==face_label}')
-        #     #     print("Take Faceanyways due to low conf rom reid")
-        #     #     label = face_label
+        face_imgs = [crop_dict.get('face_img') for crop_dict in crop_dicts if crop_dict.get('face_img')
+                     is not None and crop_dict.get('face_img') is not crop_dict.get('face_img').numel()]
+        if len(face_imgs) > 0:  # at least 1 face was detected
+            face_classifer_preds = faceClassifer.predict(torch.stack(face_imgs))
+            bincount_face = torch.bincount(face_classifer_preds.cpu())
+            face_label = ID_TO_NAME[faceClassifer.le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
+            if len(face_imgs) > 1:
+                # if face_label == 'Adam':
+                #     faceClassifer.imshow(face_imgs[0:2], labels=[face_label] * 2)
+                pass  # uncomment above to show faces
+            print(face_label)
+            print(f'reid label: {label}, face label: {face_label}')
+            print(f'do the predictors agree? f{label == face_label}')
+
+            if reid_maj_conf <= 0.5: # silly heuristic todo do this according to the prob of the faceid model
+                # print(f'do the predictors agree? f{label==face_label}')
+                print("Take Faceanyways due to low conf rom reid")
+                label = face_label
 
         # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
         for crop_id, crop_dict in enumerate(crop_dicts):
@@ -256,11 +263,14 @@ def create_data_by_re_id_and_track():
             crop.label = label
 
             if args.inference_only:
-                tagged_label = get_entries(filters={Crop.im_name == crop.im_name}).all()[0].label
-                print(f'DB label is: {tagged_label}, Inference label is: {label}')
-                if tagged_label == label:
-                    correct += 1
-                total_crops += 1
+                tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
+                # print(f'DB label is: {tagged_label}, Inference label is: {reid_ids[crop_id]}')
+                if tagged_label_crop: # there is a tagging for this crop which is not invalid, count it
+                    total_crops += 1
+                    tagged_label = tagged_label_crop[0].label
+                    if tagged_label == label:
+                        correct += 1
+
             face_img = crop_dict.get('face_img')
             crop.is_face = face_img is not None and face_img is not face_img.numel()
             if not args.inference_only:
@@ -270,69 +280,17 @@ def create_data_by_re_id_and_track():
     add_entries(db_entries, db_location)
 
     if args.inference_only:
-        print(f'Total accuracy: {correct/total_crops}')
+        acc = {correct / total_crops}
+        print(f'Total accuracy: {acc}')
         print('Making visualization using temp DB')
-        viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location)
+        viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
-        # os.remove(db_location)
+        os.remove(db_location)
     print("Done")
-
-
-def main():
-    args = get_args()
-    reid_cfg = set_reid_cfgs(args)
-
-    # build re-id test set. NOTE: query dir of the dataset should be empty!
-    test_loader, num_query = build_reid_test_loader(reid_cfg,
-                                                    dataset_name='DukeMTMC')  # will take the dataset given as argument
-
-    # build re-id inference model:
-    reid_model = FeatureExtractionDemo(reid_cfg, parallel=True)
-
-    # run re-id model on all images in the test gallery and query folders:
-    feats, g_feat, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
-
-    # initialize tracking model:
-    tracking_model = init_model(args.track_config, args.track_checkpoint, device=args.device)
-
-    # load images and set temp folders for output creation:
-    imgs = mmcv.VideoReader(args.input)
-    fps = int(imgs.fps)
-    temp_dir = tempfile.TemporaryDirectory()
-    temp_path = temp_dir.name
-    _out = args.output.rsplit('/', 1)
-    if len(_out) > 1:
-        os.makedirs(_out[0], exist_ok=True)
-
-    prog_bar = mmcv.ProgressBar(len(imgs))
-    # iterate over all images and run tracking and reid for every image:
-    for i, img in enumerate(imgs):
-        if isinstance(img, str):
-            img = os.path.join(args.input, img)
-
-        result = tracking_inference(tracking_model, img, i, acc_threshold=float(args.acc_th))
-
-        q_feat = reid_inference(reid_model, img, result, frame_id=i, crops_folder=args.crops_folder)
-
-        # replace tracking ids with re-id ids
-        replace_ids(result, q_feat, g_feat, g_pids)
-
-        prog_bar.update()
-
-        # save the image to the temp folder
-        out_file = os.path.join(temp_path, f'{i:06d}.jpg')
-        tracking_model.show_result(
-            img,
-            result,
-            show=args.show,
-            wait_time=int(1000. / fps) if fps else 0,
-            out_file=out_file,
-            backend=args.backend)
-
-    print(f'making the output video at {args.output} with a FPS of {fps}')
-    mmcv.frames2video(temp_path, args.output, fps=fps, fourcc='mp4v')
-    temp_dir.cleanup()
 
 
 if __name__ == '__main__':
     create_data_by_re_id_and_track()
+
+
+
