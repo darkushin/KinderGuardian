@@ -13,7 +13,7 @@ from DataProcessing.utils import im_name_format
 BASE_CROPS_LOCATION = '/mnt/raid1/home/bar_cohen/'
 # DATASET_OUTPUT_LOCATION = '/mnt/raid1/home/bar_cohen/OUR_DATASETS/DukeMTMC-VideoReID'
 
-DATASET_OUTPUT_LOCATION = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/diff_day_test_as_train_query_03'
+DATASET_OUTPUT_LOCATION = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/diff_day_test_as_train_query_3007_0808'
 TRAIN_PERCENT = 0.8
 QUERY_PRECENT = 0.95
 
@@ -36,10 +36,13 @@ def convert_to_img_reid_duke_naming(dataset_path:str, test_day, query_day):
     video_names = [vid.vid_name for vid in get_entries(filters=(),group=Crop.vid_name)]
     crop_counter  = 0
     for vid_name in video_names:
+
         print('running', vid_name)
         # if vid_name[0:8] == test_day:
         #     set_folder = 'bounding_box_test'
-        if vid_name[0:8] == query_day:
+        # if vid_name[0:8] == query_day:
+        #     set_folder = 'query'
+        if vid_name[0:8] in ['20210730', '20210808']:
             set_folder = 'query'
         else:
             set_folder = 'bounding_box_train'
@@ -196,7 +199,7 @@ def create_query_from_gallery(dataset_path, is_video=False):
 
 if __name__ == '__main__':
     # convert_to_duke_naming(DATASET_OUTPUT_LOCATION, test_day='20210804',query_day='20210803')
-    convert_to_img_reid_duke_naming(DATASET_OUTPUT_LOCATION, test_day='20210804',query_day='20210803')
+    convert_to_img_reid_duke_naming(DATASET_OUTPUT_LOCATION, test_day=None,query_day=None)
     create_query_from_gallery(DATASET_OUTPUT_LOCATION, is_video=False)
     im_name_format(DATASET_OUTPUT_LOCATION + '/query', is_video=False)
 
