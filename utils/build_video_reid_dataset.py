@@ -11,49 +11,42 @@ from DataProcessing.dataProcessingConstants import NAME_TO_ID
 from DataProcessing.utils import im_name_format
 
 BASE_CROPS_LOCATION = '/mnt/raid1/home/bar_cohen/'
-# DATASET_OUTPUT_LOCATION = '/mnt/raid1/home/bar_cohen/OUR_DATASETS/DukeMTMC-VideoReID'
-
-DATASET_OUTPUT_LOCATION = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/diff_day_test_as_train_query_3007_0808'
-TRAIN_PERCENT = 0.8
-QUERY_PRECENT = 0.95
+# DATASET_OUTPUT_LOCATION = '/mnt/raid1/home/bar_cohen/OUR_DATASETS/DukeMTMC-VideoReID' # keep this, it is for video location
+DATASET_OUTPUT_LOCATION = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/same_day_0308' # this is for image
 
 
 def im_name_in_mars(crop: Crop, track_counter, crop_id):
     return f'{NAME_TO_ID[crop.label]:04d}C{crop.cam_id}T{track_counter:04d}F{crop_id:03d}.png'
 
-
 def im_name_in_duke(crop: Crop, crop_id):
     return f'{NAME_TO_ID[crop.label]:04d}_C{crop.cam_id}_F{crop_id + 1:04d}_X{crop.frame_num:05d}.png'
 
 def im_name_in_img_duke(crop:Crop, crop_id):
-    # 0012_c2_f0211013.jpg
     return f'{NAME_TO_ID[crop.label]:04d}_c{crop.cam_id}_f{crop_id:07d}.jpg'
 
-def convert_to_img_reid_duke_naming(dataset_path:str, test_day, query_day):
+def convert_to_img_reid_duke_naming(dataset_path:str, query_days, same_day=False):
+    # entering 'same_day' will result in a split only to query, train and test only from this day
+
     df = pd.DataFrame(columns=['file_name', 'vid_name', 'track_id'])
-    if test_day == query_day:
-        warnings.warn("Query will be taken from same day as test")
+    warnings.warn("Query will be taken from same day as test")
     video_names = [vid.vid_name for vid in get_entries(filters=(),group=Crop.vid_name)]
     crop_counter  = 0
     for vid_name in video_names:
-
-        print('running', vid_name)
-        # if vid_name[0:8] == test_day:
-        #     set_folder = 'bounding_box_test'
-        # if vid_name[0:8] == query_day:
-        #     set_folder = 'query'
-        if vid_name[0:8] in ['20210730', '20210808']:
+        if vid_name[0:8] == same_day or vid_name in query_days:
             set_folder = 'query'
         else:
+            if same_day:
+                continue
             set_folder = 'bounding_box_train'
-
+        print('running', vid_name)
         tracks = [track.track_id for track in get_entries(filters=({Crop.vid_name == vid_name}), group=Crop.track_id)]
         for track in tracks:
-
             track_crops = get_entries(filters=(Crop.vid_name == vid_name,
                                                Crop.track_id == track,
                                                Crop.reviewed_one == True,
                                                Crop.invalid == False)).all()
+            if same_day and random.random() <= 0.8:
+                set_folder = 'bounding_box_train'
 
             for crop in track_crops:
                 output_name = im_name_in_img_duke(crop, crop_counter)
@@ -65,7 +58,6 @@ def convert_to_img_reid_duke_naming(dataset_path:str, test_day, query_day):
                     dataset_crop_path = os.path.join(dataset_path, 'bounding_box_test', output_name)
                     os.makedirs(os.path.join(dataset_path, 'bounding_box_test'), exist_ok=True)
                     shutil.copy(orig_crop_path, dataset_crop_path)
-
                 crop_counter += 1
                 df = add_file_data_base(df, output_name, crop)
     df.to_csv(os.path.join(DATASET_OUTPUT_LOCATION, 'img_to_info.csv'))
@@ -77,7 +69,6 @@ def convert_to_mars_naming(dataset_path: str):
 
     # For each person iterate over each video the person appears in, get all tracks of this person from the video and
     # save them to the person's ID
-
     # Filter according to the different persons:
     labels = [person.label for person in get_entries(filters=(), group=Crop.label)]
     for person_id, label in enumerate(labels):
@@ -89,8 +80,6 @@ def convert_to_mars_naming(dataset_path: str):
         # iterate over each video in which the current person appears
         video_names = [vid.vid_name for vid in get_entries(filters=({Crop.label == label}), group=Crop.vid_name)]
         for vid_name in video_names:
-            # print(f'cur track {i + 1}/{len(track_ids)}')
-
             # iterate over each track of the person in the video
             tracks = [track.track_id for track in get_entries(filters=(Crop.label == label, Crop.vid_name == vid_name), group=Crop.track_id)]
             for track in tracks:
@@ -110,13 +99,11 @@ def convert_to_mars_naming(dataset_path: str):
                     shutil.copy(orig_crop_path, mars_crop_path)
 
                 track_counter += 1
-            # return
         pickle.dump(unique_track_mapping, open(os.path.join('MARS_TRACKS_LOCATION', 'track_ids_mapping.pkl'), 'wb'))
 
 def add_file_data_base(df:pd.DataFrame, file_name:str, crop:Crop):
     df = df.append({'file_name':file_name, 'vid_name':crop.vid_name, 'track_id':crop.track_id}, ignore_index=True)
     return df
-
 
 def convert_to_video_reid_duke_naming(dataset_path: str, test_day, query_day):
     df = pd.DataFrame(columns=['file_name', 'vid_name', 'track_id'])
@@ -129,11 +116,8 @@ def convert_to_video_reid_duke_naming(dataset_path: str, test_day, query_day):
     # Filter according to the different persons:
     labels = [person.label for person in get_entries(filters=(), group=Crop.label)]
     for person_id, label in enumerate(labels):
-        # if label in ['Guy', 'Halel']:
-        #     continue
         print(f'{person_id}/{len(labels)} Creating tracks for: {label} ({NAME_TO_ID[label]:04d})')
         numerical_label = NAME_TO_ID[label]
-        # os.makedirs(os.path.join(dataset_path, f'{numerical_label:04d}'), exist_ok=True)
         track_counter = 1
 
         # iterate over each video in which the current person appears
@@ -176,7 +160,6 @@ def convert_to_video_reid_duke_naming(dataset_path: str, test_day, query_day):
                         shutil.copy(orig_crop_path, dataset_crop_path)
 
                     df = add_file_data_base(df,output_name, crop)
-
                 track_counter += 1
     df.to_csv(os.path.join(DATASET_OUTPUT_LOCATION,'img_to_info.csv'))
     pickle.dump(unique_track_mapping, open(os.path.join(DATASET_OUTPUT_LOCATION, 'track_ids_mapping.pkl'), 'wb'))
@@ -199,7 +182,7 @@ def create_query_from_gallery(dataset_path, is_video=False):
 
 if __name__ == '__main__':
     # convert_to_duke_naming(DATASET_OUTPUT_LOCATION, test_day='20210804',query_day='20210803')
-    convert_to_img_reid_duke_naming(DATASET_OUTPUT_LOCATION, test_day=None,query_day=None)
+    convert_to_img_reid_duke_naming(DATASET_OUTPUT_LOCATION, same_day='20210803')
     create_query_from_gallery(DATASET_OUTPUT_LOCATION, is_video=False)
     im_name_format(DATASET_OUTPUT_LOCATION + '/query', is_video=False)
 
