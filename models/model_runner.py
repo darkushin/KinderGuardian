@@ -1,3 +1,4 @@
+import os
 import warnings
 from argparse import ArgumentParser, REMAINDER
 from subprocess import call
@@ -102,6 +103,14 @@ def validate_tracking_args():
     assert args.input is not None, 'tracking action requires a `--input` argument'
     assert args.output is not None, 'tracking action requires a `--output` argument'
 
+def get_query_set():
+    query_set = []
+    for _ , _ , files in os.walk("/mnt/raid1/home/bar_cohen/trimmed_videos/"):
+        for file in files:
+            if file[13:17] in ['0803', '0730']:
+                query_set.append(file)
+    return query_set
+
 
 def execute_combined_model():
     """
@@ -141,11 +150,17 @@ def execute_combined_model():
     optional_args: List = create_optional_args()
     script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
           args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
+
+
     script_args.extend(optional_args)
     script_args.append('--reid_opts')
     script_args.extend(reid_opts)
-    print(script_args)
-    call(script_args)
+    inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos "
+    for query_vid in get_query_set():
+        print(f'running {query_vid}')
+        args.input = query_vid
+        args.output = os.path.join(inference_output, 'inference_'+query_vid.split('/')[-1])
+        call(script_args)
 
 
 def runner():
