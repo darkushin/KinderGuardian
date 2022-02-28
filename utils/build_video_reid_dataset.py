@@ -25,7 +25,7 @@ def im_name_in_duke(crop: Crop, crop_id):
 def im_name_in_img_duke(crop:Crop, crop_id):
     return f'{NAME_TO_ID[crop.label]:04d}_c{crop.cam_id}_f{crop_id:07d}.jpg'
 
-def convert_to_img_reid_duke_naming(dataset_path:str, query_days, same_day=False):
+def convert_to_img_reid_duke_naming(dataset_path:str, query_days, same_day=None):
     # entering 'same_day' will result in a split only to query, train and test only from this day
 
     df = pd.DataFrame(columns=['file_name', 'vid_name', 'track_id'])
@@ -106,7 +106,7 @@ def add_file_data_base(df:pd.DataFrame, file_name:str, crop:Crop):
     df = df.append({'file_name':file_name, 'vid_name':crop.vid_name, 'track_id':crop.track_id}, ignore_index=True)
     return df
 
-def convert_to_video_reid_duke_naming(dataset_path: str, test_day, query_day):
+def convert_to_video_reid_duke_naming(dataset_path: str, query_day):
     df = pd.DataFrame(columns=['file_name', 'vid_name', 'track_id'])
     session = create_session()
     unique_track_mapping = {}
