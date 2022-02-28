@@ -145,7 +145,7 @@ def convert_to_video_reid_duke_naming(dataset_path: str, test_day, query_day):
             for track in tracks:
                 # if vid_name[0:8] == test_day:
                 #     set_folder = 'gallery'
-                if vid_name[0:8] == query_day:
+                if vid_name[0:8] in query_day:
                     set_folder = 'query'
                 else:
                     set_folder = 'train'
@@ -178,8 +178,8 @@ def convert_to_video_reid_duke_naming(dataset_path: str, test_day, query_day):
                     df = add_file_data_base(df,output_name, crop)
 
                 track_counter += 1
-    df.to_csv(os.path.join(DATASET_OUTPUT_LOCATION,'img_to_info.csv'))
-    pickle.dump(unique_track_mapping, open(os.path.join(DATASET_OUTPUT_LOCATION, 'track_ids_mapping.pkl'), 'wb'))
+    df.to_csv(os.path.join(dataset_path, 'img_to_info.csv'))
+    pickle.dump(unique_track_mapping, open(os.path.join(dataset_path, 'track_ids_mapping.pkl'), 'wb'))
 
 
 def create_query_from_gallery(dataset_path, is_video=False):
@@ -199,9 +199,12 @@ def create_query_from_gallery(dataset_path, is_video=False):
 
 if __name__ == '__main__':
     # convert_to_duke_naming(DATASET_OUTPUT_LOCATION, test_day='20210804',query_day='20210803')
-    convert_to_img_reid_duke_naming(DATASET_OUTPUT_LOCATION, test_day=None,query_day=None)
-    create_query_from_gallery(DATASET_OUTPUT_LOCATION, is_video=False)
-    im_name_format(DATASET_OUTPUT_LOCATION + '/query', is_video=False)
+    # convert_to_img_reid_duke_naming(DATASET_OUTPUT_LOCATION, test_day=None,query_day=None)
+    convert_to_video_reid_duke_naming('/mnt/raid1/home/bar_cohen/OUR_DATASETS/DukeMTMC-VideoReID',
+                                      test_day=None, query_day=['20210730', '20210808'])
+
+    # create_query_from_gallery(DATASET_OUTPUT_LOCATION, is_video=False)
+    # im_name_format(DATASET_OUTPUT_LOCATION + '/query', is_video=False)
 
 
 
