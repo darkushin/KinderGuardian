@@ -151,7 +151,12 @@ def create_data_by_re_id_and_track():
     args = get_args()
     print(f'Args: {args}')
     db_location = DB_LOCATION
+
     if args.inference_only:
+        albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df.csv')
+        columns_dict = {k: 0 for k in albation_df.columns}
+        columns_dict['video_name'] = args.input.split('/')[-1]
+        columns_dict['model_name'] = 'fastreid'
         print('*** Running in inference-only mode ***')
         db_location = '/mnt/raid1/home/bar_cohen/inference_db5.db'
         create_table(db_location)
@@ -159,11 +164,8 @@ def create_data_by_re_id_and_track():
     else:
         print(f'Saving the output crops to: {args.crops_folder}')
         assert args.crops_folder, "You must insert crop_folder param in order to create data"
-    albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df.csv')
-    columns_dict = {k : 0 for k in albation_df.columns}
 
-    columns_dict['video_name'] = args.input.split('/')[-1]
-    columns_dict['model_name'] = 'fastreid'
+
 
     faceDetector = FaceDetector()
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le.pkl", 'rb'))
@@ -237,7 +239,8 @@ def create_data_by_re_id_and_track():
 
     # iterate over all tracklets and make a prediction for every tracklet
     for track_id, crop_dicts in tqdm.tqdm(tracklets.items(), total=len(tracklets.keys())):
-        columns_dict['total_tracks'] += 1
+        if args.inference_only:
+            columns_dict['total_tracks'] += 1
         track_imgs = [crop_dict.get('crop_img') for crop_dict in crop_dicts]
         q_feats = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
         reid_ids, distmat = find_best_reid_match(q_feats, g_feats, g_pids)
@@ -252,7 +255,8 @@ def create_data_by_re_id_and_track():
         is_face_in_track = False
         if len(face_imgs) > 0:  # at least 1 face was detected
             is_face_in_track = True
-            columns_dict['tracks_with_face'] += 1
+            if args.inference_only:
+                columns_dict['tracks_with_face'] += 1
 
             face_classifer_preds = faceClassifer.predict(torch.stack(face_imgs))
             bincount_face = torch.bincount(face_classifer_preds.cpu())
