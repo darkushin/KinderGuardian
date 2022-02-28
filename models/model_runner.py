@@ -5,6 +5,7 @@ from subprocess import call
 
 import sys
 
+from DataProcessing.DB.dal import Crop, get_entries
 from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import *
 import DataProcessing.dataFactory
@@ -107,7 +108,8 @@ def get_query_set():
     query_set = []
     for _ , _ , files in os.walk("/mnt/raid1/home/bar_cohen/trimmed_videos/"):
         for file in files:
-            if file[13:17] in ['0803', '0730']:
+            is_tagged = len(get_entries(filters={Crop.vid_name == file[9:-4], Crop.reviewed_one == True}).all()) > 0
+            if file[13:17] in ['0808','0730']  and is_tagged:
                 query_set.append(file)
     return query_set
 
@@ -148,18 +150,23 @@ def execute_combined_model():
     """
     reid_opts: List = create_reid_opts()
     optional_args: List = create_optional_args()
-    script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
-          args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
+    inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
 
-
-    script_args.extend(optional_args)
-    script_args.append('--reid_opts')
-    script_args.extend(reid_opts)
-    inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos "
-    for query_vid in get_query_set():
+    # for query_vid in get_query_set():
+    for query_vid in ['IPCamera_20210730072959_s45000_e45501.mp4']:
         print(f'running {query_vid}')
-        args.input = query_vid
-        args.output = os.path.join(inference_output, 'inference_'+query_vid.split('/')[-1])
+        args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
+                                  query_vid.split('_')[0]+'_'+query_vid.split('_')[1],
+                                  query_vid)
+        print(args.input)
+        args.output = os.path.join(inference_output, 'inference_' + query_vid.split('/')[-1])
+        print(args.output)
+        script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
+                       args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
+        script_args.extend(optional_args)
+        script_args.append('--reid_opts')
+        script_args.extend(reid_opts)
+
         call(script_args)
 
 

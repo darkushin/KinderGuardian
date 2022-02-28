@@ -1,10 +1,14 @@
+import os
 import pickle
-from collections import defaultdict, Counter
+from collections import defaultdict
+import cv2
 import seaborn as sns
 import pandas as pd
-from DataProcessing.dataProcessingConstants import ID_TO_NAME
-from DataProcessing.utils import read_labeled_croped_images
-from FaceDetection.facenet_pytorch import MTCNN, InceptionResnetV1
+from PIL import Image
+
+from DataProcessing.DB.dal import get_entries, Crop
+from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
+from FaceDetection.facenet_pytorch import MTCNN
 from matplotlib import pyplot as plt
 import torch
 
@@ -20,11 +24,15 @@ class FaceDetector():
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.raw_images_path = raw_images_path
         self.faces_data_path = faces_data_path
-        self.facenet_detecor = MTCNN(margin=40, select_largest=False, post_process=False, device=device, thresholds=[0.8,0.8,0.8])
+        self.facenet_detecor = MTCNN(margin=40, select_largest=True, post_process=False, device=device, thresholds=[0.8,0.8,0.8])
         self.face_treshold = 0.90
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.high_conf_face_imgs = defaultdict(list)
 
+    def crop_top_third_and_sides(self, img):
+        width, height = img.size
+        cropped_img = img.crop((width*0.2, 0, width*0.8, height*0.3))
+        return cropped_img
 
     def filter_out_non_face_corps(self) -> None:
         """ Given a set of image crop filter out all images without the faces present
@@ -33,8 +41,23 @@ class FaceDetector():
             print("pickle path to images received, loading...")
             self.high_conf_face_imgs = pickle.load(open(self.faces_data_path,'rb'))
         else:
-            assert self.raw_images_path , 'Pickle to existing face images not found, please input raw images path'
-            raw_imgs_dict = read_labeled_croped_images(self.raw_images_path)
+            # assert self.raw_images_path , 'Pickle to existing face images not found, please input raw images path'
+            # raw_imgs_dict = read_labeled_croped_images(self.raw_images_path)
+            face_crops = get_entries(filters={Crop.is_face == True,
+                                              Crop.reviewed_one == True,
+                                              Crop.is_vague == False,
+                                              Crop.invalid == False}).all()
+            crops_path = "/mnt/raid1/home/bar_cohen/"
+            # raw_imgs_dict = {NAME_TO_ID[crop.label] : cv2.imread(os.path.join(crops_path, crop.vid_name, crop.im_name)) for crop in face_crops}
+            raw_imgs_dict = defaultdict(list)
+            for crop in face_crops:
+                img = Image.open(os.path.join(crops_path, crop.vid_name, crop.im_name))
+                img = self.crop_top_third_and_sides(img)
+                raw_imgs_dict[NAME_TO_ID[crop.label]].append(img.copy())
+                img.close()
+
+
+            # y = [NAME_TO_ID[crop.label] for crop in face_crops]
 
             print('Number of unique ids', len(raw_imgs_dict.keys()))
             given_num_of_images = sum([len(raw_imgs_dict[i]) for i in raw_imgs_dict.keys()])
@@ -50,7 +73,7 @@ class FaceDetector():
 
             given_num_of_images_final = sum([len(self.high_conf_face_imgs[i]) for i in raw_imgs_dict.keys()])
             print(f'Post filter left with {given_num_of_images_final}')
-            pickle.dump(self.high_conf_face_imgs, open('C:\KinderGuardian\FaceDetection\imgs_with_face_highconf_1.pkl','wb'))
+            pickle.dump(self.high_conf_face_imgs, open('C:\KinderGuardian\FaceDetection\images_faces.pkl','wb'))
 
     def create_X_y_faces(self) -> ([] , []):
         """
