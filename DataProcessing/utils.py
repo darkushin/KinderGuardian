@@ -10,8 +10,9 @@ import numpy as np
 from mmtrack.core.utils.visualization import random_color
 import mmcv
 from DataProcessing.DB.dal import *
-
-from DataProcessing.dataHandler import create_Crop_from_str
+from matplotlib import  pyplot as plt
+import pandas as pd
+import seaborn as sns
 
 """
 This folder holds functions that can be useful for data handling, such as renaming images etc.
@@ -25,19 +26,26 @@ COLOR_TO_RGB = {
     'red': [1, 0, 0]
 }
 
-def im_name_format(path):
+
+def im_name_format(path, is_video=False):
     """
     Convert all images in the given path from its current malformed format to the `xxxx_c1_f1234567.jpg` format which is
      the correct format for the DukeMTMC dataset.
      Change this function according to the current corrections you need to do.
     """
-    for im in os.listdir(os.path.join(path)):
-        if '.jpg' not in im:
-            continue
-        # new_im_name = im.split('.jpg')[0]
-        new_im_name = im.replace('c1', 'c6')
-
-        os.rename(f'{path}/{im}', f'{path}/{new_im_name}')
+    C1 = 'c1'
+    C6 = 'c6'
+    if is_video:
+        C1 = 'C1'
+        C6 = 'C6'
+    for p, subdirs, files in os.walk(path):
+        for im in files:
+            if '.png' not in im and '.jpg' not in im:
+                continue
+            # new_im_name = im.split('.jpg')[0]
+            new_im_name = im.replace(C1, C6)
+            # selected.add(new_im_name[0:4])
+            os.rename(f'{p}/{im}', f'{p}/{new_im_name}')
 
 
 def im_id_format(path):
@@ -304,7 +312,7 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
         - output_path: the path in which the labeled output video should be created.
         - DB_path: the path to the DB that holds the labeled crops of the video.
     """
-    vid_name = input_vid.split('/')[-1][8:-4]
+    vid_name = input_vid.split('/')[-1][9:-4]
 
     imgs = mmcv.VideoReader(input_vid)
     temp_dir = tempfile.TemporaryDirectory()
@@ -332,7 +340,44 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
     temp_dir.cleanup()
 
 
+def build_samples_hist(title:str=None):
+    crops = get_entries(filters=(Crop.invalid == False, Crop.reviewed_one == True))
+    track_counter = defaultdict(set)
+    for crop in crops:
+        # if '20210804' not in crop.vid_name:
+        #     continue
+        # if '20210804' in crop.vid_name :
+        track_counter[crop.label].add(str(crop.vid_name) +'_' + str(crop.track_id))
+
+    ret = {}
+    for k,v in track_counter.items():
+        ret[k] = len(v)
+
+    """Create a Bar plot that represented the number of face samples from every id"""
+    # cnt = {ID_TO_NAME[int(k)] : [len(samples_dict[k])] for k in samples_dict.keys()}
+    df = pd.DataFrame(ret, index=ret.keys())
+    ax= sns.barplot(data=df)
+    ax.set_xticklabels(df.columns, rotation=45)
+    plt.title(title)
+    plt.show()
+
+# def main():
+#     """Simple test of FaceDetector"""
+#     print('hoi')
+#     crops = get_entries(filters=({Crop.invalid == False, Crop.reviewed_one == True}))
+#     track_counter = defaultdict(set)
+#     for crop in crops:
+#         track_counter[crop.label].add(str(crop.vid_name) +'_' + str(crop.track_id))
+#
+#     ret = {}
+#     for k,v in track_counter.items():
+#         ret[k] = len(v)
+
+
 if __name__ == '__main__':
+    build_samples_hist()
+    # trim_videos_from_dir(dir='/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/', output_path='/mnt/raid1/home/bar_cohen/trimmed_videos/',
+    #                      limit=500, create_every=33000)
     # viz_data_on_video_using_pickle(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
     #                   output_path="/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_labled1.mp4",
     #                   pre_labeled_pkl_path='/mnt/raid1/home/bar_cohen/DB_Crops/_crop_db.pkl')
@@ -340,11 +385,16 @@ if __name__ == '__main__':
 
     # im_name_format('/home/bar_cohen/D-KinderGuardian/fast-reid/datasets/2.8.21-dataset/query')
 
-    vid_name = '20210804151703_s45000_e45501'
-    vid_date = vid_name.split('_')[0]
-    kinder_guardian_path = '/home/bar_cohen/KinderGuardian'
-    os.makedirs(f'{kinder_guardian_path}/DataProcessing/Data/_{vid_name}/', exist_ok=True)
-    viz_DB_data_on_video(
-        input_vid=f'/home/bar_cohen/raid/trimmed_videos/IPCamera_{vid_date}/IPCamera_{vid_name}.mp4',
-        output_path=f'{kinder_guardian_path}/DataProcessing/Data/_{vid_name}/{vid_name}_reviewed1.mp4')
-        # output_path=f'/home/bar_cohen/D-KinderGuardian/DataProcessing/Data/_{vid_name}/{vid_name}.mp4')
+    # Data Visualization:
+    # vid_name = '20210804151703_s45000_e45501'
+    # vid_date = vid_name.split('_')[0]
+    # kinder_guardian_path = '/home/bar_cohen/KinderGuardian'
+    # os.makedirs(f'{kinder_guardian_path}/DataProcessing/Data/_{vid_name}/', exist_ok=True)
+    # viz_DB_data_on_video(
+    #     input_vid=f'/home/bar_cohen/raid/trimmed_videos/IPCamera_{vid_date}/IPCamera_{vid_name}.mp4',
+    #     output_path=f'{kinder_guardian_path}/DataProcessing/Data/_{vid_name}/{vid_name}_reviewed1.mp4')
+    #     # output_path=f'/home/bar_cohen/D-KinderGuardian/DataProcessing/Data/_{vid_name}/{vid_name}.mp4')
+
+    # Duke Video Dataset Rename:
+    # im_name_format('/mnt/raid1/home/bar_cohen/OUR_DATASETS/DukeMTMC-VideoReID/query')
+
