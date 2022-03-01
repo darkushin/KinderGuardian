@@ -20,11 +20,11 @@ class FaceDetector():
     face_data_path - path to folder already containing face images. This will be used in order to put said images into
     the correct format.
     """
-    def __init__(self, raw_images_path:str=None, faces_data_path:str=None):
+    def __init__(self, raw_images_path:str=None, faces_data_path:str=None, thresholds=[0.8,0.8,0.8]):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.raw_images_path = raw_images_path
         self.faces_data_path = faces_data_path
-        self.facenet_detecor = MTCNN(margin=40, select_largest=True, post_process=False, device=device, thresholds=[0.8,0.8,0.8])
+        self.facenet_detecor = MTCNN(margin=40, select_largest=True, post_process=False, device=device, thresholds=thresholds)
         self.face_treshold = 0.90
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.high_conf_face_imgs = defaultdict(list)

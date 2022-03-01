@@ -183,7 +183,7 @@ def create_query_from_gallery(dataset_path, is_video=False):
 
 if __name__ == '__main__':
     # convert_to_duke_naming(DATASET_OUTPUT_LOCATION, test_day='20210804',query_day='20210803')
-    convert_to_img_reid_duke_naming(DATASET_OUTPUT_LOCATION, same_day='20210803')
+    convert_to_img_reid_duke_naming(DATASET_OUTPUT_LOCATION, query_days=['3007, 0808'])
     create_query_from_gallery(DATASET_OUTPUT_LOCATION, is_video=False)
     im_name_format(DATASET_OUTPUT_LOCATION + '/query', is_video=False)
 

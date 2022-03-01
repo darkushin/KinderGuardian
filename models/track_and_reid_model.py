@@ -151,23 +151,24 @@ def create_data_by_re_id_and_track():
     args = get_args()
     print(f'Args: {args}')
     db_location = DB_LOCATION
-
+    ID_NOT_IN_VIDEO = -999
     if args.inference_only:
         albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df.csv')
         columns_dict = {k: 0 for k in albation_df.columns}
         columns_dict['video_name'] = args.input.split('/')[-1]
         columns_dict['model_name'] = 'fastreid'
         print('*** Running in inference-only mode ***')
-        db_location = '/mnt/raid1/home/bar_cohen/inference_db5.db'
+        db_location = '/mnt/raid1/home/bar_cohen/inference_db7.db'
+        if os.path.isfile(db_location): # remove temp db if leave-over from prev runs
+            assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
+            os.remove(db_location)
         create_table(db_location)
         print(f'Created temp DB in: {db_location}')
     else:
         print(f'Saving the output crops to: {args.crops_folder}')
         assert args.crops_folder, "You must insert crop_folder param in order to create data"
 
-
-
-    faceDetector = FaceDetector()
+    faceDetector = FaceDetector(thresholds=[0.95,0.95,0.95])
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le.pkl", 'rb'))
     faceClassifer = FaceClassifer(num_classes=19, label_encoder=le)
 
@@ -177,14 +178,14 @@ def create_data_by_re_id_and_track():
 
     reid_cfg = set_reid_cfgs(args)
 
-    # build re-id test set. NOTE: query dir of the dataset should be empty!
-    test_loader, num_query = build_reid_test_loader(reid_cfg,
-                                                    dataset_name='DukeMTMC')  # will take the dataset given as argument
 
     # build re-id inference model:
     reid_model = FeatureExtractionDemo(reid_cfg, parallel=True)
 
     # run re-id model on all images in the test gallery and query folders:
+    # build re-id test set. NOTE: query dir of the dataset should be empty!
+    # test_loader, num_query = build_reid_test_loader(reid_cfg,
+    #                                                 dataset_name='DukeMTMC')  # will take the dataset given as argument
     # feats, g_feats, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
     # print('dumping gallery to pickles....:')
     # pickle.dump(feats, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'feats'), 'wb'))
@@ -237,10 +238,11 @@ def create_data_by_re_id_and_track():
                         is_vague=False)
             crop.set_im_name()
             tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop})
-
     print('******* Making predictions and saving crops to DB *******')
     db_entries = []
-    ids_acc_dict = {name: [-999,-999] for name in ID_TO_NAME.values()}
+    # id dict value at index 0 - number of times appeared in video
+    # id dict value at index 1 - number of times correctly classified in video
+    ids_acc_dict = {name: [ID_NOT_IN_VIDEO,ID_NOT_IN_VIDEO] for name in ID_TO_NAME.values()}
 
     if args.inference_only:
         total_crops = 0
@@ -273,8 +275,8 @@ def create_data_by_re_id_and_track():
             bincount_face = torch.bincount(face_classifer_preds.cpu())
             face_label = ID_TO_NAME[faceClassifer.le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
             if len(face_imgs) > 1:
-                # if face_label == 'Adam':
-                #     faceClassifer.imshow(face_imgs[0:2], labels=[face_label] * 2)
+                # if face_label == 'Noga' or face_label == 'Guy':
+                faceClassifer.imshow(face_imgs[0:1], labels=[face_label]*2)
                 pass  # uncomment above to show faces
             # print(face_label)
 
@@ -303,7 +305,7 @@ def create_data_by_re_id_and_track():
                     if is_face_in_track:
                         total_crops_of_tracks_with_face += 1
                     tagged_label = tagged_label_crop[0].label
-                    if ids_acc_dict[tagged_label][0] == -999: # init this id as present in vid
+                    if ids_acc_dict[tagged_label][0] == ID_NOT_IN_VIDEO: # init this id as present in vid
                         ids_acc_dict[tagged_label][0] = 0
                         ids_acc_dict[tagged_label][1] = 0
                     ids_acc_dict[tagged_label][0] += 1
@@ -326,7 +328,7 @@ def create_data_by_re_id_and_track():
             db_entries.append(crop)
 
     add_entries(db_entries, db_location)
-
+    print(total_crops)
     if args.inference_only and total_crops > 0:
         acc_columns = ['pure_reid_model','face_clf_only', 'reid_with_maj_vote', 'reid_with_face_clf_maj_vote']
         for acc in acc_columns:
@@ -334,19 +336,22 @@ def create_data_by_re_id_and_track():
         if total_crops_of_tracks_with_face > 0:
             columns_dict['face_clf_only_tracks_with_face'] = columns_dict['face_clf_only_tracks_with_face']\
                                                              / total_crops_of_tracks_with_face
-        ids_set = set(name for name, value in ids_acc_dict.items() if value[0] >= 0)
+        ids_set = set(name for name, value in ids_acc_dict.items() if value[0] > 0)
         columns_dict['total_ids_in_video'] = len(ids_set)
         columns_dict['ids_in_video'] = str(ids_set)
         for name, value in ids_acc_dict.items():
-            columns_dict[name] = 0 if value[0] <= 0 else value[1] / value[0]
+            if value[0] == ID_NOT_IN_VIDEO: # this id was never in video
+                columns_dict[name] = ID_NOT_IN_VIDEO
+            elif value[0] > 0: # id was found in video but never correctly classified
+                columns_dict[name] = value[1] / value[0]
         albation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df.csv')
-
         print('Making visualization using temp DB')
         viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
         print('removing temp DB')
         os.remove(db_location)
-
+    else:
+        print('aint writing nothing')
     print("Done")
 
 
