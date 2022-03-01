@@ -151,9 +151,7 @@ def execute_combined_model():
     reid_opts: List = create_reid_opts()
     optional_args: List = create_optional_args()
     inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
-
-    # for query_vid in get_query_set():
-    for query_vid in ['IPCamera_20210730072959_s45000_e45501.mp4']:
+    for query_vid in get_query_set():
         print(f'running {query_vid}')
         args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
                                   query_vid.split('_')[0]+'_'+query_vid.split('_')[1],

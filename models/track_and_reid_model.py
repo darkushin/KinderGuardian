@@ -151,7 +151,7 @@ def create_data_by_re_id_and_track():
     args = get_args()
     print(f'Args: {args}')
     db_location = DB_LOCATION
-    ID_NOT_IN_VIDEO = -999
+    ID_NOT_IN_VIDEO = -1
     if args.inference_only:
         albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df.csv')
         columns_dict = {k: 0 for k in albation_df.columns}
@@ -276,7 +276,7 @@ def create_data_by_re_id_and_track():
             face_label = ID_TO_NAME[faceClassifer.le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
             if len(face_imgs) > 1:
                 # if face_label == 'Noga' or face_label == 'Guy':
-                faceClassifer.imshow(face_imgs[0:1], labels=[face_label]*2)
+                # faceClassifer.imshow(face_imgs[0:1], labels=[face_label]*2)
                 pass  # uncomment above to show faces
             # print(face_label)
 
@@ -344,7 +344,7 @@ def create_data_by_re_id_and_track():
                 columns_dict[name] = ID_NOT_IN_VIDEO
             elif value[0] > 0: # id was found in video but never correctly classified
                 columns_dict[name] = value[1] / value[0]
-        albation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df.csv')
+        albation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
         print('Making visualization using temp DB')
         viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
