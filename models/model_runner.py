@@ -1,7 +1,12 @@
+import os
+import warnings
 from argparse import ArgumentParser, REMAINDER
 from subprocess import call
 
 import sys
+
+from DataProcessing.DB.dal import Crop, get_entries
+from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import *
 import DataProcessing.dataFactory
 from typing import List
@@ -22,6 +27,7 @@ def get_args():
                         help='If running track and crop on Data Processing, or if running track-and-reid model')
     parser.add_argument('--reid_opts', help='Modify config options using the command-line', default=None, nargs=REMAINDER)
     parser.add_argument('--crops_folder')
+    parser.add_argument('--inference_only', action='store_true', help='use the tracking and reid model for inference')
 
     return parser.parse_args()
 
@@ -52,6 +58,8 @@ def create_optional_args() -> List:
         optional_args.extend(['--acc_th', args.acc_threshold])
     if args.crops_folder:
         optional_args.extend(['--crops_folder', args.crops_folder])
+    if args.inference_only:
+        optional_args.extend(['--inference_only'])
     return optional_args
 
 
@@ -85,8 +93,7 @@ def execute_reid_action():
 
     if args.action == RE_ID_EVAL:
         script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './fast-reid/tools/train_net.py',
-                       '--config-file', args.reid_config, '--eval-only', 'MODEL.DEVICE', 'cuda:1', 'DATASETS.DATASET',
-                       args.dataset]
+                       '--config-file', args.reid_config, '--eval-only']
         script_args.extend(reid_opts)
         call(script_args)
 
@@ -97,14 +104,42 @@ def validate_tracking_args():
     assert args.input is not None, 'tracking action requires a `--input` argument'
     assert args.output is not None, 'tracking action requires a `--output` argument'
 
+def get_query_set():
+    query_set = []
+    for _ , _ , files in os.walk("/mnt/raid1/home/bar_cohen/trimmed_videos/"):
+        for file in files:
+            is_tagged = len(get_entries(filters={Crop.vid_name == file[9:-4], Crop.reviewed_one == True}).all()) > 0
+            if file[13:17] in ['0808','0730']  and is_tagged:
+                query_set.append(file)
+    return query_set
+
 
 def execute_combined_model():
     """
     Usage example:
-    re-id-and-tracking --track_config ./mmtracking/configs/mot/deepsort/sort_faster-rcnn_fpn_4e_mot17-private.py
-    --reid_config ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml --input ../Data-Shoham/1.8.21_cam1/videos/IPCamera_20210801095724.avi
-    --output ./Results/Reid-Eval2-2.8-test.mp4 --acc_th 0.98 --crops_folder /mnt/raid1/home/bar_cohen/DB_Crops/
-    --reid_opts DATASETS.DATASET inference_on_train_data MODEL.WEIGHTS ./fast-reid/checkpoints/scratch-id-by-day.pth
+    re-id-and-tracking
+    --track_config
+    ./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py
+    --mmtrack_checkpoint
+    /home/bar_cohen/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth
+    --reid_config
+    ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml
+    --input
+    /mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210803105422/IPCamera_20210803105422_s0_e501.mp4
+    --output
+    /mnt/raid1/home/bar_cohen/labled_videos/20210803105422_s0_e501_new_model.mp4
+    --acc_th
+    0.8
+    --crops_folder
+    /mnt/raid1/home/bar_cohen/DB_Test/
+    --device
+    cuda:1
+    --reid_opts
+    DATASETS.DATASET
+    diff_day_test_as_train_query_03
+    MODEL.WEIGHTS
+    ./fast-reid/checkpoints/diff_day_test_all_query_3.8.pth
+
 
     ByteTracker:
     re-id-and-tracking --track_config ./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py
@@ -115,13 +150,22 @@ def execute_combined_model():
     """
     reid_opts: List = create_reid_opts()
     optional_args: List = create_optional_args()
-    script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
-          args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
-    script_args.extend(optional_args)
-    script_args.append('--reid_opts')
-    script_args.extend(reid_opts)
-    print(script_args)
-    call(script_args)
+    inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
+    for query_vid in get_query_set():
+        print(f'running {query_vid}')
+        args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
+                                  query_vid.split('_')[0]+'_'+query_vid.split('_')[1],
+                                  query_vid)
+        print(args.input)
+        args.output = os.path.join(inference_output, 'inference_' + query_vid.split('/')[-1])
+        print(args.output)
+        script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
+                       args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
+        script_args.extend(optional_args)
+        script_args.append('--reid_opts')
+        script_args.extend(reid_opts)
+
+        call(script_args)
 
 
 def runner():
@@ -148,5 +192,6 @@ def runner():
 
 
 if __name__ == '__main__':
+    warnings.filterwarnings("ignore")
     args = get_args()
     runner()

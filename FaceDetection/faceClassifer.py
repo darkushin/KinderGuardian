@@ -1,9 +1,14 @@
 import os
+import shutil
 import sys
 
+import cv2
+import mmcv
+sys.path.append('DataProcessing')
+
+from DataProcessing.DB.dal import get_entries, Crop
 from FaceDetection.faceDetector import FaceDetector
 
-sys.path.append('DataProcessing')
 
 import pandas as pd
 import copy
@@ -19,7 +24,7 @@ from torch.nn import functional as F
 from torchvision import transforms, utils, datasets, models
 from torchvision.utils import make_grid
 
-from DataProcessing.dataProcessingConstants import ID_TO_NAME
+from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 from FaceDetection.facenet_pytorch import InceptionResnetV1
 from torch import nn, optim
 from matplotlib import pyplot as plt
@@ -181,7 +186,7 @@ class FaceClassifer():
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(self.model_ft.state_dict())
-                torch.save(best_model_wts, 'best_model3.pkl')
+                torch.save(best_model_wts, os.path.join("/mnt/raid1/home/bar_cohen/FaceData/", 'best_model4.pkl'))
             metrics = {'batch_train_loss': train_losses, 'batch_val_loss': val_losses,
                        'train_acc_by_epoch': acc_by_epoch_train, 'val_acc_by_epoch': acc_by_epcoh_val}
             if epoch > 1:
@@ -296,6 +301,27 @@ def labelencode(label_encoder_output,X,y ,classes_to_drop:list):
     pickle.dump(le, open(os.path.join(label_encoder_output, 'le.pkl'), 'wb'))
     return X, y_transformed, le
 
+def load_data(data_path):
+    le = pickle.load(open(os.path.join(data_path, 'le.pkl'), 'rb'))
+    dl_train = pickle.load(open(os.path.join(data_path, 'dl_train_1.pkl'), 'rb'))
+    dl_val = pickle.load(open(os.path.join(data_path, 'df_val_1.pkl'), 'rb'))
+    dl_test = pickle.load(open(os.path.join(data_path, 'df_test_1.pkl'), 'rb'))
+    return le, dl_train, dl_val, dl_test
+
+def create_face_data_from_db():
+    face_crops = get_entries(filters={Crop.is_face == True,
+                                      Crop.reviewed_one == True ,
+                                      Crop.is_vague == False ,
+                                      Crop.invalid == False}).all()
+    crops_path = "/mnt/raid1/home/bar_cohen/"
+    data_path = '/mnt/raid1/home/bar_cohen/FaceData/images/'
+    for crop in face_crops:
+        if crop.vid_name[4:8] not in ['0808','3007']:
+            shutil.copy(os.path.join(crops_path, crop.vid_name, crop.im_name), os.path.join(data_path, crop.im_name))
+    print('done')
+    # y = [NAME_TO_ID[crop.label] for crop in face_crops]
+    # return X, y
+
 def main_train():
     """
     This is an example of a training pipeline. Insert a raw images path or existing
@@ -304,22 +330,28 @@ def main_train():
     Returns:
 
     """
-    data_path = '/home/bar_cohen/KinderGuardian/FaceDetection/data/'
-    fd = FaceDetector(raw_images_path='/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned',
-                      faces_data_path='C:\KinderGuardian\FaceDetection\imgs_with_face_highconf.pkl') # init faceDetector
-    fd.filter_out_non_face_corps() # keeps only face-present images in data
-    X,y = fd.create_X_y_faces() # create an X,y dataset from filtered images
-    X,y_transformed,le = labelencode(data_path, X,y,[17,19]) # creates a label encoder and removes entered classes from dataset
-    num_classes = len(np.unique(y_transformed)) # num of unique classes
-    fc = FaceClassifer(num_classes, le)  # init faceClassifer
+    # create_face_data_from_db()
+    # return
+    data_path = '/mnt/raid1/home/bar_cohen/FaceData/'
+    # fd = FaceDetector(raw_images_path='/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned',
+    #                   faces_data_path='C:\KinderGuardian\FaceDetection\imgs_with_face_highconf.pkl') # init faceDetector
+    # fd = FaceDetector()
+    #
+    # fd.filter_out_non_face_corps() # keeps only face-present images in data
+    # X,y = fd.create_X_y_faces() # create an X,y dataset from filtered images
+    # X,y_transformed,le = labelencode(data_path, X,y,[17,19]) # creates a label encoder and removes entered classes from dataset
+    # num_classes = len(np.unique(y_transformed)) # num of unique classes
+    le, dl_train, dl_val, dl_test = load_data(data_path)
+    fc = FaceClassifer(19, le)  # init faceClassifer
     # loads an already train model to keep training it - uncomment if you want to train from scratch
-    fc.model_ft.load_state_dict(torch.load('best_model3.pkl'))
-    fc.model_ft.train() # this will train the model after loading weights
+    fc.model_ft.load_state_dict(torch.load(os.path.join(data_path,'best_model3.pkl')))
+    # fc.model_ft.train() # this will train the model after loading weights
     # creates and saves datasets based on the lines above,
     # if you want to train based on exsisting data split, load it first
-    dl_train,dl_val,dl_test = fc.create_data_loaders(X,y_transformed, data_path)
+    # dl_train,dl_val,dl_test = fc.create_data_loaders(X,y_transformed, data_path)
+
     print(len(dl_train) * dl_train.batch_size, len(dl_val) * dl_val.batch_size, len(dl_test) * dl_test.batch_size)
-    model, metrics = fc.train_model(dl_train, dl_val,num_epochs=1) # train the model
+    # model, metrics = fc.train_model(dl_train, dl_val,num_epochs=1000) # train the model
     # run acc test on data splits
     test_accuracy_of_dataset(fc, dl_train, 'Train')
     test_accuracy_of_dataset(fc, dl_val, 'Val')
@@ -328,3 +360,7 @@ def main_train():
     pickle.dump(metrics , open(os.path.join(data_path, 'best_new_metric_1.pkl'),'wb'))
     # plot metrics results
     fc.plot_results(metrics)
+
+
+if __name__ == '__main__':
+    main_train()

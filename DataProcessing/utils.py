@@ -1,3 +1,4 @@
+import glob
 import os
 from cv2 import imread
 import cv2
@@ -25,6 +26,23 @@ COLOR_TO_RGB = {
     'green': [0, 1, 0],
     'red': [1, 0, 0]
 }
+
+def resize_images(input_path, output_path, size):
+    """
+    Resize all images in the input_path according to the given size and place them in the output_path
+    """
+    os.makedirs(output_path, exist_ok=True)
+    for im_path in os.listdir(input_path):
+        original_image = cv2.imread(os.path.join(input_path, im_path))
+        im = cv2.resize(original_image, size, interpolation=cv2.INTER_CUBIC)
+        cv2.imwrite(os.path.join(output_path, im_path), im)
+
+
+def create_video_from_imgs(input_path, output_path, fps=24):
+    """
+    Given a folder of images, create a video from these images.
+    """
+    mmcv.frames2video(input_path, output_path, fps=fps, fourcc='mp4v', filename_tmpl='{:05d}.png')
 
 
 def im_name_format(path, is_video=False):
@@ -232,6 +250,21 @@ def create_bbox_color(crop_props: list) -> list:
         bbox_colors.append(bbox_color)
     return bbox_colors
 
+def create_bbox_color_for_eval(crops):
+    bbox_colors = []
+    for inference_crop in crops:
+        db_crop = get_entries(filters={Crop.im_name == inference_crop.im_name}).all()[0] # using the tagged DB!
+        if db_crop.invalid:
+            bbox_color = 'blue'
+        elif db_crop.label == inference_crop.label: # compare between db crop and inference crop
+            bbox_color = 'green'
+        else:
+            bbox_color = 'red'
+        bbox_colors.append(bbox_color)
+    return bbox_colors
+
+
+
 
 def viz_data_on_video_using_pickle(input_vid, output_path, pre_labeled_pkl_path=None, path_to_crops=None):
     """
@@ -304,13 +337,14 @@ def viz_data_on_video_using_pickle(input_vid, output_path, pre_labeled_pkl_path=
 #     plt.show()
 
 
-def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
+def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION,eval=False):
     """
     Use the labeled data from the DB to visualize the labels on a given video.
     Args:
         - input_vid: the video that should be visualized. NOTE: the DB will be queried according to this video name!
         - output_path: the path in which the labeled output video should be created.
         - DB_path: the path to the DB that holds the labeled crops of the video.
+        - eval: use this for inference only. if data is tagged by DB bboxes color will be adapted
     """
     vid_name = input_vid.split('/')[-1][9:-4]
 
@@ -321,12 +355,16 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION):
 
     for i, frame in tqdm(enumerate(imgs), total=len(imgs)):
         # retrieve all crops of the current frame from the DB:
-        frame_crops = get_entries(filters=(Crop.vid_name == vid_name, Crop.frame_num == i, Crop.invalid == False)).all()
+        session = create_session(DB_path)
+        frame_crops = get_entries(session=session, filters=(Crop.vid_name == vid_name, Crop.frame_num == i)).all()
         if frame_crops:
             # at least single crop was found in frame
             crops_bboxes = [np.array([crop.x1, crop.y1, crop.x2, crop.y2, crop.conf]) for crop in frame_crops]
             crops_labels = [crop.label for crop in frame_crops]
-            bbox_colors = create_bbox_color([{'invalid': crop.invalid, 'vague': crop.is_vague, 'reviewed_1': crop.reviewed_one} for crop in frame_crops])
+            if eval:
+                bbox_colors = create_bbox_color_for_eval([crop for crop in frame_crops])
+            else:
+                bbox_colors = create_bbox_color([{'invalid': crop.invalid, 'vague': crop.is_vague, 'reviewed_1': crop.reviewed_one} for crop in frame_crops])
             bbox_colors_RGB = [COLOR_TO_RGB[bbox] for bbox in bbox_colors]
             cur_img = plot_tracks(img=frame, bboxes=np.array(crops_bboxes), ids=np.array(crops_labels),
                                   labels=np.array(crops_labels), bbox_colors=bbox_colors_RGB)
