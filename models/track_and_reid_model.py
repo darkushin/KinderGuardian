@@ -185,7 +185,18 @@ def create_data_by_re_id_and_track():
     reid_model = FeatureExtractionDemo(reid_cfg, parallel=True)
 
     # run re-id model on all images in the test gallery and query folders:
-    feats, g_feats, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
+    # feats, g_feats, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
+    # print('dumping gallery to pickles....:')
+    # pickle.dump(feats, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'feats'), 'wb'))
+    # pickle.dump(g_feats, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_feats'), 'wb'))
+    # pickle.dump(g_pids, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_pids'), 'wb'))
+    # pickle.dump(g_camids, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_camids'), 'wb'))
+    # feats, g_feats, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
+    print('loading gallery from pickles....:')
+    feats = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'feats'), 'rb'))
+    g_feats = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_feats'), 'rb'))
+    g_pids = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_pids'), 'rb'))
+    g_camids = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_camids'), 'rb'))
 
     # initialize tracking model:
     tracking_model = init_model(args.track_config, args.track_checkpoint, device=args.device)
@@ -213,7 +224,7 @@ def create_data_by_re_id_and_track():
             # for video_name we skip the first 8 chars as to fit the IP_Camera video name convention, if entering
             # a different video name note this.
             x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to ints
-            crop = Crop(vid_name=args.input.split('/')[-1][8:-4],
+            crop = Crop(vid_name=args.input.split('/')[-1][9:-4],
                         frame_num=image_index,
                         track_id=id,
                         x1=x1, y1=y1, x2=x2, y2=y2,
@@ -282,6 +293,7 @@ def create_data_by_re_id_and_track():
             crop = crop_dict.get('Crop')
             crop.crop_id = crop_id
             crop_label = ID_TO_NAME[reid_ids[crop_id]]
+            crop.label = final_label
 
             if args.inference_only:
                 tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
@@ -326,12 +338,13 @@ def create_data_by_re_id_and_track():
         columns_dict['total_ids_in_video'] = len(ids_set)
         columns_dict['ids_in_video'] = str(ids_set)
         for name, value in ids_acc_dict.items():
-            columns_dict[name] = 0 if value[0] > 0 else value[1] / value[0]
+            columns_dict[name] = 0 if value[0] <= 0 else value[1] / value[0]
         albation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df.csv')
 
         print('Making visualization using temp DB')
         viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
+        print('removing temp DB')
         os.remove(db_location)
 
     print("Done")
