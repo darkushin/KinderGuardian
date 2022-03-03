@@ -1,10 +1,13 @@
 import os
 import pickle
 from collections import defaultdict
+
+import PIL
 import cv2
 import seaborn as sns
 import pandas as pd
 from PIL import Image
+from torchvision import transforms
 
 from DataProcessing.DB.dal import get_entries, Crop
 from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
@@ -20,19 +23,34 @@ class FaceDetector():
     face_data_path - path to folder already containing face images. This will be used in order to put said images into
     the correct format.
     """
-    def __init__(self, raw_images_path:str=None, faces_data_path:str=None, thresholds=[0.8,0.8,0.8]):
+    def __init__(self, raw_images_path:str=None, faces_data_path:str=None, thresholds=[0.8,0.8,0.8],
+                 keep_all=False):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.raw_images_path = raw_images_path
         self.faces_data_path = faces_data_path
-        self.facenet_detecor = MTCNN(margin=40, select_largest=True, post_process=False, device=device, thresholds=thresholds)
+        self.keep_all = keep_all
+        self.facenet_detecor = MTCNN(margin=40, select_largest=True, post_process=False, device=device,
+                                     keep_all=self.keep_all, thresholds=thresholds)
         self.face_treshold = 0.90
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.high_conf_face_imgs = defaultdict(list)
 
     def crop_top_third_and_sides(self, img):
-        width, height = img.size
-        cropped_img = img.crop((width*0.2, 0, width*0.8, height*0.3))
+        pil_img = Image.fromarray(img)
+        width, height = pil_img.size
+        cropped_img = pil_img.crop((width*0.2, 0, width*0.8, height*0.3))
+        # cropped_img = transforms.ToTensor()(cropped_img)
         return cropped_img
+
+    def detect_single_face(self, img):
+        # use face detector to find a single face in an image, rests to entered init of keeping face after change
+        self.facenet_detecor.keep_all = False
+        ret = self.facenet_detecor(img)
+        self.facenet_detecor.keep_all = self.keep_all
+        return ret
+
+    def is_img(self, img):
+        return img is not None and img is not img.numel()
 
     def filter_out_non_face_corps(self) -> None:
         """ Given a set of image crop filter out all images without the faces present
@@ -67,7 +85,12 @@ class FaceDetector():
                 for img in raw_imgs_dict[id]:
                     print(f'{counter}/{given_num_of_images}')
                     ret = self.facenet_detecor(img)
-                    if ret is not None and ret is not ret.numel():
+                    if self.is_img(ret):
+                        if len(ret) > 1: # two or more faces detected in image
+                            top_third_img = self.crop_top_third_and_sides(img)
+                            ret = self.facenet_detecor(top_third_img)
+                            if ret > 1: # edge case- there are still multi images in top_third, take the most probable one
+                                ret = ret[0]
                         self.high_conf_face_imgs[id].append(ret)
                     counter += 1
 

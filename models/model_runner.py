@@ -151,14 +151,14 @@ def execute_combined_model():
     reid_opts: List = create_reid_opts()
     optional_args: List = create_optional_args()
     inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
-    for query_vid in get_query_set():
+
+    for query_vid in [get_query_set()[-1]]:
         print(f'running {query_vid}')
         args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
                                   query_vid.split('_')[0]+'_'+query_vid.split('_')[1],
                                   query_vid)
-        print(args.input)
+
         args.output = os.path.join(inference_output, 'inference_' + query_vid.split('/')[-1])
-        print(args.output)
         script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
                        args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
         script_args.extend(optional_args)

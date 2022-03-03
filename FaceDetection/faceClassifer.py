@@ -219,7 +219,7 @@ class FaceClassifer():
         inputs = inputs.to(self.device)
         outputs = self.model_ft(inputs)
         preds = torch.argmax(outputs, dim=1)
-        return preds
+        return preds, outputs
 
     def get_accuracy(self, preds, labels):
         """Acc given prediction and true labels"""
@@ -275,7 +275,7 @@ def test_accuracy_of_dataset(fc, dl, name):
         images, labels = batch
         inputs = images.to(fc.device)
         labels = labels.to(fc.device)
-        preds = fc.predict(inputs)
+        preds, _ = fc.predict(inputs)
         acc.append(fc.get_accuracy(preds, labels))
     print(np.mean(acc))
 
@@ -335,10 +335,10 @@ def main_train():
     data_path = '/mnt/raid1/home/bar_cohen/FaceData/'
     # fd = FaceDetector(raw_images_path='/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned',
     #                   faces_data_path='C:\KinderGuardian\FaceDetection\imgs_with_face_highconf.pkl') # init faceDetector
-    # fd = FaceDetector()
+    fd = FaceDetector()
     #
-    # fd.filter_out_non_face_corps() # keeps only face-present images in data
-    # X,y = fd.create_X_y_faces() # create an X,y dataset from filtered images
+    fd.filter_out_non_face_corps() # keeps only face-present images in data
+    X,y = fd.create_X_y_faces() # create an X,y dataset from filtered images
     # X,y_transformed,le = labelencode(data_path, X,y,[17,19]) # creates a label encoder and removes entered classes from dataset
     # num_classes = len(np.unique(y_transformed)) # num of unique classes
     le, dl_train, dl_val, dl_test = load_data(data_path)
@@ -351,7 +351,7 @@ def main_train():
     # dl_train,dl_val,dl_test = fc.create_data_loaders(X,y_transformed, data_path)
 
     print(len(dl_train) * dl_train.batch_size, len(dl_val) * dl_val.batch_size, len(dl_test) * dl_test.batch_size)
-    # model, metrics = fc.train_model(dl_train, dl_val,num_epochs=1000) # train the model
+    model, metrics = fc.train_model(dl_train, dl_val,num_epochs=1000) # train the model
     # run acc test on data splits
     test_accuracy_of_dataset(fc, dl_train, 'Train')
     test_accuracy_of_dataset(fc, dl_val, 'Val')

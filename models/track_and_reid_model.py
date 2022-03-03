@@ -153,7 +153,7 @@ def create_data_by_re_id_and_track():
     db_location = DB_LOCATION
     ID_NOT_IN_VIDEO = -1
     if args.inference_only:
-        albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df.csv')
+        albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
         columns_dict = {k: 0 for k in albation_df.columns}
         columns_dict['video_name'] = args.input.split('/')[-1]
         columns_dict['model_name'] = 'fastreid'
@@ -168,7 +168,7 @@ def create_data_by_re_id_and_track():
         print(f'Saving the output crops to: {args.crops_folder}')
         assert args.crops_folder, "You must insert crop_folder param in order to create data"
 
-    faceDetector = FaceDetector(thresholds=[0.95,0.95,0.95])
+    faceDetector = FaceDetector(thresholds=[0.95,0.95,0.95], keep_all=True)
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le.pkl", 'rb'))
     faceClassifer = FaceClassifer(num_classes=19, label_encoder=le)
 
@@ -222,6 +222,14 @@ def create_data_by_re_id_and_track():
         crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
         for i, (id, conf, crop_im) in enumerate(zip(ids, confs, crops_imgs)):
             face_img = faceDetector.facenet_detecor(crop_im)
+            if torch.is_tensor(face_img):
+                if face_img.size()[0] > 1: # two or more faces detected in the img crop
+                    face_img = faceDetector.crop_top_third_and_sides(crop_im)
+                    face_img = faceDetector.detect_single_face(face_img) # this returns a single img of dim 3
+                else:
+                    face_img = face_img[0] # current face_img shape is 1ximage size(dim=3), we only want the img itself
+
+
             # for video_name we skip the first 8 chars as to fit the IP_Camera video name convention, if entering
             # a different video name note this.
             x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to ints
@@ -263,21 +271,20 @@ def create_data_by_re_id_and_track():
         reid_maj_conf = bincount[reid_maj_vote] / len(reid_ids)
         maj_vote_label = ID_TO_NAME[reid_maj_vote]
         final_label = maj_vote_label
-        face_imgs = [crop_dict.get('face_img') for crop_dict in crop_dicts if crop_dict.get('face_img')
-                     is not None and crop_dict.get('face_img') is not crop_dict.get('face_img').numel()]
+        face_imgs = [crop_dict.get('face_img') for crop_dict in crop_dicts if faceDetector.is_img(crop_dict.get('face_img'))]
         is_face_in_track = False
         if len(face_imgs) > 0:  # at least 1 face was detected
             is_face_in_track = True
             if args.inference_only:
                 columns_dict['tracks_with_face'] += 1
 
-            face_classifer_preds = faceClassifer.predict(torch.stack(face_imgs))
-            bincount_face = torch.bincount(face_classifer_preds.cpu())
+            face_clf_preds, face_clf_outputs = faceClassifer.predict(torch.stack(face_imgs))
+            bincount_face = torch.bincount(face_clf_preds.cpu())
             face_label = ID_TO_NAME[faceClassifer.le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
             if len(face_imgs) > 1:
                 # if face_label == 'Noga' or face_label == 'Guy':
-                # faceClassifer.imshow(face_imgs[0:1], labels=[face_label]*2)
-                pass  # uncomment above to show faces
+                faceClassifer.imshow(face_imgs[0:2], labels=[face_label]*2)
+                # pass  # uncomment above to show faces
             # print(face_label)
 
             # print(f'reid label: {label}, face label: {face_label}')
@@ -295,8 +302,8 @@ def create_data_by_re_id_and_track():
             crop = crop_dict.get('Crop')
             crop.crop_id = crop_id
             crop_label = ID_TO_NAME[reid_ids[crop_id]]
+            # crop.label =  ID_TO_NAME[faceClassifer.le.inverse_transform(int(faceClassifer.predict(torch.stack([crop_dict.get('face_img')])))) if faceDetector.is_img(crop_dict.get('face_img')) else None]
             crop.label = final_label
-
             if args.inference_only:
                 tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
                 # print(f'DB label is: {tagged_label}, Inference label is: {reid_ids[crop_id]}')
@@ -321,13 +328,11 @@ def create_data_by_re_id_and_track():
                         columns_dict['reid_with_face_clf_maj_vote'] += 1
                         ids_acc_dict[tagged_label][1] += 1
 
-            face_img = crop_dict.get('face_img')
-            crop.is_face = face_img is not None and face_img is not face_img.numel()
+            crop.is_face = faceDetector.is_img(crop_dict.get('face_img'))
             if not args.inference_only:
                 mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder, crop.im_name))
             db_entries.append(crop)
 
-    add_entries(db_entries, db_location)
     print(total_crops)
     if args.inference_only and total_crops > 0:
         acc_columns = ['pure_reid_model','face_clf_only', 'reid_with_maj_vote', 'reid_with_face_clf_maj_vote']
@@ -345,13 +350,15 @@ def create_data_by_re_id_and_track():
             elif value[0] > 0: # id was found in video but never correctly classified
                 columns_dict[name] = value[1] / value[0]
         albation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
-        print('Making visualization using temp DB')
+        # print('Making visualization using temp DB')
         viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
         print('removing temp DB')
         os.remove(db_location)
     else:
         print('aint writing nothing')
+    add_entries(db_entries, db_location)
+
     print("Done")
 
 
