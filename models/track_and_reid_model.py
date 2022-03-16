@@ -4,7 +4,7 @@ import pickle
 import tempfile
 from argparse import ArgumentParser, REMAINDER
 import sys
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -80,7 +80,22 @@ def apply_reid_model(reid_model, data):
     return feats, g_feat, g_pids, g_camids
 
 
-def find_best_reid_match(q_feat, g_feat, g_pids):
+def get_score(track_im_conf, distmat, g_pids):
+    min_dist_squared = (np.min(distmat, axis=1) ** 2 + 1)
+    # assert min_dist_squared.shape[0] == track_im_conf.shape[0]
+    best_match_scores = track_im_conf / min_dist_squared
+    best_match_in_gallery = np.argmin(distmat, axis=1)
+    ids_score = {pid : 0 for pid in ID_TO_NAME.keys()}
+    for pid,score in zip(g_pids[best_match_in_gallery], best_match_scores): # an id chosen as the best match
+        ids_score[pid] += (score / track_im_conf.shape)[0]
+
+    max_score = max(ids_score.values())
+    for pid in ids_score.keys():
+        ids_score[pid] = ids_score[pid] / max_score
+
+    return ids_score
+
+def find_best_reid_match(q_feat, g_feat, g_pids, track_imgs_conf):
     """
     Given feature vectors of the query images, return the ids of the images that are most similar in the test gallery
     """
@@ -88,9 +103,9 @@ def find_best_reid_match(q_feat, g_feat, g_pids):
     others = F.normalize(g_feat, p=2, dim=1)
     distmat = 1 - torch.mm(features, others.t())
     distmat = distmat.numpy()
+    ids_score = get_score(track_imgs_conf, distmat, g_pids)
     best_match_in_gallery = np.argmin(distmat, axis=1)
-
-    return g_pids[best_match_in_gallery] , distmat
+    return g_pids[best_match_in_gallery] , ids_score
 
 
 def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
@@ -98,9 +113,9 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
     result['track_results'] = result['track_bboxes']
     result['bbox_results'] = result['det_bboxes']
     acc = result['track_results'][0][:, -1]
-    mask = np.where(acc > acc_threshold)
-    result['track_results'][0] = result['track_results'][0][mask]
-    result['bbox_results'][0] = result['bbox_results'][0][mask]
+    # mask = np.where(acc > acc_threshold)
+    # result['track_results'][0] = result['track_results'][0][mask]
+    # result['bbox_results'][0] = result['bbox_results'][0][mask]
     return result
 
 
@@ -134,11 +149,19 @@ def replace_ids(result, q_feat, g_feat, g_pids):
         result['track_results'][0][k][0] = reid_ids[k]
 
 
-def crop_top_third(crop_img):
-    y,x = crop_img.shape
-    crop_img = crop_img[y*0.7:y, x*0.7:x]
-    mmcv.imshow(crop_img)
-    return crop_img
+def get_face_score(faceClassifer, preds,probs, detector_conf):
+    face_id_scores = {pid : 0 for pid in ID_TO_NAME.keys()}
+    for pid, prob, conf in zip(preds, probs, detector_conf):
+        real_pid = int(faceClassifer.le.inverse_transform([int(pid)])[0])
+        face_id_scores[real_pid] += (float(prob[pid]) * 1) / len(preds)
+
+    # normalize the scores
+    max_score = max(face_id_scores.values())
+    for pid in face_id_scores.keys():
+        face_id_scores[pid] = face_id_scores[pid] / max_score
+
+    return face_id_scores
+
 
 def create_data_by_re_id_and_track():
     """
@@ -158,7 +181,7 @@ def create_data_by_re_id_and_track():
         columns_dict['video_name'] = args.input.split('/')[-1]
         columns_dict['model_name'] = 'fastreid'
         print('*** Running in inference-only mode ***')
-        db_location = '/mnt/raid1/home/bar_cohen/inference_db7.db'
+        db_location = '/mnt/raid1/home/bar_cohen/inference_db8.db'
         if os.path.isfile(db_location): # remove temp db if leave-over from prev runs
             assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
             os.remove(db_location)
@@ -168,7 +191,7 @@ def create_data_by_re_id_and_track():
         print(f'Saving the output crops to: {args.crops_folder}')
         assert args.crops_folder, "You must insert crop_folder param in order to create data"
 
-    faceDetector = FaceDetector(thresholds=[0.95,0.95,0.95], keep_all=True)
+    faceDetector = FaceDetector(keep_all=True)
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le.pkl", 'rb'))
     faceClassifer = FaceClassifer(num_classes=19, label_encoder=le)
 
@@ -221,14 +244,16 @@ def create_data_by_re_id_and_track():
         crops_bboxes = result['track_results'][0][:, 1:-1]
         crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
         for i, (id, conf, crop_im) in enumerate(zip(ids, confs, crops_imgs)):
-            face_img = faceDetector.facenet_detecor(crop_im)
+            face_img, face_prob = faceDetector.facenet_detecor(crop_im, return_prob=True)
             if torch.is_tensor(face_img):
                 if face_img.size()[0] > 1: # two or more faces detected in the img crop
+                    # faceClassifer.imshow(face_img[0:2])
                     face_img = faceDetector.crop_top_third_and_sides(crop_im)
-                    face_img = faceDetector.detect_single_face(face_img) # this returns a single img of dim 3
+                    face_img, face_prob = faceDetector.detect_single_face(face_img) # this returns a single img of dim 3
+
                 else:
                     face_img = face_img[0] # current face_img shape is 1ximage size(dim=3), we only want the img itself
-
+                    face_prob = face_prob[0]
 
             # for video_name we skip the first 8 chars as to fit the IP_Camera video name convention, if entering
             # a different video name note this.
@@ -245,7 +270,7 @@ def create_data_by_re_id_and_track():
                         invalid=False,
                         is_vague=False)
             crop.set_im_name()
-            tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop})
+            tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf':face_prob})
     print('******* Making predictions and saving crops to DB *******')
     db_entries = []
     # id dict value at index 0 - number of times appeared in video
@@ -263,15 +288,20 @@ def create_data_by_re_id_and_track():
         if args.inference_only:
             columns_dict['total_tracks'] += 1
         track_imgs = [crop_dict.get('crop_img') for crop_dict in crop_dicts]
+        track_imgs_conf = np.array([crop_dict.get('Crop').conf for crop_dict in crop_dicts])
         q_feats = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
-        reid_ids, distmat = find_best_reid_match(q_feats, g_feats, g_pids)
-        # reid_ids = np.where(reid_ids[np.min(distmat,axis=1)] <0.02) # todo min dist task
+        reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
         bincount = np.bincount(reid_ids)
         reid_maj_vote = np.argmax(bincount)
         reid_maj_conf = bincount[reid_maj_vote] / len(reid_ids)
         maj_vote_label = ID_TO_NAME[reid_maj_vote]
-        final_label = maj_vote_label
+
+        final_label_id = max(reid_scores, key=reid_scores.get)
+        final_label_conf = reid_scores[final_label_id]
+        final_label = ID_TO_NAME[final_label_id]
+
         face_imgs = [crop_dict.get('face_img') for crop_dict in crop_dicts if faceDetector.is_img(crop_dict.get('face_img'))]
+        face_imgs_conf = np.array([crop_dict.get('face_img_conf') for crop_dict in crop_dicts])
         is_face_in_track = False
         if len(face_imgs) > 0:  # at least 1 face was detected
             is_face_in_track = True
@@ -279,6 +309,7 @@ def create_data_by_re_id_and_track():
                 columns_dict['tracks_with_face'] += 1
 
             face_clf_preds, face_clf_outputs = faceClassifer.predict(torch.stack(face_imgs))
+
             bincount_face = torch.bincount(face_clf_preds.cpu())
             face_label = ID_TO_NAME[faceClassifer.le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
             if len(face_imgs) > 1:
@@ -290,12 +321,11 @@ def create_data_by_re_id_and_track():
             # print(f'reid label: {label}, face label: {face_label}')
             # print(f'do the predictors agree? f{label == face_label}')
 
-            if reid_maj_conf <= 0.75: # silly heuristic todo do this according to the prob of the faceid model
-                # print(f'do the predictors agree? f{label==face_label}')
-                print("Take Faceanyways due to low conf rom reid")
-                final_label = face_label
-                pass
-
+            face_scores = get_face_score(faceClassifer, face_clf_preds, face_clf_outputs, face_imgs_conf)
+            # final_scores = Counter(reid_scores) + Counter(face_scores)
+            alpha = 0.49
+            final_scores = {pid : alpha*reid_score + (1-alpha) * face_score for pid, reid_score, face_score in zip(reid_scores.keys() , reid_scores.values(), face_scores.values())}
+            final_label = ID_TO_NAME[max(final_scores, key=final_scores.get)]
         # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
 
         for crop_id, crop_dict in enumerate(crop_dicts):
@@ -304,7 +334,7 @@ def create_data_by_re_id_and_track():
             crop_label = ID_TO_NAME[reid_ids[crop_id]]
             # crop.label =  ID_TO_NAME[faceClassifer.le.inverse_transform(int(faceClassifer.predict(torch.stack([crop_dict.get('face_img')])))) if faceDetector.is_img(crop_dict.get('face_img')) else None]
             crop.label = final_label
-            if args.inference_only:
+            if args.inference_only and crop.conf >= float(args.acc_th):
                 tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
                 # print(f'DB label is: {tagged_label}, Inference label is: {reid_ids[crop_id]}')
                 if tagged_label_crop: # there is a tagging for this crop which is not invalid, count it
@@ -350,14 +380,14 @@ def create_data_by_re_id_and_track():
             elif value[0] > 0: # id was found in video but never correctly classified
                 columns_dict[name] = value[1] / value[0]
         albation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
-        # print('Making visualization using temp DB')
-        viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
+        print('Making visualization using temp DB')
+        # viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
         print('removing temp DB')
         os.remove(db_location)
     else:
         print('aint writing nothing')
-    add_entries(db_entries, db_location)
+    # add_entries(db_entries, db_location)
 
     print("Done")
 

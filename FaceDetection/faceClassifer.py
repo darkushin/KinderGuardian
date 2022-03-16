@@ -72,7 +72,7 @@ class FaceClassifer():
     """
     def __init__(self, num_classes, label_encoder):
         self.num_classes = num_classes
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
         self.model_ft = self._create_Incepction_Resnet_for_finetunning()
         print(self.model_ft)
         self.criterion = nn.CrossEntropyLoss()
@@ -186,7 +186,7 @@ class FaceClassifer():
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(self.model_ft.state_dict())
-                torch.save(best_model_wts, os.path.join("/mnt/raid1/home/bar_cohen/FaceData/", 'best_model4.pkl'))
+                torch.save(best_model_wts, os.path.join("/mnt/raid1/home/bar_cohen/FaceData/", 'best_model5.pkl'))
             metrics = {'batch_train_loss': train_losses, 'batch_val_loss': val_losses,
                        'train_acc_by_epoch': acc_by_epoch_train, 'val_acc_by_epoch': acc_by_epcoh_val}
             if epoch > 1:
@@ -339,16 +339,16 @@ def main_train():
     #
     fd.filter_out_non_face_corps() # keeps only face-present images in data
     X,y = fd.create_X_y_faces() # create an X,y dataset from filtered images
-    # X,y_transformed,le = labelencode(data_path, X,y,[17,19]) # creates a label encoder and removes entered classes from dataset
-    # num_classes = len(np.unique(y_transformed)) # num of unique classes
-    le, dl_train, dl_val, dl_test = load_data(data_path)
+    X,y_transformed,le = labelencode(data_path, X,y,[17,19]) # creates a label encoder and removes entered classes from dataset
+    num_classes = len(np.unique(y_transformed)) # num of unique classes
+    # le, dl_train, dl_val, dl_test = load_data(data_path)
     fc = FaceClassifer(19, le)  # init faceClassifer
     # loads an already train model to keep training it - uncomment if you want to train from scratch
-    fc.model_ft.load_state_dict(torch.load(os.path.join(data_path,'best_model3.pkl')))
-    # fc.model_ft.train() # this will train the model after loading weights
+    # fc.model_ft.load_state_dict(torch.load(os.path.join(data_path,'best_model3.pkl')))
+    fc.model_ft.train() # this will train the model after loading weights
     # creates and saves datasets based on the lines above,
     # if you want to train based on exsisting data split, load it first
-    # dl_train,dl_val,dl_test = fc.create_data_loaders(X,y_transformed, data_path)
+    dl_train,dl_val,dl_test = fc.create_data_loaders(X,y_transformed, data_path)
 
     print(len(dl_train) * dl_train.batch_size, len(dl_val) * dl_val.batch_size, len(dl_test) * dl_test.batch_size)
     model, metrics = fc.train_model(dl_train, dl_val,num_epochs=1000) # train the model

@@ -25,32 +25,52 @@ class FaceDetector():
     """
     def __init__(self, raw_images_path:str=None, faces_data_path:str=None, thresholds=[0.8,0.8,0.8],
                  keep_all=False):
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+        self.device = device
+
         self.raw_images_path = raw_images_path
         self.faces_data_path = faces_data_path
         self.keep_all = keep_all
         self.facenet_detecor = MTCNN(margin=40, select_largest=True, post_process=False, device=device,
                                      keep_all=self.keep_all, thresholds=thresholds)
         self.face_treshold = 0.90
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.high_conf_face_imgs = defaultdict(list)
 
     def crop_top_third_and_sides(self, img):
-        pil_img = Image.fromarray(img)
+        # pil_img = Image.fromarray(img)
+        pil_img = img # TODO remove this !!!
         width, height = pil_img.size
         cropped_img = pil_img.crop((width*0.2, 0, width*0.8, height*0.3))
+        cropped_img.save('/mnt/raid1/home/bar_cohen/FaceData/temp/1.png')
         # cropped_img = transforms.ToTensor()(cropped_img)
         return cropped_img
 
     def detect_single_face(self, img):
         # use face detector to find a single face in an image, rests to entered init of keeping face after change
         self.facenet_detecor.keep_all = False
-        ret = self.facenet_detecor(img)
+        comp = transforms.Compose([
+            transforms.ToTensor(),
+            lambda x:x*255,
+        ])
+        new_im = comp(img).permute(1,2,0).int()
+        ret, prob = self.facenet_detecor(new_im, return_prob=True)
         self.facenet_detecor.keep_all = self.keep_all
-        return ret
+        return ret , prob
 
     def is_img(self, img):
         return img is not None and img is not img.numel()
+
+    def get_single_face(self,img, return_prob):
+        face_img = self.facenet_detecor(img, return_prob=return_prob)
+        if torch.is_tensor(face_img):
+            if face_img.size()[0] > 1:  # two or more faces detected in the img crop
+                # faceClassifer.imshow(face_img[0:2])
+                face_img = self.crop_top_third_and_sides(img)
+                face_img, face_prob = self.detect_single_face(face_img)  # this returns a single img of dim 3
+            else:
+                face_img = face_img[0]  # current face_img shape is 1ximage size(dim=3), we only want the img itself
+        return face_img
+
 
     def filter_out_non_face_corps(self) -> None:
         """ Given a set of image crop filter out all images without the faces present
@@ -69,8 +89,12 @@ class FaceDetector():
             # raw_imgs_dict = {NAME_TO_ID[crop.label] : cv2.imread(os.path.join(crops_path, crop.vid_name, crop.im_name)) for crop in face_crops}
             raw_imgs_dict = defaultdict(list)
             for crop in face_crops:
-                img = Image.open(os.path.join(crops_path, crop.vid_name, crop.im_name))
-                img = self.crop_top_third_and_sides(img)
+
+                # fix for v, v_ issue
+                name = crop.im_name
+                if not os.path.isfile(os.path.join(crops_path, crop.vid_name, name)):
+                    name = 'v'+crop.im_name[2:]
+                img = Image.open(os.path.join(crops_path, crop.vid_name, name))
                 raw_imgs_dict[NAME_TO_ID[crop.label]].append(img.copy())
                 img.close()
 
@@ -93,6 +117,8 @@ class FaceDetector():
                                 ret = ret[0]
                         self.high_conf_face_imgs[id].append(ret)
                     counter += 1
+                    if counter > 400:
+                        break
 
             given_num_of_images_final = sum([len(self.high_conf_face_imgs[i]) for i in raw_imgs_dict.keys()])
             print(f'Post filter left with {given_num_of_images_final}')
