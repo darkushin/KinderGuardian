@@ -80,9 +80,8 @@ def apply_reid_model(reid_model, data):
     return feats, g_feat, g_pids, g_camids
 
 
-def get_score(track_im_conf, distmat, g_pids):
+def get_reid_score(track_im_conf, distmat, g_pids):
     min_dist_squared = (np.min(distmat, axis=1) ** 2 + 1)
-    # assert min_dist_squared.shape[0] == track_im_conf.shape[0]
     best_match_scores = track_im_conf / min_dist_squared
     best_match_in_gallery = np.argmin(distmat, axis=1)
     ids_score = {pid : 0 for pid in ID_TO_NAME.keys()}
@@ -103,7 +102,7 @@ def find_best_reid_match(q_feat, g_feat, g_pids, track_imgs_conf):
     others = F.normalize(g_feat, p=2, dim=1)
     distmat = 1 - torch.mm(features, others.t())
     distmat = distmat.numpy()
-    ids_score = get_score(track_imgs_conf, distmat, g_pids)
+    ids_score = get_reid_score(track_imgs_conf, distmat, g_pids)
     best_match_in_gallery = np.argmin(distmat, axis=1)
     return g_pids[best_match_in_gallery] , ids_score
 
@@ -112,10 +111,6 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
     result = inference_mot(tracking_model, img, frame_id=frame_id)
     result['track_results'] = result['track_bboxes']
     result['bbox_results'] = result['det_bboxes']
-    acc = result['track_results'][0][:, -1]
-    # mask = np.where(acc > acc_threshold)
-    # result['track_results'][0] = result['track_results'][0][mask]
-    # result['bbox_results'][0] = result['bbox_results'][0][mask]
     return result
 
 
@@ -153,7 +148,7 @@ def get_face_score(faceClassifer, preds,probs, detector_conf):
     face_id_scores = {pid : 0 for pid in ID_TO_NAME.keys()}
     for pid, prob, conf in zip(preds, probs, detector_conf):
         real_pid = int(faceClassifer.le.inverse_transform([int(pid)])[0])
-        face_id_scores[real_pid] += (float(prob[pid]) * 1) / len(preds)
+        face_id_scores[real_pid] += (float(prob[pid]) * 1) / len(preds) # TODO use the faceDetector conf instead of 1
 
     # normalize the scores
     max_score = max(face_id_scores.values())
@@ -209,6 +204,8 @@ def create_data_by_re_id_and_track():
     # build re-id test set. NOTE: query dir of the dataset should be empty!
     # test_loader, num_query = build_reid_test_loader(reid_cfg,
     #                                                 dataset_name='DukeMTMC')  # will take the dataset given as argument
+
+    # TODO put those into functions
     # feats, g_feats, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
     # print('dumping gallery to pickles....:')
     # pickle.dump(feats, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'feats'), 'wb'))
@@ -249,7 +246,7 @@ def create_data_by_re_id_and_track():
                 if face_img.size()[0] > 1: # two or more faces detected in the img crop
                     # faceClassifer.imshow(face_img[0:2])
                     face_img = faceDetector.crop_top_third_and_sides(crop_im)
-                    face_img, face_prob = faceDetector.detect_single_face(face_img) # this returns a single img of dim 3
+                    face_img, face_prob = faceDetector.detect_single_face_inv_norm(face_img) # this returns a single img of dim 3
 
                 else:
                     face_img = face_img[0] # current face_img shape is 1ximage size(dim=3), we only want the img itself
@@ -297,7 +294,7 @@ def create_data_by_re_id_and_track():
         maj_vote_label = ID_TO_NAME[reid_maj_vote]
 
         final_label_id = max(reid_scores, key=reid_scores.get)
-        final_label_conf = reid_scores[final_label_id]
+        final_label_conf = reid_scores[final_label_id] # only reid at this point
         final_label = ID_TO_NAME[final_label_id]
 
         face_imgs = [crop_dict.get('face_img') for crop_dict in crop_dicts if faceDetector.is_img(crop_dict.get('face_img'))]
@@ -313,16 +310,9 @@ def create_data_by_re_id_and_track():
             bincount_face = torch.bincount(face_clf_preds.cpu())
             face_label = ID_TO_NAME[faceClassifer.le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
             if len(face_imgs) > 1:
-                # if face_label == 'Noga' or face_label == 'Guy':
-                faceClassifer.imshow(face_imgs[0:2], labels=[face_label]*2)
-                # pass  # uncomment above to show faces
-            # print(face_label)
-
-            # print(f'reid label: {label}, face label: {face_label}')
-            # print(f'do the predictors agree? f{label == face_label}')
-
+                # faceClassifer.imshow(face_imgs[0:2], labels=[face_label]*2)
+                pass
             face_scores = get_face_score(faceClassifer, face_clf_preds, face_clf_outputs, face_imgs_conf)
-            # final_scores = Counter(reid_scores) + Counter(face_scores)
             alpha = 0.49
             final_scores = {pid : alpha*reid_score + (1-alpha) * face_score for pid, reid_score, face_score in zip(reid_scores.keys() , reid_scores.values(), face_scores.values())}
             final_label = ID_TO_NAME[max(final_scores, key=final_scores.get)]

@@ -335,7 +335,7 @@ def main_train():
     data_path = '/mnt/raid1/home/bar_cohen/FaceData/'
     # fd = FaceDetector(raw_images_path='/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned',
     #                   faces_data_path='C:\KinderGuardian\FaceDetection\imgs_with_face_highconf.pkl') # init faceDetector
-    fd = FaceDetector()
+    fd = FaceDetector(thresholds=[0.97,0.97,0.97])
     #
     fd.filter_out_non_face_corps() # keeps only face-present images in data
     X,y = fd.create_X_y_faces() # create an X,y dataset from filtered images
