@@ -272,7 +272,7 @@ def create_data_by_re_id_and_track():
         pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','wb'))
     else:
         print('Using loaded tracklets !')
-        tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','wb'))
+        tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','rb'))
 
     print('******* Making predictions and saving crops to DB *******')
 
