@@ -159,12 +159,6 @@ def write_ablation_results(args, columns_dict, total_crops, total_crops_of_track
 
         if total_crops_of_tracks_with_face > 0:
             columns_dict['face_clf_only_tracks_with_face'] = columns_dict['face_clf_only_tracks_with_face'] / total_crops_of_tracks_with_face
-        print(f"Total crops: {total_crops}, "
-              f"total_crops_for_tracks_with_face: {total_crops_of_tracks_with_face},"
-              f"total_correct_crops_for_tracks_with_face: {columns_dict['face_clf_only_tracks_with_face']}"
-              f"total correct crops for all crops {columns_dict['face_clf_only']} "
-              )
-
         ids_set = set(name for name, value in ids_acc_dict.items() if value[0] > 0)
         columns_dict['total_ids_in_video'] = len(ids_set)
         columns_dict['ids_in_video'] = str(ids_set)
@@ -321,7 +315,6 @@ def create_data_by_re_id_and_track():
             if len(face_imgs) > 1:
                 # faceClassifer.imshow(face_imgs[0:2], labels=[face_label]*2)
                 pass
-            print(face_imgs_conf)
             face_scores = get_face_score(faceClassifer, face_clf_preds, face_clf_outputs, face_imgs_conf)
             alpha = 0.49 # TODO enter as an arg
             final_scores = {pid : alpha*reid_score + (1-alpha) * face_score for pid, reid_score, face_score in zip(reid_scores.keys() , reid_scores.values(), face_scores.values())}
@@ -334,7 +327,8 @@ def create_data_by_re_id_and_track():
             crop.crop_id = crop_id
             crop_label = ID_TO_NAME[reid_ids[crop_id]]
             crop.label = final_label
-            db_entries.append(crop)
+            if crop.conf > float(args.acc_th):
+                db_entries.append(crop)
 
             if args.inference_only and crop.conf >= float(args.acc_th):
                 tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
@@ -362,10 +356,8 @@ def create_data_by_re_id_and_track():
 
             if not args.inference_only:
                 mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder, crop.im_name))
-            db_entries.append(crop)
 
     add_entries(db_entries, db_location)
-    print(all_tracks_final_scores)
 
     if args.inference_only and total_crops > 0:
         write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, albation_df, db_location)
