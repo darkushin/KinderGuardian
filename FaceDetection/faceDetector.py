@@ -36,11 +36,12 @@ class FaceDetector():
         self.face_treshold = 0.90
         self.high_conf_face_imgs = defaultdict(list)
 
-    def crop_top_third_and_sides(self, img):
-        # pil_img = Image.fromarray(img)
-        pil_img = img # TODO remove this !!!
-        width, height = pil_img.size
-        cropped_img = pil_img.crop((width*0.2, 0, width*0.8, height*0.3))
+    def crop_top_third_and_sides(self, img, is_PIL_input):
+        # this assumes img is a PIL obj
+        if not is_PIL_input:
+            img = PIL.Image.fromarray(img)
+        width, height = img.size
+        cropped_img = img.crop((width*0.2, 0, width*0.8, height*0.3))
         return cropped_img
 
     def detect_single_face_inv_norm(self, img):
@@ -58,23 +59,27 @@ class FaceDetector():
     def detect_single_face(self, img):
         # use face detector to find a single face in an image, rests to entered init of keeping face after change
         self.facenet_detecor.keep_all = False
-        ret = self.facenet_detecor(img, return_prob=False)
+        ret, prob = self.facenet_detecor(img, return_prob=True)
         self.facenet_detecor.keep_all = self.keep_all
-        return ret
+        return ret , prob
 
     def is_img(self, img):
         return img is not None and img is not img.numel()
 
-    def get_single_face(self,img, return_prob):
-        face_img = self.facenet_detecor(img, return_prob=return_prob)
+    def get_single_face(self,img, is_PIL_input):
+        face_img, prob = self.facenet_detecor(img, return_prob=True)
         if self.is_img(face_img):
             if face_img.size()[0] > 1:  # two or more faces detected in the img crop
                 # faceClassifer.imshow(face_img[0:2])
-                face_img = self.crop_top_third_and_sides(img)
-                face_img = self.detect_single_face(face_img)  # this returns a single img of dim 3
+                face_img = self.crop_top_third_and_sides(img, is_PIL_input)
+                if is_PIL_input:
+                    face_img, prob = self.detect_single_face(face_img)  # this returns a single img of dim 3
+                else:
+                    face_img, prob = self.detect_single_face_inv_norm(face_img)
             else:
                 face_img = face_img[0]  # current face_img shape is 1ximage size(dim=3), we only want the img itself
-        return face_img
+                prob = prob[0]
+        return face_img , prob
 
 
     def filter_out_non_face_corps(self) -> None:
@@ -103,11 +108,6 @@ class FaceDetector():
                 raw_imgs_dict[NAME_TO_ID[crop.label]].append(img.copy())
                 img.close()
 
-                # if i > 100:
-                #     break
-
-            # y = [NAME_TO_ID[crop.label] for crop in face_crops]
-
             print('Number of unique ids', len(raw_imgs_dict.keys()))
             given_num_of_images = sum([len(raw_imgs_dict[i]) for i in raw_imgs_dict.keys()])
             print(f"Received a total of {given_num_of_images} images")
@@ -115,8 +115,7 @@ class FaceDetector():
             for id in raw_imgs_dict.keys():
                 for img in raw_imgs_dict[id]:
                     print(f'{counter}/{given_num_of_images}')
-                    self.facenet_detecor.keep_all = False
-                    ret = self.get_single_face(img, False)
+                    ret, _ = self.get_single_face(img, is_PIL_input=True)
                     if self.is_img(ret):
                         self.high_conf_face_imgs[id].append(ret)
                     counter += 1

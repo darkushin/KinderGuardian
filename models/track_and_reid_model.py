@@ -20,6 +20,7 @@ from DataProcessing.dataProcessingConstants import ID_TO_NAME
 from FaceDetection.faceClassifer import FaceClassifer
 from FaceDetection.faceDetector import FaceDetector
 from DataProcessing.utils import viz_DB_data_on_video
+from models.model_constants import ID_NOT_IN_VIDEO
 
 sys.path.append('fast-reid')
 
@@ -86,11 +87,11 @@ def get_reid_score(track_im_conf, distmat, g_pids):
     best_match_in_gallery = np.argmin(distmat, axis=1)
     ids_score = {pid : 0 for pid in ID_TO_NAME.keys()}
     for pid,score in zip(g_pids[best_match_in_gallery], best_match_scores): # an id chosen as the best match
-        ids_score[pid] += (score / track_im_conf.shape)[0]
+        ids_score[pid] += score / track_im_conf.shape[0]
 
-    max_score = max(ids_score.values())
-    for pid in ids_score.keys():
-        ids_score[pid] = ids_score[pid] / max_score
+    # max_score = max(ids_score.values())
+    # for pid in ids_score.keys():
+    #     ids_score[pid] = ids_score[pid] / max_score
 
     return ids_score
 
@@ -113,20 +114,6 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
     result['bbox_results'] = result['det_bboxes']
     return result
 
-
-def reid_inference(reid_model, img, result, frame_id, crops_folder=None):
-    crops_bboxes = result['track_results'][0][:, 1:-1]
-    crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
-    q_feat = torch.empty((len(crops_imgs), 2048))
-    for j in range(len(crops_imgs)):
-        crop = np.array(crops_imgs[j])
-        q_feat[j] = reid_model.run_on_image(crop)
-        if crops_folder:
-            os.makedirs(crops_folder, exist_ok=True)
-            mmcv.imwrite(crop, os.path.join(crops_folder, f'frame_{frame_id}_crop_{j}.jpg'))
-    return q_feat
-
-
 def reid_track_inference(reid_model, track_imgs: list):
     q_feat = torch.empty((len(track_imgs), 2048))
     for j, crop in enumerate(track_imgs):
@@ -134,28 +121,58 @@ def reid_track_inference(reid_model, track_imgs: list):
         q_feat[j] = reid_model.run_on_image(crop)
     return q_feat
 
-
-def replace_ids(result, q_feat, g_feat, g_pids):
-    """
-    Replace the ids given by the tracking model with the ids computed by the re-id model
-    """
-    reid_ids = find_best_reid_match(q_feat, g_feat, g_pids)
-    for k in range(len(result['track_results'][0])):
-        result['track_results'][0][k][0] = reid_ids[k]
-
-
 def get_face_score(faceClassifer, preds,probs, detector_conf):
     face_id_scores = {pid : 0 for pid in ID_TO_NAME.keys()}
     for pid, prob, conf in zip(preds, probs, detector_conf):
         real_pid = int(faceClassifer.le.inverse_transform([int(pid)])[0])
-        face_id_scores[real_pid] += (float(prob[pid]) * 1) / len(preds) # TODO use the faceDetector conf instead of 1
+        face_id_scores[real_pid] += (float(prob[pid]) + conf) / (2 * len(preds))
 
-    # normalize the scores
-    max_score = max(face_id_scores.values())
-    for pid in face_id_scores.keys():
-        face_id_scores[pid] = face_id_scores[pid] / max_score
+    # # normalize the scores
+    # max_score = max(face_id_scores.values())
+    # for pid in face_id_scores.keys():
+    #     face_id_scores[pid] = face_id_scores[pid] / max_score
 
     return face_id_scores
+
+def gen_reid_features(reid_cfg, reid_model):
+    test_loader, num_query = build_reid_test_loader(reid_cfg,
+                                                    dataset_name='DukeMTMC')  # will take the dataset given as argument
+    feats, g_feats, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
+    print('dumping gallery to pickles....:')
+    pickle.dump(feats, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'feats'), 'wb'))
+    pickle.dump(g_feats, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_feats'), 'wb'))
+    pickle.dump(g_pids, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_pids'), 'wb'))
+    pickle.dump(g_camids, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_camids'), 'wb'))
+
+def load_reid_featuers():
+    print('loading gallery from pickles....:')
+    feats = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'feats'), 'rb'))
+    g_feats = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_feats'), 'rb'))
+    g_pids = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_pids'), 'rb'))
+    g_camids = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_camids'), 'rb'))
+    return feats, g_feats, g_pids, g_camids
+
+def write_ablation_results(columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, albation_df, db_location):
+        acc_columns = ['pure_reid_model','face_clf_only', 'reid_with_maj_vote', 'reid_with_face_clf_maj_vote']
+        for acc in acc_columns:
+            columns_dict[acc] = columns_dict[acc] / total_crops
+        if total_crops_of_tracks_with_face > 0:
+            columns_dict['face_clf_only_tracks_with_face'] = columns_dict['face_clf_only_tracks_with_face']\
+                                                             / total_crops_of_tracks_with_face
+        ids_set = set(name for name, value in ids_acc_dict.items() if value[0] > 0)
+        columns_dict['total_ids_in_video'] = len(ids_set)
+        columns_dict['ids_in_video'] = str(ids_set)
+        for name, value in ids_acc_dict.items():
+            if value[0] == ID_NOT_IN_VIDEO: # this id was never in video
+                columns_dict[name] = ID_NOT_IN_VIDEO
+            elif value[0] > 0: # id was found in video but never correctly classified
+                columns_dict[name] = value[1] / value[0]
+        albation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
+        print('Making visualization using temp DB')
+        # viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
+        assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
+        print('removing temp DB')
+        os.remove(db_location)
 
 
 def create_data_by_re_id_and_track():
@@ -169,7 +186,6 @@ def create_data_by_re_id_and_track():
     args = get_args()
     print(f'Args: {args}')
     db_location = DB_LOCATION
-    ID_NOT_IN_VIDEO = -1
     if args.inference_only:
         albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
         columns_dict = {k: 0 for k in albation_df.columns}
@@ -193,82 +209,67 @@ def create_data_by_re_id_and_track():
     faceClassifer.model_ft.load_state_dict(
         torch.load("/mnt/raid1/home/bar_cohen/FaceData/best_model4.pkl"))
     faceClassifer.model_ft.eval()
-
     reid_cfg = set_reid_cfgs(args)
-
 
     # build re-id inference model:
     reid_model = FeatureExtractionDemo(reid_cfg, parallel=True)
 
     # run re-id model on all images in the test gallery and query folders:
     # build re-id test set. NOTE: query dir of the dataset should be empty!
-    # test_loader, num_query = build_reid_test_loader(reid_cfg,
-    #                                                 dataset_name='DukeMTMC')  # will take the dataset given as argument
-
-    # TODO put those into functions
-    # feats, g_feats, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
-    # print('dumping gallery to pickles....:')
-    # pickle.dump(feats, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'feats'), 'wb'))
-    # pickle.dump(g_feats, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_feats'), 'wb'))
-    # pickle.dump(g_pids, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_pids'), 'wb'))
-    # pickle.dump(g_camids, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_camids'), 'wb'))
-    # feats, g_feats, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
-    print('loading gallery from pickles....:')
-    feats = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'feats'), 'rb'))
-    g_feats = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_feats'), 'rb'))
-    g_pids = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_pids'), 'rb'))
-    g_camids = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_camids'), 'rb'))
+    # gen_reid_features(reid_cfg, reid_model) # UNCOMMENT TO Recreate reid features
+    feats, g_feats, g_pids, g_camids = load_reid_featuers()
 
     # initialize tracking model:
     tracking_model = init_model(args.track_config, args.track_checkpoint, device=args.device)
-
     # load images:
     imgs = mmcv.VideoReader(args.input)
+    tracklets = defaultdict(list)
+    create_tracklets = True
+    if create_tracklets:
 
     # iterate over all images and collect tracklets
-    print('******* Creating tracklets: *******')
+        print('******* Creating tracklets: *******')
 
-    # initialize a dictionary that will hold all the crops according to tracks
-    # key: track_id, value: a dict representing a crop in the track, consists of: Crop object, crop img, face img
-    tracklets = defaultdict(list)
+        # initialize a dictionary that will hold all the crops according to tracks
+        # key: track_id, value: a dict representing a crop in the track, consists of: Crop object, crop img, face img
 
-    for image_index, img in tqdm.tqdm(enumerate(imgs), total=len(imgs)):
-        if isinstance(img, str):
-            img = os.path.join(args.input, img)
-        result = tracking_inference(tracking_model, img, image_index, acc_threshold=float(args.acc_th))
-        ids = list(map(int, result['track_results'][0][:, 0]))
-        confs = result['track_results'][0][:, -1]
-        crops_bboxes = result['track_results'][0][:, 1:-1]
-        crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
-        for i, (id, conf, crop_im) in enumerate(zip(ids, confs, crops_imgs)):
-            face_img, face_prob = faceDetector.facenet_detecor(crop_im, return_prob=True)
-            if torch.is_tensor(face_img):
-                if face_img.size()[0] > 1: # two or more faces detected in the img crop
-                    # faceClassifer.imshow(face_img[0:2])
-                    face_img = faceDetector.crop_top_third_and_sides(crop_im)
-                    face_img, face_prob = faceDetector.detect_single_face_inv_norm(face_img) # this returns a single img of dim 3
 
-                else:
-                    face_img = face_img[0] # current face_img shape is 1ximage size(dim=3), we only want the img itself
-                    face_prob = face_prob[0]
+        for image_index, img in tqdm.tqdm(enumerate(imgs), total=len(imgs)):
+            if isinstance(img, str):
+                img = os.path.join(args.input, img)
+            result = tracking_inference(tracking_model, img, image_index, acc_threshold=float(args.acc_th))
+            ids = list(map(int, result['track_results'][0][:, 0]))
+            confs = result['track_results'][0][:, -1]
+            crops_bboxes = result['track_results'][0][:, 1:-1]
+            crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
+            for i, (id, conf, crop_im) in enumerate(zip(ids, confs, crops_imgs)):
 
-            # for video_name we skip the first 8 chars as to fit the IP_Camera video name convention, if entering
-            # a different video name note this.
-            x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to ints
-            crop = Crop(vid_name=args.input.split('/')[-1][9:-4],
-                        frame_num=image_index,
-                        track_id=id,
-                        x1=x1, y1=y1, x2=x2, y2=y2,
-                        conf=conf,
-                        cam_id=CAM_ID,
-                        crop_id=-1,
-                        reviewed_one=False,
-                        reviewed_two=False,
-                        invalid=False,
-                        is_vague=False)
-            crop.set_im_name()
-            tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf':face_prob})
+                face_img, face_prob = faceDetector.get_single_face(crop_im, is_PIL_input=False)
+                face_prob = face_prob if face_prob else 0
+                # for video_name we skip the first 8 chars as to fit the IP_Camera video name convention, if entering
+                # a different video name note this.
+                x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to ints
+                crop = Crop(vid_name=args.input.split('/')[-1][9:-4],
+                            frame_num=image_index,
+                            track_id=id,
+                            x1=x1, y1=y1, x2=x2, y2=y2,
+                            conf=conf,
+                            cam_id=CAM_ID,
+                            crop_id=-1,
+                            is_face = faceDetector.is_img(face_img),
+                            reviewed_one=False,
+                            reviewed_two=False,
+                            invalid=False,
+                            is_vague=False)
+                crop.set_im_name()
+                tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf':face_prob})
+        pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','wb'))
+    else:
+        print('Using loaded tracklets !')
+        tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','wb'))
+
     print('******* Making predictions and saving crops to DB *******')
+
     db_entries = []
     # id dict value at index 0 - number of times appeared in video
     # id dict value at index 1 - number of times correctly classified in video
@@ -280,6 +281,7 @@ def create_data_by_re_id_and_track():
     else:
         os.makedirs(args.crops_folder, exist_ok=True)
 
+    all_tracks_final_scores = dict()
     # iterate over all tracklets and make a prediction for every tracklet
     for track_id, crop_dicts in tqdm.tqdm(tracklets.items(), total=len(tracklets.keys())):
         if args.inference_only:
@@ -298,7 +300,8 @@ def create_data_by_re_id_and_track():
         final_label = ID_TO_NAME[final_label_id]
 
         face_imgs = [crop_dict.get('face_img') for crop_dict in crop_dicts if faceDetector.is_img(crop_dict.get('face_img'))]
-        face_imgs_conf = np.array([crop_dict.get('face_img_conf') for crop_dict in crop_dicts])
+        face_imgs_conf = np.array([crop_dict.get('face_img_conf') for crop_dict in crop_dicts if crop_dict.get('face_img_conf') > 0])
+        assert len(face_imgs) == len(face_imgs_conf)
         is_face_in_track = False
         if len(face_imgs) > 0:  # at least 1 face was detected
             is_face_in_track = True
@@ -312,9 +315,11 @@ def create_data_by_re_id_and_track():
             if len(face_imgs) > 1:
                 # faceClassifer.imshow(face_imgs[0:2], labels=[face_label]*2)
                 pass
+            print(face_imgs_conf)
             face_scores = get_face_score(faceClassifer, face_clf_preds, face_clf_outputs, face_imgs_conf)
-            alpha = 0.49
+            alpha = 0.49 # TODO enter as an arg
             final_scores = {pid : alpha*reid_score + (1-alpha) * face_score for pid, reid_score, face_score in zip(reid_scores.keys() , reid_scores.values(), face_scores.values())}
+            all_tracks_final_scores[track_id] = final_scores
             final_label = ID_TO_NAME[max(final_scores, key=final_scores.get)]
         # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
 
@@ -322,8 +327,9 @@ def create_data_by_re_id_and_track():
             crop = crop_dict.get('Crop')
             crop.crop_id = crop_id
             crop_label = ID_TO_NAME[reid_ids[crop_id]]
-            # crop.label =  ID_TO_NAME[faceClassifer.le.inverse_transform(int(faceClassifer.predict(torch.stack([crop_dict.get('face_img')])))) if faceDetector.is_img(crop_dict.get('face_img')) else None]
             crop.label = final_label
+            db_entries.append(crop)
+
             if args.inference_only and crop.conf >= float(args.acc_th):
                 tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
                 # print(f'DB label is: {tagged_label}, Inference label is: {reid_ids[crop_id]}')
@@ -348,36 +354,15 @@ def create_data_by_re_id_and_track():
                         columns_dict['reid_with_face_clf_maj_vote'] += 1
                         ids_acc_dict[tagged_label][1] += 1
 
-            crop.is_face = faceDetector.is_img(crop_dict.get('face_img'))
             if not args.inference_only:
                 mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder, crop.im_name))
             db_entries.append(crop)
 
-    print(total_crops)
+    add_entries(db_entries, db_location)
+    print(all_tracks_final_scores)
+
     if args.inference_only and total_crops > 0:
-        acc_columns = ['pure_reid_model','face_clf_only', 'reid_with_maj_vote', 'reid_with_face_clf_maj_vote']
-        for acc in acc_columns:
-            columns_dict[acc] = columns_dict[acc] / total_crops
-        if total_crops_of_tracks_with_face > 0:
-            columns_dict['face_clf_only_tracks_with_face'] = columns_dict['face_clf_only_tracks_with_face']\
-                                                             / total_crops_of_tracks_with_face
-        ids_set = set(name for name, value in ids_acc_dict.items() if value[0] > 0)
-        columns_dict['total_ids_in_video'] = len(ids_set)
-        columns_dict['ids_in_video'] = str(ids_set)
-        for name, value in ids_acc_dict.items():
-            if value[0] == ID_NOT_IN_VIDEO: # this id was never in video
-                columns_dict[name] = ID_NOT_IN_VIDEO
-            elif value[0] > 0: # id was found in video but never correctly classified
-                columns_dict[name] = value[1] / value[0]
-        albation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
-        print('Making visualization using temp DB')
-        # viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
-        assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
-        print('removing temp DB')
-        os.remove(db_location)
-    else:
-        print('aint writing nothing')
-    # add_entries(db_entries, db_location)
+        write_ablation_results(columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, albation_df, db_location)
 
     print("Done")
 
