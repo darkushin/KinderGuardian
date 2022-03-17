@@ -144,7 +144,7 @@ def gen_reid_features(reid_cfg, reid_model):
     pickle.dump(g_pids, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_pids'), 'wb'))
     pickle.dump(g_camids, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_camids'), 'wb'))
 
-def load_reid_featuers():
+def load_reid_features():
     print('loading gallery from pickles....:')
     feats = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'feats'), 'rb'))
     g_feats = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_feats'), 'rb'))
@@ -152,13 +152,19 @@ def load_reid_featuers():
     g_camids = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_camids'), 'rb'))
     return feats, g_feats, g_pids, g_camids
 
-def write_ablation_results(columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, albation_df, db_location):
+def write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, ablation_df, db_location):
         acc_columns = ['pure_reid_model','face_clf_only', 'reid_with_maj_vote', 'reid_with_face_clf_maj_vote']
         for acc in acc_columns:
             columns_dict[acc] = columns_dict[acc] / total_crops
+
         if total_crops_of_tracks_with_face > 0:
-            columns_dict['face_clf_only_tracks_with_face'] = columns_dict['face_clf_only_tracks_with_face']\
-                                                             / total_crops_of_tracks_with_face
+            columns_dict['face_clf_only_tracks_with_face'] = columns_dict['face_clf_only_tracks_with_face'] / total_crops_of_tracks_with_face
+        print(f"Total crops: {total_crops}, "
+              f"total_crops_for_tracks_with_face: {total_crops_of_tracks_with_face},"
+              f"total_correct_crops_for_tracks_with_face: {columns_dict['face_clf_only_tracks_with_face']}"
+              f"total correct crops for all crops {columns_dict['face_clf_only']} "
+              )
+
         ids_set = set(name for name, value in ids_acc_dict.items() if value[0] > 0)
         columns_dict['total_ids_in_video'] = len(ids_set)
         columns_dict['ids_in_video'] = str(ids_set)
@@ -167,9 +173,9 @@ def write_ablation_results(columns_dict, total_crops, total_crops_of_tracks_with
                 columns_dict[name] = ID_NOT_IN_VIDEO
             elif value[0] > 0: # id was found in video but never correctly classified
                 columns_dict[name] = value[1] / value[0]
-        albation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
+        ablation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
         print('Making visualization using temp DB')
-        # viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
+        viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
         print('removing temp DB')
         os.remove(db_location)
@@ -217,14 +223,14 @@ def create_data_by_re_id_and_track():
     # run re-id model on all images in the test gallery and query folders:
     # build re-id test set. NOTE: query dir of the dataset should be empty!
     # gen_reid_features(reid_cfg, reid_model) # UNCOMMENT TO Recreate reid features
-    feats, g_feats, g_pids, g_camids = load_reid_featuers()
+    feats, g_feats, g_pids, g_camids = load_reid_features()
 
     # initialize tracking model:
     tracking_model = init_model(args.track_config, args.track_checkpoint, device=args.device)
     # load images:
     imgs = mmcv.VideoReader(args.input)
     tracklets = defaultdict(list)
-    create_tracklets = True
+    create_tracklets = False
     if create_tracklets:
 
     # iterate over all images and collect tracklets
@@ -362,7 +368,7 @@ def create_data_by_re_id_and_track():
     print(all_tracks_final_scores)
 
     if args.inference_only and total_crops > 0:
-        write_ablation_results(columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, albation_df, db_location)
+        write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, albation_df, db_location)
 
     print("Done")
 

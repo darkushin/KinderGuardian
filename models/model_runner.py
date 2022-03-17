@@ -166,6 +166,7 @@ def execute_combined_model():
         script_args.extend(reid_opts)
 
         call(script_args)
+        break
 
 
 def runner():
