@@ -24,10 +24,8 @@ class FaceDetector():
     the correct format.
     """
     def __init__(self, raw_images_path:str=None, faces_data_path:str=None, thresholds=[0.8,0.8,0.8],
-                 keep_all=False):
-        device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+                 keep_all=False, device='cuda:1'):
         self.device = device
-
         self.raw_images_path = raw_images_path
         self.faces_data_path = faces_data_path
         self.keep_all = keep_all

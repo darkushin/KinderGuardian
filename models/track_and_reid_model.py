@@ -202,7 +202,7 @@ def create_data_by_re_id_and_track():
         print(f'Saving the output crops to: {args.crops_folder}')
         assert args.crops_folder, "You must insert crop_folder param in order to create data"
 
-    faceDetector = FaceDetector(keep_all=True)
+    faceDetector = FaceDetector(keep_all=True, device=args.device)
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le.pkl", 'rb'))
     faceClassifer = FaceClassifer(num_classes=19, label_encoder=le)
 
@@ -224,7 +224,7 @@ def create_data_by_re_id_and_track():
     # load images:
     imgs = mmcv.VideoReader(args.input)
     tracklets = defaultdict(list)
-    create_tracklets = False
+    create_tracklets = True
     if create_tracklets:
 
     # iterate over all images and collect tracklets
