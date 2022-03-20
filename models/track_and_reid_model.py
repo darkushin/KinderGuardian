@@ -28,6 +28,7 @@ from fastreid.config import get_cfg
 from fastreid.data import build_reid_test_loader
 from demo.predictor import FeatureExtractionDemo
 from mmtrack.apis import inference_mot, init_model
+from double_id_handler import remove_double_ids
 
 CAM_ID = 1
 
@@ -192,7 +193,7 @@ def create_data_by_re_id_and_track():
         columns_dict['video_name'] = args.input.split('/')[-1]
         columns_dict['model_name'] = 'fastreid'
         print('*** Running in inference-only mode ***')
-        db_location = '/mnt/raid1/home/bar_cohen/inference_db8.db'
+        db_location = '/mnt/raid1/home/bar_cohen/dani-inference_db8.db'
         if os.path.isfile(db_location): # remove temp db if leave-over from prev runs
             assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
             os.remove(db_location)
@@ -224,7 +225,7 @@ def create_data_by_re_id_and_track():
     # load images:
     imgs = mmcv.VideoReader(args.input)
     tracklets = defaultdict(list)
-    create_tracklets = True
+    create_tracklets = False
     if create_tracklets:
 
     # iterate over all images and collect tracklets
@@ -263,10 +264,10 @@ def create_data_by_re_id_and_track():
                             is_vague=False)
                 crop.set_im_name()
                 tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf':face_prob})
-        pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','wb'))
+        pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/dani-tracklets.pkl','wb'))
     else:
         print('Using loaded tracklets !')
-        tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','rb'))
+        tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/dani-tracklets.pkl','rb'))
 
     print('******* Making predictions and saving crops to DB *******')
 
@@ -358,6 +359,11 @@ def create_data_by_re_id_and_track():
                 mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder, crop.im_name))
 
     add_entries(db_entries, db_location)
+
+    # handle double-id and update it in the DB
+    new_id_dict = remove_double_ids(args.input.split('/')[-1][9:-4], all_tracks_final_scores, db_location)
+
+    # calculate new precision after IDs update and add to ablation study
 
     if args.inference_only and total_crops > 0:
         write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, albation_df, db_location)

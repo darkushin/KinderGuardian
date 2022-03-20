@@ -3,6 +3,9 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 import random
+from collections import OrderedDict
+
+import pickle
 
 from DataProcessing.DB.dal import *
 
@@ -12,13 +15,15 @@ IDS_TO_COLORS = {
 }
 
 
-def get_track_ranges(vid_name: str):
+def get_track_ranges(vid_name: str, db_location: str):
     """
     Given a video_name create a list of dictionaries for each track.
     Output template: [{track_num1: X, start: X, end: X}, {track_num2: Y, start: Y, end: Y}]
     """
-    tracks = [track.track_id for track in get_entries(filters=({Crop.vid_name == vid_name}), group=Crop.track_id)]
-    session = create_session()
+    tracks = [track.track_id for track in get_entries(filters=({Crop.vid_name == vid_name}),
+                                                      group=Crop.track_id,
+                                                      db_path=db_location)]
+    session = create_session(db_location=db_location)
     tracks_range = []
     for track in tracks:
         min_frame = session.query(func.min(Crop.frame_num)).filter(
@@ -92,22 +97,49 @@ def get_ids_order_for_tracks(vid_name: str = None, G: nx.Graph() = None, seed=No
     return ids_rank
 
 
-def assign_color_to_node(G: nx.Graph(), ids_rank: dict, state: str=None):
+def draw_graph(G: nx.Graph(), color_map: list = [], title: str = None):
+    pos = nx.spring_layout(G, seed=152)  # use seed so the resulting graph will have the same order every time
+    plt.figure()
+    if title:
+        plt.title(title)
+    nx.draw(G, pos=pos, with_labels=True, node_color=color_map, cmap='tab20')
+    plt.show()
+
+
+def assign_color_to_node(G: nx.Graph(), ids_rank: dict, state: str = None, allow_collisions: bool = False,
+                         nodes_order: str = 'rank-1'):
+    """
+    Given a graph and the ids_rank for every node in the graph, assign colors to all nodes so that two adjacent nodes
+    don't share a common color.
+    Arguments:
+        - G: the graph that should be colored.
+        - ids_rank: a dictionary where the keys are all nodes in the graph and the value of every key is an ordered
+                    list with the probabilities of every id for this node (track) in descending order.
+    """
     color_map = []
     colored_nodes = {}
 
-    if state == 'rank-1':
-        # For every node take the first rank in the ids_rank (with collisions)
-        for node in G:
-            color = IDS_TO_COLORS[ids_rank[node][0]]
-            color_map.append(color)
-            colored_nodes[node] = color
+    # todo: set tracks order according to rank-1 confidence
+    # draw the initial graph before coloring
+    draw_graph(G, title='Graph without coloring')
 
-    elif state == 'node-order':
-        # for node in sorted(G):
-        for node in G:
-            for rank in ids_rank[node]:
-                cur_color = IDS_TO_COLORS[rank]
+    # Show the graph of rank-1 predictions: for every node take the first rank in the ids_rank (with collisions)
+    for node in G:
+        color = ids_rank[node][0][0]
+        color_map.append(color)
+        colored_nodes[node] = color
+    draw_graph(G, color_map, title='Rank-1 coloring')
+    print(f'Rank-1 colors: {colored_nodes}')
+
+    # Sort the nodes according to rank-1 in descending order:
+    ordered_nodes = [k for k, _ in sorted(ids_rank.items(), key=lambda item: item[1][0][1], reverse=True)]
+
+    for nodes, title in zip([G.nodes, ordered_nodes], ['Default Order Coloring', 'Descending Rank-1 Coloring']):
+        color_map = []
+        colored_nodes = {}
+        for node in nodes:
+            for id, prob in ids_rank[node]:
+                cur_color = id
                 valid_color = True
                 for neighbor in G.neighbors(node):
                     if colored_nodes.get(neighbor, '') == cur_color:
@@ -115,26 +147,82 @@ def assign_color_to_node(G: nx.Graph(), ids_rank: dict, state: str=None):
                         break  # color can't be assigned, move to next color
                 if valid_color:
                     colored_nodes[node] = cur_color  # no neighbors were found with this color
-                    color_map.append(cur_color)
+                    # color_map.append(cur_color)
                     break
 
-    pos = nx.spring_layout(G, seed=152)  # use seed so the resulting graph will have the same order every time
-    nx.draw(G, pos=pos, node_color=color_map, with_labels=True)
-    plt.show()
-    print(f'Colored Nodes: {colored_nodes}')
+        # update color map:
+        for node in G:
+            color_map.append(colored_nodes.get(node))
+
+        # draw the colored graph:
+        draw_graph(G, color_map=color_map, title=title)
+
+        # pos = nx.spring_layout(G, seed=152)  # use seed so the resulting graph will have the same order every time
+        # nx.draw(G, pos=pos, node_color=color_map, with_labels=True)
+        # plt.show()
+        # print(f'Colored Nodes: {colored_nodes}')
+    return colored_nodes
 
 
-ranges = get_track_ranges('20210808082440_s0_e501')
-groups = find_intersecting_tracks(ranges)
-print(groups)
+def sort_track_scores(G, tracks_scores):
+    """
+    Given the probability of each id for every track and the graph of this video, create a dictionary where every key
+    is the track number and the value is a tuple of the form (id, id_probability) from the must likely id to the
+    least likely.
+    """
+    sorted_track_scores = {}
+    for track in G.nodes:
+        probs = tracks_scores.get(track)
+        # sorted_track_scores[track] = OrderedDict(reversed(sorted(probs.items(), key=lambda item: item[1])))
+        sorted_track_scores[track] = sorted(probs.items(), key=lambda item: item[1], reverse=True)
+    return sorted_track_scores
 
-G = create_graph(groups)
-# nx.draw(G, with_labels=True)
-# plt.savefig('../Results/Tracks-graph.png')
-# plt.show()
 
-ids_rank = get_ids_order_for_tracks(G=G, seed=152)
-print(ids_rank)
+def remove_double_ids(vid_name: str, tracks_scores: dict, db_location: str):
+    """
+    Given a video name and the location of the DB that contains this video, create a mapping from tracks to ids, such
+    that intersecting tracks can't get the same id.
+    """
+    # Find the ranges of all tracks in the video:
+    ranges = get_track_ranges(vid_name, db_location)
 
-assign_color_to_node(G, ids_rank, state='node-order')
+    # Find intersecting tracks:
+    groups = find_intersecting_tracks(ranges)
+
+    # Generate a graph with all intersections as neighbors:
+    G = create_graph(groups)
+    # nx.draw(G, with_labels=True)
+    # plt.savefig('../Results/Tracks-graph.png')
+    # plt.show()
+
+    ids_rank = sort_track_scores(G, tracks_scores)
+
+    tracks_to_ids = assign_color_to_node(G, ids_rank, state='node-order')
+    return tracks_to_ids
+
+
+# # nx.draw(G, with_labels=True)
+# # plt.savefig('../Results/Tracks-graph.png')
+# # plt.show()
+# ranges = get_track_ranges('20210808082440_s0_e501')
+# groups = find_intersecting_tracks(ranges)
+# print(groups)
+#
+# G = create_graph(groups)
+# # nx.draw(G, with_labels=True)
+# # plt.savefig('../Results/Tracks-graph.png')
+# # plt.show()
+#
+# ids_rank = get_ids_order_for_tracks(G=G, seed=152)
+# print(ids_rank)
+#
+# assign_color_to_node(G, ids_rank, state='node-order')
+
+db_location = '/home/bar_cohen/raid/dani-inference_db8.db'
+all_tracks_final_scores = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/all-tracks-20210808082440_s0_e501.pkl','rb'))
+
+
+new_id_dict = remove_double_ids('20210808082440_s0_e501', all_tracks_final_scores, db_location)
+print(new_id_dict)
+
 
