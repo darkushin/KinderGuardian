@@ -125,6 +125,8 @@ def assign_color_to_node(G: nx.Graph(), ids_rank: dict, state: str = None, allow
 
     # Show the graph of rank-1 predictions: for every node take the first rank in the ids_rank (with collisions)
     for node in G:
+        if node not in ids_rank:  # todo: this shouldn't happen! understand way exactly it happened!
+            continue
         color = ids_rank[node][0][0]
         color_map.append(color)
         colored_nodes[node] = color
@@ -173,8 +175,8 @@ def sort_track_scores(G, tracks_scores):
     sorted_track_scores = {}
     for track in G.nodes:
         probs = tracks_scores.get(track)
-        # sorted_track_scores[track] = OrderedDict(reversed(sorted(probs.items(), key=lambda item: item[1])))
-        sorted_track_scores[track] = sorted(probs.items(), key=lambda item: item[1], reverse=True)
+        if probs:
+            sorted_track_scores[track] = sorted(probs.items(), key=lambda item: item[1], reverse=True)
     return sorted_track_scores
 
 
@@ -218,11 +220,13 @@ def remove_double_ids(vid_name: str, tracks_scores: dict, db_location: str):
 #
 # assign_color_to_node(G, ids_rank, state='node-order')
 
-db_location = '/home/bar_cohen/raid/dani-inference_db8.db'
-all_tracks_final_scores = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/all-tracks-20210808082440_s0_e501.pkl','rb'))
+if __name__ == '__main__':
+    db_location = '/home/bar_cohen/raid/dani-inference_db8.db'
+    all_tracks_final_scores = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/all-tracks-20210808111437_s45000_e45501.pkl','rb'))
+
+    new_id_dict = remove_double_ids('20210808111437_s45000_e45501', all_tracks_final_scores, db_location)
+    print(new_id_dict)
 
 
-new_id_dict = remove_double_ids('20210808082440_s0_e501', all_tracks_final_scores, db_location)
-print(new_id_dict)
-
+# todo: check why there are tracks that are in the temp DB but not in the id scores
 

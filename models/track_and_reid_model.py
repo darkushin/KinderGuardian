@@ -154,7 +154,7 @@ def load_reid_features():
     return feats, g_feats, g_pids, g_camids
 
 def write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, ablation_df, db_location):
-        acc_columns = ['pure_reid_model','face_clf_only', 'reid_with_maj_vote', 'reid_with_face_clf_maj_vote']
+        acc_columns = ['pure_reid_model','face_clf_only', 'reid_with_maj_vote', 'reid_with_face_clf_maj_vote', 'double_booking']
         for acc in acc_columns:
             columns_dict[acc] = columns_dict[acc] / total_crops
 
@@ -168,7 +168,7 @@ def write_ablation_results(args, columns_dict, total_crops, total_crops_of_track
                 columns_dict[name] = ID_NOT_IN_VIDEO
             elif value[0] > 0: # id was found in video but never correctly classified
                 columns_dict[name] = value[1] / value[0]
-        ablation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
+        ablation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_clear.csv')
         print('Making visualization using temp DB')
         viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
@@ -188,7 +188,7 @@ def create_data_by_re_id_and_track():
     print(f'Args: {args}')
     db_location = DB_LOCATION
     if args.inference_only:
-        albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
+        albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_clear.csv')
         columns_dict = {k: 0 for k in albation_df.columns}
         columns_dict['video_name'] = args.input.split('/')[-1]
         columns_dict['model_name'] = 'fastreid'
@@ -225,7 +225,7 @@ def create_data_by_re_id_and_track():
     # load images:
     imgs = mmcv.VideoReader(args.input)
     tracklets = defaultdict(list)
-    create_tracklets = False
+    create_tracklets = True
     if create_tracklets:
 
     # iterate over all images and collect tracklets
@@ -362,9 +362,21 @@ def create_data_by_re_id_and_track():
 
     # handle double-id and update it in the DB
     new_id_dict = remove_double_ids(args.input.split('/')[-1][9:-4], all_tracks_final_scores, db_location)
+    session = create_session(db_location)
+    if args.inference_only:
+        assert db_location != DB_LOCATION, 'You fool!'
+    tracks = [track.track_id for track in get_entries(filters=(), group=Crop.track_id, db_path=db_location, session=session)]
+    for track in tracks:
+        crops = get_entries(filters=({Crop.track_id==track}), db_path=db_location, session=session).all()
+        for crop in crops:
+            crop.label = ID_TO_NAME[new_id_dict[track]]
+            if args.inference_only:
+                tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
+                if tagged_label_crop and tagged_label_crop[0].label == crop.label:
+                    columns_dict['double_booking'] += 1
 
     # calculate new precision after IDs update and add to ablation study
-
+    session.commit()
     if args.inference_only and total_crops > 0:
         write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, albation_df, db_location)
 
