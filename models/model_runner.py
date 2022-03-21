@@ -28,6 +28,7 @@ def get_args():
     parser.add_argument('--reid_opts', help='Modify config options using the command-line', default=None, nargs=REMAINDER)
     parser.add_argument('--crops_folder')
     parser.add_argument('--inference_only', action='store_true', help='use the tracking and reid model for inference')
+    parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
 
     return parser.parse_args()
 
@@ -60,6 +61,8 @@ def create_optional_args() -> List:
         optional_args.extend(['--crops_folder', args.crops_folder])
     if args.inference_only:
         optional_args.extend(['--inference_only'])
+    if args.db_tracklets:
+        optional_args.extend(['--db_tracklets'])
     return optional_args
 
 

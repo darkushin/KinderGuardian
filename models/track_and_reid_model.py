@@ -13,6 +13,7 @@ import torch
 import numpy as np
 import mmcv
 import torch.nn.functional as F
+from PIL import Image
 
 # from DataProcessing.dataHandler import Crop
 from DataProcessing.DB.dal import *
@@ -50,6 +51,7 @@ def get_args():
     parser.add_argument("--acc_th", help="The accuracy threshold that should be used for the tracking model",
                         default=0.8)
     parser.add_argument('--inference_only', action='store_true', help='use the tracking and reid model for inference')
+    parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
     args = parser.parse_args()
     return args
 
@@ -175,6 +177,38 @@ def write_ablation_results(args, columns_dict, total_crops, total_crops_of_track
         os.remove(db_location)
 
 
+def create_tracklets_from_db(vid_name, face_detector):
+    """
+    Given a video name, create the tracklets for this video using the tagged DB.
+    The returned tracklets are a dictionary where the key is the track_id, and the value is a list of dictionaries so
+    that every dictionary contains the 'crop_img', 'face_img', 'Crop' and 'face_img_conf' of a single crop in the track.
+    """
+    tracklets = defaultdict(list)
+    tracks = [track.track_id for track in get_entries(filters=({Crop.vid_name == vid_name}), group=Crop.track_id).all()]
+    for track in tracks:
+        crops = get_entries(filters=(Crop.vid_name == vid_name, Crop.track_id == track)).all()
+        for temp_crop in crops:
+            crop = Crop(vid_name=temp_crop.vid_name,
+                        frame_num=temp_crop.frame_num,
+                        track_id=temp_crop.track_id,
+                        x1=temp_crop.x1, y1=temp_crop.y1, x2=temp_crop.x2, y2=temp_crop.y2,
+                        conf=temp_crop.conf,
+                        cam_id=temp_crop.cam_id,
+                        crop_id=temp_crop.crop_id,
+                        is_face=temp_crop.is_face,
+                        reviewed_one=False,
+                        reviewed_two=False,
+                        invalid=False,
+                        is_vague=False)
+            crop.set_im_name()
+            crop_im = np.asarray(Image.open(f'/home/bar_cohen/raid/{vid_name}/{crop.im_name}'))
+            face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=False)
+            face_prob = face_prob if face_prob else 0
+            tracklets[track].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob})
+
+    return tracklets
+
+
 def create_data_by_re_id_and_track():
     """
     This function takes a video and runs both tracking, face-id and re-id models to create and label tracklets
@@ -225,14 +259,12 @@ def create_data_by_re_id_and_track():
     imgs = mmcv.VideoReader(args.input)
     tracklets = defaultdict(list)
     create_tracklets = True
-    if create_tracklets:
-
-    # iterate over all images and collect tracklets
+    if create_tracklets and not args.db_tracklets:  # create tracklets from video using tracking
+        # iterate over all images and collect tracklets
         print('******* Creating tracklets: *******')
 
         # initialize a dictionary that will hold all the crops according to tracks
         # key: track_id, value: a dict representing a crop in the track, consists of: Crop object, crop img, face img
-
 
         for image_index, img in tqdm.tqdm(enumerate(imgs), total=len(imgs)):
             if isinstance(img, str):
@@ -264,9 +296,17 @@ def create_data_by_re_id_and_track():
                 crop.set_im_name()
                 tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf':face_prob})
         pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','wb'))
+    elif create_tracklets and args.db_tracklets:  # create tracklets using the tagged DB
+        print('***** Creating tracklets using DB *****')
+        tracklets = create_tracklets_from_db(vid_name=args.input.split('/')[-1][9:-4], face_detector=faceDetector)
+        pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/db-tracklets.pkl','wb'))
     else:
-        print('Using loaded tracklets !')
-        tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','rb'))
+        if args.db_tracklets:
+            print('Using loaded DB tracklets !')
+            tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/db-tracklets.pkl', 'rb'))
+        else:
+            print('Using loaded tracking tracklets !')
+            tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','rb'))
 
     print('******* Making predictions and saving crops to DB *******')
 
