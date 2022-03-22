@@ -196,10 +196,11 @@ def create_tracklets_from_db(vid_name, face_detector):
                         cam_id=temp_crop.cam_id,
                         crop_id=temp_crop.crop_id,
                         is_face=temp_crop.is_face,
+                        label=temp_crop.label,
                         reviewed_one=False,
                         reviewed_two=False,
-                        invalid=False,
-                        is_vague=False)
+                        invalid=temp_crop.invalid,
+                        is_vague=temp_crop.is_vague)
             crop.set_im_name()
             crop_im = np.asarray(Image.open(f'/home/bar_cohen/raid/{vid_name}/{crop.im_name}'))
             face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=False)
@@ -338,6 +339,7 @@ def create_data_by_re_id_and_track():
         final_label_id = max(reid_scores, key=reid_scores.get)
         final_label_conf = reid_scores[final_label_id] # only reid at this point
         final_label = ID_TO_NAME[final_label_id]
+        all_tracks_final_scores[track_id] = reid_scores  # first add only reid scores in case the track doesn't include face images
 
         face_imgs = [crop_dict.get('face_img') for crop_dict in crop_dicts if faceDetector.is_img(crop_dict.get('face_img'))]
         face_imgs_conf = np.array([crop_dict.get('face_img_conf') for crop_dict in crop_dicts if crop_dict.get('face_img_conf') > 0])
