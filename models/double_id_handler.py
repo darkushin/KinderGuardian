@@ -8,6 +8,7 @@ from collections import OrderedDict
 import pickle
 
 from DataProcessing.DB.dal import *
+from DataProcessing.dataProcessingConstants import ID_TO_NAME
 
 IDS_TO_COLORS = {
     1: 'tab:blue', 2: 'tab:orange', 3: 'tab:green', 4: 'tab:red', 5: 'tab:purple', 6: 'tab:brown', 7: 'tab:pink',
@@ -131,7 +132,8 @@ def assign_color_to_node(G: nx.Graph(), ids_rank: dict, state: str = None, allow
         color_map.append(color)
         colored_nodes[node] = color
     draw_graph(G, color_map, title='Rank-1 coloring')
-    print(f'Rank-1 colors: {colored_nodes}')
+    color_names = {k: ID_TO_NAME[v] for k, v in colored_nodes.items()}
+    print(f'Rank-1 colors: {color_names}')
 
     # Sort the nodes according to rank-1 in descending order:
     ordered_nodes = [k for k, _ in sorted(ids_rank.items(), key=lambda item: item[1][0][1], reverse=True)]
@@ -163,6 +165,8 @@ def assign_color_to_node(G: nx.Graph(), ids_rank: dict, state: str = None, allow
         # nx.draw(G, pos=pos, node_color=color_map, with_labels=True)
         # plt.show()
         # print(f'Colored Nodes: {colored_nodes}')
+        color_names = {k: ID_TO_NAME[v] for k, v in colored_nodes.items()}
+        print(f'{title}: {color_names}')
     return colored_nodes
 
 
