@@ -228,7 +228,7 @@ def create_tracklets_using_tracking(args, face_detector):
         crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
         for i, (id, conf, crop_im) in enumerate(zip(ids, confs, crops_imgs)):
 
-            face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=False)
+            face_img, face_prob = face_detector.get_single_face(img=crop_im, is_PIL_input=False)
             face_prob = face_prob if face_prob else 0
             # for video_name we skip the first 8 chars as to fit the IP_Camera video name convention, if entering
             # a different video name note this.
@@ -298,7 +298,7 @@ def create_data_by_re_id_and_track():
 
     if create_tracklets and not args.db_tracklets:  # create tracklets from video using tracking
         print('******* Creating tracklets using tracking: *******')
-        tracklets = create_tracklets_using_tracking(args=args, face_detector=FaceDetector)
+        tracklets = create_tracklets_using_tracking(args=args, face_detector=faceDetector)
         pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','wb'))
 
     elif create_tracklets and args.db_tracklets:  # create tracklets using the tagged DB
