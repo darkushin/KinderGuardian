@@ -167,7 +167,7 @@ def write_ablation_results(args, columns_dict, total_crops, total_crops_of_track
                 columns_dict[name] = ID_NOT_IN_VIDEO
             elif value[0] > 0: # id was found in video but never correctly classified
                 columns_dict[name] = value[1] / value[0]
-        ablation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
+        ablation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_clear.csv')
         print('Making visualization using temp DB')
         viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
@@ -187,12 +187,12 @@ def create_data_by_re_id_and_track():
     print(f'Args: {args}')
     db_location = DB_LOCATION
     if args.inference_only:
-        albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
+        albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_clear.csv')
         columns_dict = {k: 0 for k in albation_df.columns}
         columns_dict['video_name'] = args.input.split('/')[-1]
         columns_dict['model_name'] = 'fastreid'
         print('*** Running in inference-only mode ***')
-        db_location = '/mnt/raid1/home/bar_cohen/inference_db8.db'
+        db_location = '/mnt/raid1/home/bar_cohen/inference_db16.db'
         if os.path.isfile(db_location): # remove temp db if leave-over from prev runs
             assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
             os.remove(db_location)
@@ -206,8 +206,7 @@ def create_data_by_re_id_and_track():
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le.pkl", 'rb'))
     faceClassifer = FaceClassifer(num_classes=19, label_encoder=le)
 
-    faceClassifer.model_ft.load_state_dict(
-        torch.load("/mnt/raid1/home/bar_cohen/FaceData/best_model4.pkl"))
+    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/best_model6.pkl"))
     faceClassifer.model_ft.eval()
     reid_cfg = set_reid_cfgs(args)
 
