@@ -203,6 +203,8 @@ def create_tracklets_from_db(vid_name, face_detector):
                         is_vague=temp_crop.is_vague)
             crop.set_im_name()
             crop_im = np.asarray(Image.open(f'/home/bar_cohen/raid/{vid_name}/{crop.im_name}'))
+            if not crop_im:
+                print('O No', vid_name, crop.im_name)
             face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=False)
             face_prob = face_prob if face_prob else 0
             tracklets[track].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob})
