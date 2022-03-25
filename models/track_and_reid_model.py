@@ -6,6 +6,7 @@ from argparse import ArgumentParser, REMAINDER
 import sys
 from collections import defaultdict, Counter
 
+import cv2
 import pandas as pd
 from matplotlib import pyplot as plt
 import tqdm
@@ -16,6 +17,8 @@ import torch.nn.functional as F
 from PIL import Image
 
 # from DataProcessing.dataHandler import Crop
+from torchvision.transforms import transforms
+
 from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 from FaceDetection.faceClassifer import FaceClassifer
@@ -169,9 +172,9 @@ def write_ablation_results(args, columns_dict, total_crops, total_crops_of_track
                 columns_dict[name] = ID_NOT_IN_VIDEO
             elif value[0] > 0: # id was found in video but never correctly classified
                 columns_dict[name] = value[1] / value[0]
-        ablation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
-        print('Making visualization using temp DB')
-        viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
+        ablation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_clear.csv')
+        # print('Making visualization using temp DB')
+        # viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
         print('removing temp DB')
         os.remove(db_location)
@@ -186,7 +189,7 @@ def create_tracklets_from_db(vid_name, face_detector):
     tracklets = defaultdict(list)
     tracks = [track.track_id for track in get_entries(filters=({Crop.vid_name == vid_name}), group=Crop.track_id).all()]
     for track in tracks:
-        crops = get_entries(filters=(Crop.vid_name == vid_name, Crop.track_id == track)).all()
+        crops = get_entries(filters=(Crop.vid_name == vid_name, Crop.track_id == track, Crop.invalid == False)).all()
         for temp_crop in crops:
             crop = Crop(vid_name=temp_crop.vid_name,
                         frame_num=temp_crop.frame_num,
@@ -202,12 +205,16 @@ def create_tracklets_from_db(vid_name, face_detector):
                         invalid=temp_crop.invalid,
                         is_vague=temp_crop.is_vague)
             crop.set_im_name()
-            crop_im = np.asarray(Image.open(f'/home/bar_cohen/raid/{vid_name}/{crop.im_name}'))
+            crop_im = Image.open(f'/home/bar_cohen/raid/{vid_name}/{crop.im_name}')
+
             if not crop_im:
                 print('O No', vid_name, crop.im_name)
-            face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=False)
+            face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=True)
             face_prob = face_prob if face_prob else 0
+            crop_im = mmcv.imread(f'/home/bar_cohen/raid/{vid_name}/{crop.im_name}')
+
             tracklets[track].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob})
+
 
     return tracklets
 
@@ -229,7 +236,7 @@ def create_tracklets_using_tracking(args, face_detector):
         crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
         for i, (id, conf, crop_im) in enumerate(zip(ids, confs, crops_imgs)):
 
-            face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=False)
+            face_img, face_prob = face_detector.get_single_face(crop_im, False)
             face_prob = face_prob if face_prob else 0
             # for video_name we skip the first 8 chars as to fit the IP_Camera video name convention, if entering
             # a different video name note this.
@@ -263,7 +270,7 @@ def create_data_by_re_id_and_track():
     print(f'Args: {args}')
     db_location = DB_LOCATION
     if args.inference_only:
-        albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_df3.csv')
+        albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_clear.csv')
         columns_dict = {k: 0 for k in albation_df.columns}
         columns_dict['video_name'] = args.input.split('/')[-1]
         columns_dict['model_name'] = 'fastreid'
@@ -283,7 +290,7 @@ def create_data_by_re_id_and_track():
     faceClassifer = FaceClassifer(num_classes=19, label_encoder=le)
 
     faceClassifer.model_ft.load_state_dict(
-        torch.load("/mnt/raid1/home/bar_cohen/FaceData/best_model4.pkl"))
+        torch.load("/mnt/raid1/home/bar_cohen/FaceData/best_model6.pkl"))
     faceClassifer.model_ft.eval()
     reid_cfg = set_reid_cfgs(args)
 
@@ -299,7 +306,7 @@ def create_data_by_re_id_and_track():
 
     if create_tracklets and not args.db_tracklets:  # create tracklets from video using tracking
         print('******* Creating tracklets using tracking: *******')
-        tracklets = create_tracklets_using_tracking(args=args, face_detector=FaceDetector)
+        tracklets = create_tracklets_using_tracking(args=args, face_detector=faceDetector)
         pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','wb'))
 
     elif create_tracklets and args.db_tracklets:  # create tracklets using the tagged DB
@@ -314,6 +321,7 @@ def create_data_by_re_id_and_track():
         else:
             print('***** Using loaded tracking tracklets! *****')
             tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','rb'))
+    # print('number of crops', sum([1 for track in tracklets for _ in track]))
 
     print('******* Making predictions and saving crops to DB *******')
     db_entries = []
