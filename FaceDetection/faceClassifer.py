@@ -99,9 +99,9 @@ class FaceClassifer():
         model_ft = model_ft.to(self.device)
         return model_ft
 
-    def create_data_loaders(self, X, y, data_path) -> (DataLoader, DataLoader, DataLoader):
-        X_train, X_test, y_train, y_test = train_test_split(X,y, test_size = 0.1 , shuffle=True, random_state=1)
-        X_train, X_val, y_train, y_val = train_test_split(X_train,y_train, test_size = 0.2 , shuffle=True, random_state=1)
+    def create_data_loaders(self, X_train ,y_train, X_val ,y_val, X_test, y_test, data_path) -> (DataLoader, DataLoader, DataLoader):
+        # X_train, X_test, y_train, y_test = train_test_split(X,y, test_size = 0.1 , shuffle=True, random_state=1)
+        # X_train, X_val, y_train, y_val = train_test_split(X_train,y_train, test_size = 0.2 , shuffle=True, random_state=1)
         dl_train = DataLoader(FacesDataset(X_train, y_train), batch_size=100, shuffle=True)
         dl_val = DataLoader(FacesDataset(X_val,y_val), batch_size=10, shuffle=True)
         dl_test = DataLoader(FacesDataset(X_test,y_test), batch_size=10, shuffle=True)
@@ -122,6 +122,7 @@ class FaceClassifer():
         acc_by_epcoh_val = []
         best_model_wts = copy.deepcopy(self.model_ft.state_dict())
         best_acc = 0.0
+        no_improve = 0
         for epoch in range(num_epochs):
             print('Epoch {}/{}'.format(epoch, num_epochs - 1))
             print('-' * 10)
@@ -186,12 +187,13 @@ class FaceClassifer():
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(self.model_ft.state_dict())
-                torch.save(best_model_wts, os.path.join("/mnt/raid1/home/bar_cohen/FaceData/", 'best_model6.pkl'))
-            metrics = {'batch_train_loss': train_losses, 'batch_val_loss': val_losses,
-                       'train_acc_by_epoch': acc_by_epoch_train, 'val_acc_by_epoch': acc_by_epcoh_val}
-            if epoch > 1:
-                # fc.plot_results(metrics)
-                pass
+                torch.save(best_model_wts, os.path.join("/mnt/raid1/home/bar_cohen/FaceData/", 'best_model7.pkl'))
+                no_improve = 0
+            else:
+                no_improve += 1
+            if no_improve > 20:
+                break
+
         time_elapsed = time.time() - since
         print('Training complete in {:.0f}m {:.0f}s'.format(
             time_elapsed // 60, time_elapsed % 60))
@@ -279,27 +281,35 @@ def test_accuracy_of_dataset(fc, dl, name):
         acc.append(fc.get_accuracy(preds, labels))
     print(np.mean(acc))
 
-def labelencode(label_encoder_output,X,y ,classes_to_drop:list):
+def labelencode(label_encoder_output,X_train ,y_train, X_val ,y_val, X_test, y_test ,classes_to_drop:list):
+    def drop_from_cur_set(X, y, le):
+        indexs_to_drop = [index for index, clss in enumerate(y) if clss in classes_to_drop]
+        X = [x for i, x in enumerate(X) if i not in indexs_to_drop]
+        y = [clss for i, clss in enumerate(y) if i not in indexs_to_drop]
+        y = le.transform(y)
+        assert len(X) == len(y)
+        return X,y
+
     """
     creates a label encoder based on inserted classes to drop
     Args:
         label_encoder_output: output path to save label encoder
-        X: the image tensors
-        y: image labels
+        X_train ,X_val, X_test: the image tensors
+        y_train, y_val, y_test: image labels
         classes_to_drop: label classes not to be trained upon
 
-    Returns: X_transformed, y_transformed, label-encoder
+    Returns: X_train_transformed, y_train_transformed, .. , label-encoder
 
     """
-    y = [int(i) for i in y]
-    indexs_to_drop = [index for index, clss in enumerate(y) if clss in classes_to_drop]
-    X = [x for i, x in enumerate(X) if i not in indexs_to_drop]
-    y = [clss for i, clss in enumerate(y) if i not in indexs_to_drop]
-    assert len(X) == len(y)
+    # creating an all y vector to account for all images
+    y = [int(i) for cur_y_set in [y_train,y_val,y_test] for i in cur_y_set]
     le = preprocessing.LabelEncoder()
-    y_transformed = le.fit_transform(y)
+    le.fit(y)
+    X_train ,y_train = drop_from_cur_set(X_train,y_train, le)
+    X_val ,y_val = drop_from_cur_set(X_val,y_val, le)
+    X_test ,y_test = drop_from_cur_set(X_test,y_test , le)
     pickle.dump(le, open(os.path.join(label_encoder_output, 'le.pkl'), 'wb'))
-    return X, y_transformed, le
+    return X_train,y_train,X_val,y_val,X_test,y_test, le
 
 def load_data(data_path):
     le = pickle.load(open(os.path.join(data_path, 'le.pkl'), 'rb'))
@@ -308,7 +318,7 @@ def load_data(data_path):
     dl_test = pickle.load(open(os.path.join(data_path, 'df_test_1.pkl'), 'rb'))
     return le, dl_train, dl_val, dl_test
 
-def create_face_data_from_db():
+def create_face_data_from_db() -> None:
     face_crops = get_entries(filters={Crop.is_face == True,
                                       Crop.reviewed_one == True ,
                                       Crop.is_vague == False ,
@@ -319,8 +329,13 @@ def create_face_data_from_db():
         if crop.vid_name[4:8] not in ['0808','3007']:
             shutil.copy(os.path.join(crops_path, crop.vid_name, crop.im_name), os.path.join(data_path, crop.im_name))
     print('done')
-    # y = [NAME_TO_ID[crop.label] for crop in face_crops]
-    # return X, y
+
+def classify_list_of_images(num_classes, le, checkpoint_path):
+    fc = FaceClassifer(num_classes=num_classes, label_encoder=le)
+    fc.model_ft.load_state_dict(torch.load(checkpoint_path))
+    fc.model_ft.eval()  # this will train the model after loading weights
+
+
 
 def main_train():
     """
@@ -335,24 +350,30 @@ def main_train():
     data_path = '/mnt/raid1/home/bar_cohen/FaceData/'
     # fd = FaceDetector(raw_images_path='/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned',
     #                   faces_data_path='C:\KinderGuardian\FaceDetection\imgs_with_face_highconf.pkl') # init faceDetector
-    fd = FaceDetector(faces_data_path='C:\KinderGuardian\FaceDetection\images_faces.pkl', thresholds=[0.97,0.97,0.97])
+    fd = FaceDetector(faces_data_path=data_path, thresholds=[0.97,0.97,0.97])
     #
     fd.filter_out_non_face_corps() # keeps only face-present images in data
-    X,y = fd.create_X_y_faces() # create an X,y dataset from filtered images
-    X,y_transformed,le = labelencode(data_path, X,y,[17,19]) # creates a label encoder and removes entered classes from dataset
-    num_classes = len(np.unique(y_transformed)) # num of unique classes
-    # le, dl_train, dl_val, dl_test = load_data(data_path)
-    fc = FaceClassifer(19, le)  # init faceClassifer
-    # loads an already train model to keep training it - uncomment if you want to train from scratch
-    fc.model_ft.load_state_dict(torch.load(os.path.join(data_path,'best_model6.pkl')))
-    fc.model_ft.eval() # this will train the model after loading weights
-    # creates and saves datasets based on the lines above,
-    # if you want to train based on exsisting data split, load it first
-    le, dl_train, dl_val, dl_test = load_data(data_path)
-    # dl_train,dl_val,dl_test = fc.create_data_loaders(X,y_transformed, data_path)
+    X_train ,y_train, X_val ,y_val, X_test, y_test = fd.create_X_y_faces() # create an X,y dataset from filtered images
 
-    # print(len(dl_train) * dl_train.batch_size, len(dl_val) * dl_val.batch_size, len(dl_test) * dl_test.batch_size)
-    # model, metrics = fc.train_model(dl_train, dl_val,num_epochs=1000) # train the model
+    # creates a label encoder and removes entered classes from dataset
+    X_train ,y_train, X_val ,y_val, X_test, y_test ,le = labelencode(data_path,X_train ,y_train, X_val ,y_val, X_test, y_test ,[17,19])
+    num_classes = 19 # num of unique classes
+    # le, dl_train, dl_val, dl_test = load_data(data_path)
+    fc = FaceClassifer(num_classes, le)  # init faceClassifer
+
+    # loads an already train model to keep training it - uncomment if you want to train from scratch
+    # fc.model_ft.load_state_dict(torch.load(os.path.join(data_path,'best_model7.pkl')))
+
+    fc.model_ft.train() # this will train the model after loading weights
+    # creates and saves datasets based on the lines above,
+
+    # if you want to train based on exsisting data split, load it first
+    # le, dl_train, dl_val, dl_test = load_data(data_path)
+    dl_train,dl_val,dl_test = fc.create_data_loaders(X_train ,y_train, X_val ,y_val, X_test, y_test, data_path)
+
+    print(len(dl_train) * dl_train.batch_size, len(dl_val) * dl_val.batch_size, len(dl_test) * dl_test.batch_size)
+    model, metrics = fc.train_model(dl_train, dl_val,num_epochs=100) # train the model
+
     # run acc test on data splits
     test_accuracy_of_dataset(fc, dl_train, 'Train')
     test_accuracy_of_dataset(fc, dl_val, 'Val')
