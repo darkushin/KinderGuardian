@@ -29,6 +29,7 @@ def get_args():
     parser.add_argument('--crops_folder')
     parser.add_argument('--inference_only', action='store_true', help='use the tracking and reid model for inference')
     parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
+    parser.add_argument('--exp_description', help='The description of the experiment that should appear in the ablation study output')
 
     return parser.parse_args()
 
@@ -63,6 +64,8 @@ def create_optional_args() -> List:
         optional_args.extend(['--inference_only'])
     if args.db_tracklets:
         optional_args.extend(['--db_tracklets'])
+    if args.exp_description:
+        optional_args.extend(['--exp_description', args.exp_description])
     return optional_args
 
 
@@ -137,6 +140,7 @@ re-id-and-tracking
 /mnt/raid1/home/bar_cohen/DB_Test/
 --inference_only
 --db_tracklets
+--exp_description 'write here the description of the experiment that should appear in the ablation study output'
 --device
 cuda:1
 --reid_opts

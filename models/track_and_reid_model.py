@@ -56,6 +56,7 @@ def get_args():
                         default=0.8)
     parser.add_argument('--inference_only', action='store_true', help='use the tracking and reid model for inference')
     parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
+    parser.add_argument('--exp_description', help='The description of the experiment that should appear in the ablation study output')
     args = parser.parse_args()
     return args
 
@@ -168,12 +169,13 @@ def write_ablation_results(args, columns_dict, total_crops, total_crops_of_track
         ids_set = set(name for name, value in ids_acc_dict.items() if value[0] > 0)
         columns_dict['total_ids_in_video'] = len(ids_set)
         columns_dict['ids_in_video'] = str(ids_set)
+        columns_dict['description'] = args.exp_description if args.exp_description else ""
         for name, value in ids_acc_dict.items():
             if value[0] == ID_NOT_IN_VIDEO: # this id was never in video
                 columns_dict[name] = ID_NOT_IN_VIDEO
             elif value[0] > 0: # id was found in video but never correctly classified
                 columns_dict[name] = value[1] / value[0]
-        ablation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_clear.csv')
+        ablation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/dani-ablation.csv')
         # print('Making visualization using temp DB')
         # viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
@@ -270,7 +272,7 @@ def create_data_by_re_id_and_track():
     print(f'Args: {args}')
     db_location = DB_LOCATION
     if args.inference_only:
-        albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/ablation_clear.csv')
+        albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/dani-ablation.csv')
         columns_dict = {k: 0 for k in albation_df.columns}
         columns_dict['video_name'] = args.input.split('/')[-1]
         columns_dict['model_name'] = 'fastreid'

@@ -83,21 +83,6 @@ def create_graph(groups):
     return G
 
 
-def get_ids_order_for_tracks(vid_name: str = None, G: nx.Graph() = None, seed=None):
-    """
-    Given a video, create for every track within the video a ranked list of the possible ids according to the ReID model
-    """
-    # Currently, just give a random order of ids, todo: change it to be based on true ReID!
-    max_degree = max([d for n, d in G.degree()])
-    num_ids = G.number_of_nodes()
-
-    # Generate a random ID ordering for every track:
-    if seed:
-        random.seed(seed)
-    ids_rank = {node: random.sample(range(1, max_degree+1), max_degree) for node in G.nodes}
-    return ids_rank
-
-
 def draw_graph(G: nx.Graph(), color_map: list = [], title: str = None):
     pos = nx.spring_layout(G, seed=152)  # use seed so the resulting graph will have the same order every time
     plt.figure()
@@ -120,20 +105,17 @@ def assign_color_to_node(G: nx.Graph(), ids_rank: dict, state: str = None, allow
     color_map = []
     colored_nodes = {}
 
-    # todo: set tracks order according to rank-1 confidence
     # draw the initial graph before coloring
-    draw_graph(G, title='Graph without coloring')
+    # draw_graph(G, title='Graph without coloring')
 
     # Show the graph of rank-1 predictions: for every node take the first rank in the ids_rank (with collisions)
     for node in G:
-        if node not in ids_rank:  # todo: this shouldn't happen! understand way exactly it happened!
-            continue
         color = ids_rank[node][0][0]
         color_map.append(color)
         colored_nodes[node] = color
-    draw_graph(G, color_map, title='Rank-1 coloring')
+    # draw_graph(G, color_map, title='Rank-1 coloring')
     color_names = {k: ID_TO_NAME[v] for k, v in colored_nodes.items()}
-    print(f'Rank-1 colors: {color_names}')
+    # print(f'Rank-1 colors: {color_names}')
 
     # Sort the nodes according to rank-1 in descending order:
     ordered_nodes = [k for k, _ in sorted(ids_rank.items(), key=lambda item: item[1][0][1], reverse=True)]
@@ -161,10 +143,6 @@ def assign_color_to_node(G: nx.Graph(), ids_rank: dict, state: str = None, allow
         # draw the colored graph:
         draw_graph(G, color_map=color_map, title=title)
 
-        # pos = nx.spring_layout(G, seed=152)  # use seed so the resulting graph will have the same order every time
-        # nx.draw(G, pos=pos, node_color=color_map, with_labels=True)
-        # plt.show()
-        # print(f'Colored Nodes: {colored_nodes}')
         color_names = {k: ID_TO_NAME[v] for k, v in colored_nodes.items()}
         print(f'{title}: {color_names}')
     return colored_nodes
@@ -197,32 +175,12 @@ def remove_double_ids(vid_name: str, tracks_scores: dict, db_location: str):
 
     # Generate a graph with all intersections as neighbors:
     G = create_graph(groups)
-    # nx.draw(G, with_labels=True)
-    # plt.savefig('../Results/Tracks-graph.png')
-    # plt.show()
 
     ids_rank = sort_track_scores(G, tracks_scores)
 
     tracks_to_ids = assign_color_to_node(G, ids_rank, state='node-order')
     return tracks_to_ids
 
-
-# # nx.draw(G, with_labels=True)
-# # plt.savefig('../Results/Tracks-graph.png')
-# # plt.show()
-# ranges = get_track_ranges('20210808082440_s0_e501')
-# groups = find_intersecting_tracks(ranges)
-# print(groups)
-#
-# G = create_graph(groups)
-# # nx.draw(G, with_labels=True)
-# # plt.savefig('../Results/Tracks-graph.png')
-# # plt.show()
-#
-# ids_rank = get_ids_order_for_tracks(G=G, seed=152)
-# print(ids_rank)
-#
-# assign_color_to_node(G, ids_rank, state='node-order')
 
 if __name__ == '__main__':
     db_location = '/home/bar_cohen/raid/dani-inference_db8.db'
@@ -232,5 +190,4 @@ if __name__ == '__main__':
     print(new_id_dict)
 
 
-# todo: check why there are tracks that are in the temp DB but not in the id scores
 
