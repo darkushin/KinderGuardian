@@ -15,6 +15,15 @@ IDS_TO_COLORS = {
     8: 'tab:gray', 9: 'tab:olive', 10: 'tab:cyan'
 }
 
+# The order in which the ids should be allocated to ids:
+# - rank-1: take the id with the highest score for each track (doesn't remove double ids! should be identical to the
+#   combination of reid and face)
+# - sorted-rank-1: sort the nodes from highest rank-1 to lowest and allocate ids first for higher ranking nodes
+# - appearance-order: iterate over the nodes in the appearance order of the tracks in the video (the order in which the
+#   nodes were entered to the graph)
+# - max-difference: sort the nodes from the nodes for which the difference between rank-1 and rank-2 is highest
+NODES_ORDER = ['rank-1', 'sorted-rank-1', 'appearance-order', 'max-difference']
+
 
 def get_track_ranges(vid_name: str, db_location: str):
     """
@@ -92,8 +101,16 @@ def draw_graph(G: nx.Graph(), color_map: list = [], title: str = None):
     plt.show()
 
 
-def assign_color_to_node(G: nx.Graph(), ids_rank: dict, state: str = None, allow_collisions: bool = False,
-                         nodes_order: str = 'rank-1'):
+def sort_by_max_difference(ids_rank):
+    """
+    Sort the nodes in an order such that first appear tracks for which the difference between rank-1 and rank-2 is the largest
+    """
+    rank_diffs = {key: track_ranks[0][1] - track_ranks[1][1] for key, track_ranks in ids_rank.items()}
+    ordered_nodes = [k for k, _ in sorted(rank_diffs.items(), key=lambda item: item[1], reverse=True)]
+    return ordered_nodes
+
+
+def assign_color_to_node(G: nx.Graph(), ids_rank: dict, nodes_order: str = 'rank-1'):
     """
     Given a graph and the ids_rank for every node in the graph, assign colors to all nodes so that two adjacent nodes
     don't share a common color.
@@ -108,43 +125,51 @@ def assign_color_to_node(G: nx.Graph(), ids_rank: dict, state: str = None, allow
     # draw the initial graph before coloring
     # draw_graph(G, title='Graph without coloring')
 
-    # Show the graph of rank-1 predictions: for every node take the first rank in the ids_rank (with collisions)
-    for node in G:
-        color = ids_rank[node][0][0]
-        color_map.append(color)
-        colored_nodes[node] = color
-    # draw_graph(G, color_map, title='Rank-1 coloring')
-    color_names = {k: ID_TO_NAME[v] for k, v in colored_nodes.items()}
-    # print(f'Rank-1 colors: {color_names}')
-
-    # Sort the nodes according to rank-1 in descending order:
-    ordered_nodes = [k for k, _ in sorted(ids_rank.items(), key=lambda item: item[1][0][1], reverse=True)]
-
-    for nodes, title in zip([G.nodes, ordered_nodes], ['Default Order Coloring', 'Descending Rank-1 Coloring']):
-        color_map = []
-        colored_nodes = {}
-        for node in nodes:
-            for id, prob in ids_rank[node]:
-                cur_color = id
-                valid_color = True
-                for neighbor in G.neighbors(node):
-                    if colored_nodes.get(neighbor, '') == cur_color:
-                        valid_color = False
-                        break  # color can't be assigned, move to next color
-                if valid_color:
-                    colored_nodes[node] = cur_color  # no neighbors were found with this color
-                    # color_map.append(cur_color)
-                    break
-
-        # update color map:
+    if nodes_order == 'rank-1':
+        # Show the graph of rank-1 predictions: for every node take the first rank in the ids_rank (with collisions)
         for node in G:
-            color_map.append(colored_nodes.get(node))
-
-        # draw the colored graph:
-        draw_graph(G, color_map=color_map, title=title)
-
+            color = ids_rank[node][0][0]
+            color_map.append(color)
+            colored_nodes[node] = color
+        # draw_graph(G, color_map, title='Rank-1 coloring')
         color_names = {k: ID_TO_NAME[v] for k, v in colored_nodes.items()}
-        print(f'{title}: {color_names}')
+        # print(f'Rank-1 colors: {color_names}')
+        return colored_nodes
+
+    if nodes_order == 'sorted-rank-1':
+        # Sort the nodes according to rank-1 in descending order:
+        ordered_nodes = [k for k, _ in sorted(ids_rank.items(), key=lambda item: item[1][0][1], reverse=True)]
+    elif nodes_order == 'appearance-order':
+        ordered_nodes = G.nodes
+    elif nodes_order == 'max-difference':
+        ordered_nodes = sort_by_max_difference(ids_rank)
+    else:
+        raise Exception(f'Double Booking: nodes order method not selected or invalid. Options are: {NODES_ORDER}')
+
+    # Assign ids to tracks according to the nodes order:
+    color_map = []
+    colored_nodes = {}
+    for node in ordered_nodes:
+        for id, prob in ids_rank[node]:
+            cur_color = id
+            valid_color = True
+            for neighbor in G.neighbors(node):
+                if colored_nodes.get(neighbor, '') == cur_color:
+                    valid_color = False
+                    break  # color can't be assigned, move to next color
+            if valid_color:
+                colored_nodes[node] = cur_color  # no neighbors were found with this color
+                break
+
+    # update color map:
+    for node in G:
+        color_map.append(colored_nodes.get(node))
+
+    # draw the colored graph:
+    # draw_graph(G, color_map=color_map, title=nodes_order)
+
+    color_names = {k: ID_TO_NAME[v] for k, v in colored_nodes.items()}
+    # print(f'{nodes_order}: {color_names}')
     return colored_nodes
 
 
@@ -162,7 +187,7 @@ def sort_track_scores(G, tracks_scores):
     return sorted_track_scores
 
 
-def remove_double_ids(vid_name: str, tracks_scores: dict, db_location: str):
+def remove_double_ids(vid_name: str, tracks_scores: dict, db_location: str, nodes_order: str):
     """
     Given a video name and the location of the DB that contains this video, create a mapping from tracks to ids, such
     that intersecting tracks can't get the same id.
@@ -178,7 +203,7 @@ def remove_double_ids(vid_name: str, tracks_scores: dict, db_location: str):
 
     ids_rank = sort_track_scores(G, tracks_scores)
 
-    tracks_to_ids = assign_color_to_node(G, ids_rank, state='node-order')
+    tracks_to_ids = assign_color_to_node(G, ids_rank, nodes_order=nodes_order)
     return tracks_to_ids
 
 
@@ -186,7 +211,9 @@ if __name__ == '__main__':
     db_location = '/home/bar_cohen/raid/dani-inference_db8.db'
     all_tracks_final_scores = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/all-tracks-20210808111437_s45000_e45501.pkl','rb'))
 
-    new_id_dict = remove_double_ids('20210808111437_s45000_e45501', all_tracks_final_scores, db_location)
+    # new_id_dict = remove_double_ids('20210808111437_s45000_e45501', all_tracks_final_scores, db_location, 'max-difference')
+    ids_rank = sort_track_scores(None, all_tracks_final_scores)
+    new_id_dict = sort_by_max_difference(ids_rank)
     print(new_id_dict)
 
 

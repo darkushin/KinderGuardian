@@ -32,9 +32,16 @@ from fastreid.config import get_cfg
 from fastreid.data import build_reid_test_loader
 from demo.predictor import FeatureExtractionDemo
 from mmtrack.apis import inference_mot, init_model
-from double_id_handler import remove_double_ids
+from double_id_handler import remove_double_ids, NODES_ORDER
 
 CAM_ID = 1
+ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/dani-ablation-new.csv'
+ABLATION_COLUMNS = ['description', 'video_name', 'ids_in_video', 'total_ids_in_video', 'total_tracks',
+                    'tracks_with_face', 'pure_reid_model', 'reid_with_maj_vote', 'face_clf_only',
+                    'face_clf_only_tracks_with_face', 'reid_with_face_clf_maj_vote', 'rank-1', 'sorted-rank-1',
+                    'appearance-order', 'max-difference', 'model_name',
+                    'Adam', 'Avigail', 'Ayelet', 'Bar', 'Batel', 'Big-Gali', 'Eitan', 'Gali', 'Guy', 'Halel', 'Lea',
+                    'Noga', 'Ofir', 'Omer', 'Roni', 'Sofi', 'Sofi-Daughter', 'Yahel', 'Hagai', 'Ella', 'Daniel']
 
 
 def get_args():
@@ -102,6 +109,7 @@ def get_reid_score(track_im_conf, distmat, g_pids):
 
     return ids_score
 
+
 def find_best_reid_match(q_feat, g_feat, g_pids, track_imgs_conf):
     """
     Given feature vectors of the query images, return the ids of the images that are most similar in the test gallery
@@ -121,12 +129,14 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
     result['bbox_results'] = result['det_bboxes']
     return result
 
+
 def reid_track_inference(reid_model, track_imgs: list):
     q_feat = torch.empty((len(track_imgs), 2048))
     for j, crop in enumerate(track_imgs):
         crop = np.array(crop)
         q_feat[j] = reid_model.run_on_image(crop)
     return q_feat
+
 
 def get_face_score(faceClassifer, preds,probs, detector_conf):
     face_id_scores = {pid : 0 for pid in ID_TO_NAME.keys()}
@@ -141,6 +151,7 @@ def get_face_score(faceClassifer, preds,probs, detector_conf):
 
     return face_id_scores
 
+
 def gen_reid_features(reid_cfg, reid_model):
     test_loader, num_query = build_reid_test_loader(reid_cfg,
                                                     dataset_name='DukeMTMC')  # will take the dataset given as argument
@@ -151,6 +162,7 @@ def gen_reid_features(reid_cfg, reid_model):
     pickle.dump(g_pids, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_pids'), 'wb'))
     pickle.dump(g_camids, open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_camids'), 'wb'))
 
+
 def load_reid_features():
     print('loading gallery from pickles....:')
     feats = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'feats'), 'rb'))
@@ -159,8 +171,10 @@ def load_reid_features():
     g_camids = pickle.load(open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_camids'), 'rb'))
     return feats, g_feats, g_pids, g_camids
 
+
 def write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, ablation_df, db_location):
-        acc_columns = ['pure_reid_model','face_clf_only', 'reid_with_maj_vote', 'reid_with_face_clf_maj_vote', 'double_booking']
+        acc_columns = ['pure_reid_model', 'face_clf_only', 'reid_with_maj_vote', 'reid_with_face_clf_maj_vote']
+        acc_columns.extend(NODES_ORDER)
         for acc in acc_columns:
             columns_dict[acc] = columns_dict[acc] / total_crops
 
@@ -175,7 +189,7 @@ def write_ablation_results(args, columns_dict, total_crops, total_crops_of_track
                 columns_dict[name] = ID_NOT_IN_VIDEO
             elif value[0] > 0: # id was found in video but never correctly classified
                 columns_dict[name] = value[1] / value[0]
-        ablation_df.append(columns_dict, ignore_index=True).to_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/dani-ablation.csv')
+        ablation_df.append(columns_dict, ignore_index=True).to_csv(ABLATION_OUTPUT)
         # print('Making visualization using temp DB')
         # viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
@@ -260,6 +274,7 @@ def create_tracklets_using_tracking(args, face_detector):
 
     return tracklets
 
+
 def create_data_by_re_id_and_track():
     """
     This function takes a video and runs both tracking, face-id and re-id models to create and label tracklets
@@ -272,8 +287,11 @@ def create_data_by_re_id_and_track():
     print(f'Args: {args}')
     db_location = DB_LOCATION
     if args.inference_only:
-        albation_df = pd.read_csv('/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/dani-ablation.csv')
-        columns_dict = {k: 0 for k in albation_df.columns}
+        if os.path.isfile(ABLATION_OUTPUT):
+            ablation_df = pd.read_csv(ABLATION_OUTPUT, index_col=[0])
+        else:
+            ablation_df = pd.DataFrame(columns=ABLATION_COLUMNS)
+        columns_dict = {k: 0 for k in ablation_df.columns}
         columns_dict['video_name'] = args.input.split('/')[-1]
         columns_dict['model_name'] = 'fastreid'
         print('*** Running in inference-only mode ***')
@@ -417,24 +435,27 @@ def create_data_by_re_id_and_track():
     add_entries(db_entries, db_location)
 
     # handle double-id and update it in the DB
-    new_id_dict = remove_double_ids(args.input.split('/')[-1][9:-4], all_tracks_final_scores, db_location)
-    session = create_session(db_location)
-    if args.inference_only:
-        assert db_location != DB_LOCATION, 'You fool!'
-    tracks = [track.track_id for track in get_entries(filters=(), group=Crop.track_id, db_path=db_location, session=session)]
-    for track in tracks:
-        crops = get_entries(filters=({Crop.track_id==track}), db_path=db_location, session=session).all()
-        for crop in crops:
-            crop.label = ID_TO_NAME[new_id_dict[track]]
-            if args.inference_only:
-                tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
-                if tagged_label_crop and tagged_label_crop[0].label == crop.label:
-                    columns_dict['double_booking'] += 1
+    # Remove double ids according to different heuristics and record it in the ablation study results
+    for nodes_order in NODES_ORDER:  # NOTE: the last order in this list will be used for the visualization
+        new_id_dict = remove_double_ids(vid_name=args.input.split('/')[-1][9:-4], tracks_scores=all_tracks_final_scores,
+                                        db_location=db_location, nodes_order=nodes_order)
+        session = create_session(db_location)
+        if args.inference_only:
+            assert db_location != DB_LOCATION, 'You fool!'
+        tracks = [track.track_id for track in get_entries(filters=(), group=Crop.track_id, db_path=db_location, session=session)]
+        for track in tracks:
+            crops = get_entries(filters=({Crop.track_id==track}), db_path=db_location, session=session).all()
+            for crop in crops:
+                crop.label = ID_TO_NAME[new_id_dict[track]]
+                if args.inference_only:
+                    tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
+                    if tagged_label_crop and tagged_label_crop[0].label == crop.label:
+                        columns_dict[nodes_order] += 1
 
     # calculate new precision after IDs update and add to ablation study
     session.commit()
     if args.inference_only and total_crops > 0:
-        write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, albation_df, db_location)
+        write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, ablation_df, db_location)
 
     print("Done")
 
