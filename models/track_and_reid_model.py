@@ -309,8 +309,7 @@ def create_data_by_re_id_and_track():
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le.pkl", 'rb'))
     faceClassifer = FaceClassifer(num_classes=19, label_encoder=le)
 
-    faceClassifer.model_ft.load_state_dict(
-        torch.load("/mnt/raid1/home/bar_cohen/FaceData/best_model6.pkl"))
+    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/1.pth"))
     faceClassifer.model_ft.eval()
     reid_cfg = set_reid_cfgs(args)
 
