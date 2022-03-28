@@ -461,7 +461,8 @@ def main_train(data_path:str,reload_images_from_db:bool, recreate_data:bool, che
 if __name__ == '__main__':
     checkpoint = ""
     checkpoint_path = os.path.join("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/")
-    # main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/',reload_images_from_db=False, recreate_data=True,
-    #            checkpoint_path=checkpoint_path, load_checkpoint='')
+    main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/',reload_images_from_db=False,
+               recreate_data=True,
+               checkpoint_path=checkpoint_path, load_checkpoint='')
 
-    eval_faceClassifier(os.path.join(checkpoint_path, '4.pth'))
+    # eval_faceClassifier(os.path.join(checkpoint_path, '4.pth'))
