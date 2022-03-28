@@ -80,10 +80,10 @@ class FaceDetector():
         return face_img , prob
 
 
-    def filter_out_non_face_corps(self) -> None:
+    def filter_out_non_face_corps(self, recreate_data) -> None:
         """ Given a set of image crop filter out all images without the faces present
         and update the high conf face img member """
-        if self.faces_data_path:
+        if self.faces_data_path and not recreate_data:
             print("pickle path to images received, loading...")
             self.high_conf_face_imgs = pickle.load(open(os.path.join(self.faces_data_path, 'images_with_crop.pkl'),'rb'))
         else:
@@ -121,17 +121,20 @@ class FaceDetector():
             pickle.dump(self.high_conf_face_imgs, open(os.path.join('/mnt/raid1/home/bar_cohen/FaceData/', 'images_with_crop.pkl'),'wb'))
 
 
-    def create_X_y_faces(self) -> ([] , []):
+    def create_X_y_faces(self):
         """
         Iterate over high_conf_face_imgs and extract the X images and y labels
         """
         assert self.high_conf_face_imgs , "high conf face images must be non-empty"
+        transform = transforms.Compose([
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ])
         X_train, X_val, X_test, y_train, y_val, y_test = [], [], [] , [], [], []
         for k in self.high_conf_face_imgs.keys():
             for img,crop in self.high_conf_face_imgs[k]:
                 date = crop.vid_name[4:8]
-                print(date)
-                if date in ['3007', '0808']:
+                img = transform(img)
+                if date in ['0730', '0808']:
                     X_test.append(img)
                     y_test.append(k)
                 elif date in ['0802','0803']:
