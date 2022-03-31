@@ -70,17 +70,17 @@ class FaceClassifer():
     The face Classifier is a CNN that utilizes InceptionResnetV1 architecture with a pretrain
     weights of vggface2 to fine-tune custom data
     """
-    def __init__(self, num_classes, label_encoder):
+    def __init__(self, num_classes, label_encoder, device='cuda:0'):
         self.num_classes = num_classes
-        self.device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device(device if torch.cuda.is_available() else "cpu")
         self.model_ft = self._create_Incepction_Resnet_for_finetunning()
-        print(self.model_ft)
+        #print(self.model_ft)
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer_ft = optim.Adam(self.model_ft.parameters(),lr=0.0001)
         self.writer = SummaryWriter('/mnt/raid1/home/bar_cohen/FaceData/runs/images/')
         self.writer.iteration = 0
         self.writer.interval = 10
-        self.softmax = nn.Softmax()
+        self.softmax = nn.Softmax(dim=1)
         self.le = label_encoder
         self.exp_lr_scheduler = lr_scheduler.MultiStepLR(self.optimizer_ft, [5,10])
 
@@ -89,6 +89,8 @@ class FaceClassifer():
 
         # only adding last linear layer, Softmax is added on predict
         model_ft = InceptionResnetV1(pretrained='vggface2', classify=True)
+        # for param in model_ft.parameters():
+        #     param.requires_grad = False # we dont want to train the original layers
         model_ft.logits = torch.nn.Linear(512, self.num_classes)
         model_ft = model_ft.to(self.device)
 
@@ -113,29 +115,32 @@ class FaceClassifer():
     def write_images_to_tensorboard(self,dl_iter:iter, epoch:int):
         pass
 
-    def run_training(self,checkpoint_path, dl_train:DataLoader, dl_val:DataLoader, num_epochs=25) -> None:
+    def run_training(self,checkpoint_path, dl_train:DataLoader, dl_val:DataLoader,model_name:str, num_epochs=25) -> None:
         self.model_ft.eval()
         dataloader_iter_train = iter(dl_train)
         dataloader_iter_val = iter(dl_val)
-        images , target = next(dataloader_iter_train)
-        img_grid = make_grid(images, normalize=True)
-        self.writer.add_image('val_image_inputs', img_grid,global_step=0)
-        metrics = {'acc': training.accuracy}
-        eval_loss, eval_metric = training.pass_epoch(self.model_ft,
-                            self.criterion,
-                            dl_val, batch_metrics=metrics,
-                            show_running=True,
-                            device=self.device,
-                            writer=self.writer)
-        best = eval_metric['acc']
 
+        images , target = next(dataloader_iter_val)
+        img_grid = make_grid(images, normalize=False)
+        self.writer.add_image('val_image_inputs', img_grid,global_step=0)
+
+        img_grid = make_grid(images, normalize=True)
+        self.writer.add_image('val_image_inputs', img_grid,global_step=1)
+        metrics = {'acc': training.accuracy}
+        with torch.no_grad():
+            eval_loss, eval_metric = training.pass_epoch(self.model_ft,
+                                self.criterion,
+                                dl_val, batch_metrics=metrics,
+                                show_running=True,
+                                device=self.device,
+                                writer=self.writer)
 
         for epoch in range(num_epochs):
             print('\nEpoch {}/{}'.format(epoch + 1, num_epochs))
             print('-' * 10)
             images, target = next(dataloader_iter_train)
             img_grid = make_grid(images, normalize=True)
-            self.writer.add_image('train_image_input', img_grid,global_step=epoch+1)
+            self.writer.add_image('train_image_input', img_grid,global_step=epoch+2)
             self.model_ft.train()
             training.pass_epoch(
                 self.model_ft, self.criterion, dl_train, self.optimizer_ft,
@@ -143,28 +148,22 @@ class FaceClassifer():
                 batch_metrics=metrics, show_running=True, device=self.device,
                 writer=self.writer
             )
+            with torch.no_grad():
+                images, target = next(dataloader_iter_val)
+                img_grid = make_grid(images, normalize=True)
+                self.writer.add_image('val_image_inputs', img_grid,global_step=epoch+2)
+                self.model_ft.eval()
+                eval_loss, eval_metric = training.pass_epoch(self.model_ft,
+                                self.criterion,
+                                dl_val, batch_metrics=metrics,
+                                show_running=True,
+                                device=self.device,
+                                writer=self.writer)
 
-            images, target = next(dataloader_iter_val)
-            img_grid = make_grid(images, normalize=True)
-            self.writer.add_image('val_image_inputs', img_grid,global_step=epoch+1)
-            self.model_ft.eval()
-            eval_loss, eval_metric = training.pass_epoch(self.model_ft,
-                            self.criterion,
-                            dl_val, batch_metrics=metrics,
-                            show_running=True,
-                            device=self.device,
-                            writer=self.writer)
-
-            if eval_metric['acc'] >= best:
-            #     out_dir = f"{config['ckpt_dir']}/im_sz_{config['im_size']}bs{config['bs']}lr{config['lr']}ds{config['ds']}backbone{config['backbone']}idx{config['idx']}"
-            #     torch.save({"state_dict": self.model_ft.state_dict()}, os.path.join(checkpoint_path ,f"{epoch + 1}.pth"))
-                best_model_wts = copy.deepcopy(self.model_ft.state_dict())
-                torch.save(best_model_wts, os.path.join(checkpoint_path ,f"{epoch + 1}.pth"))
-                best = eval_metric['acc']
+            best_model_wts = copy.deepcopy(self.model_ft.state_dict())
+            torch.save(best_model_wts, os.path.join(checkpoint_path ,f"{model_name}, {epoch + 1}.pth"))
 
     def create_data_loaders(self, X_train ,y_train, X_val ,y_val, X_test, y_test, data_path) -> (DataLoader, DataLoader, DataLoader):
-        # X_train, X_test, y_train, y_test = train_test_split(X,y, test_size = 0.1 , shuffle=True, random_state=1)
-        # X_train, X_val, y_train, y_val = train_test_split(X_train,y_train, test_size = 0.2 , shuffle=True, random_state=1)
         dl_train = DataLoader(FacesDataset(X_train, y_train), batch_size=100, shuffle=True)
         dl_val = DataLoader(FacesDataset(X_val,y_val), batch_size=10, shuffle=True)
         dl_test = DataLoader(FacesDataset(X_test,y_test), batch_size=10, shuffle=True)
@@ -173,102 +172,6 @@ class FaceClassifer():
         pickle.dump(dl_val, open(os.path.join(data_path, 'df_val_1.pkl'), 'wb'))
         pickle.dump(dl_test, open(os.path.join(data_path, 'df_test_1.pkl'), 'wb'))
         return dl_train, dl_val, dl_test
-
-    def train_model(self,dl_train:DataLoader, dl_val:DataLoader, num_epochs=25):
-        """ Main training loop for model"""
-        dataloaders = {'train': dl_train, 'val':dl_val}
-        dataset_size = {'train': len(dl_train) , 'val': len(dl_val)}
-        since = time.time()
-        train_losses = []
-        val_losses = []
-        acc_by_epoch_train = []
-        acc_by_epcoh_val = []
-        best_model_wts = copy.deepcopy(self.model_ft.state_dict())
-        best_acc = 0.0
-        global_step_train = 0
-        global_step_val = 0
-        for epoch in range(num_epochs):
-            print('Epoch {}/{}'.format(epoch, num_epochs - 1))
-            print('-' * 10)
-            # Each epoch has a training and validation phase
-            for phase in ['train', 'val']:
-                if phase == 'train':
-                    self.model_ft.train()  # Set self.model to training mode
-                else:
-                    self.model_ft.eval()  # Set self.model to evaluate mode
-                running_loss = 0.0
-                running_corrects = 0
-                # Iterate over data.
-                for i, batch in enumerate(dataloaders[phase]):
-                    inputs , labels = batch
-                    inputs = inputs.to(self.device)
-                    labels = labels.to(self.device)
-
-                    # zero the parameter gradients
-                    self.optimizer_ft.zero_grad()
-                    # forward
-                    # track history if only in train
-                    with torch.set_grad_enabled(phase == 'train'):
-                        outputs = self.model_ft(inputs)
-                        _, preds = torch.max(outputs, 1)
-                        loss = self.criterion(outputs, labels)
-                        # backward + optimize only if in training phase
-                        if phase == 'train':
-                            self.model_ft.train()
-                            loss.backward()
-                            self.optimizer_ft.step()
-                            train_losses.append(loss.item())
-                            self.writer.add_scalar('train_loss',loss.item(), global_step_train)
-                            global_step_train += 1
-                        else:
-                            self.model_ft.eval()
-                            val_losses.append(loss.item())
-                            self.writer.add_scalar('val_loss',loss.item(), global_step_val)
-                            global_step_val +=1
-                            self.exp_lr_scheduler.step()
-
-                    # statistics
-                    running_loss += loss.item()
-                    running_corrects += torch.sum(preds.eq(labels.data)).item()
-                    # if i % 1 == 0:
-                    #     print('[%d, %5d] loss: %.3f' %
-                    #           (epoch + 1, i + 1, np.mean(FT_losses)))
-                    # todo Tensor board upgrade WIP
-                    img_grid = make_grid(inputs, normalize=True)
-                    self.writer.add_image('image_inputs', img_grid)
-
-                    if i == len(dataloaders[phase]) - 1 : # last batch
-                        named_preds = [ID_TO_NAME[self.le.inverse_transform([i.item()])[0]]for i in preds[0:5]]
-                        named_labels = [ID_TO_NAME[self.le.inverse_transform([i.item()])[0]] for i in labels[0:5]]
-                        print(f'phase: {phase} prediction: {named_preds}, true_labels: {named_labels}')
-                        # self.imshow(inputs[0:5], named_preds)
-                        # self.writer.add_graph(self.model_ft, inputs)
-
-                epoch_loss = running_loss / dataset_size[phase]
-                epoch_acc = running_corrects / (dataset_size[phase] * dataloaders[phase].batch_size)
-                if phase == 'train':
-                    acc_by_epoch_train.append(epoch_acc)
-                else:
-                    acc_by_epcoh_val.append(epoch_acc)
-
-                print('phase:{} ,  Loss: {:.4f} Acc: {:.4f}'.format( phase, epoch_loss, epoch_acc))
-
-            # deep copy the self.model
-            if phase == 'val' and epoch_acc > best_acc:
-                best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(self.model_ft.state_dict())
-                torch.save(best_model_wts, os.path.join("/mnt/raid1/home/bar_cohen/FaceData/", 'best_model8.pkl'))
-
-        time_elapsed = time.time() - since
-        print('Training complete in {:.0f}m {:.0f}s'.format(
-            time_elapsed // 60, time_elapsed % 60))
-        print('Best val Acc: {:4f}'.format(best_acc))
-        # load best model weights
-        self.model_ft.load_state_dict(best_model_wts)
-        metrics = {'batch_train_loss': train_losses, 'batch_val_loss': val_losses,
-                   'train_acc_by_epoch': acc_by_epoch_train, 'val_acc_by_epoch': acc_by_epcoh_val}
-        self.writer.close()
-        return self.model_ft, metrics
 
     def imshow(self, inp, labels=None):
         """Imshow for Tensor."""
@@ -283,11 +186,10 @@ class FaceClassifer():
 
     def predict(self, inputs):
         """Given input images as tensors, return predictions"""
-        inputs = inputs.to(self.device)
-        outputs = self.model_ft(inputs)
-        outputs = self.softmax(outputs)
-        preds = torch.argmax(outputs, dim=1)
-        return preds, outputs
+        with torch.no_grad():
+            outputs = self.softmax(self.model_ft(inputs.to(self.device)))
+            preds = torch.argmax(outputs, dim=1)
+            return preds, outputs
 
     def get_accuracy(self, preds, labels):
         """Acc given prediction and true labels"""
@@ -407,7 +309,7 @@ def classify_list_of_images(num_classes, le, checkpoint_path):
 
 def eval_faceClassifier(checkpoint_path):
     data_path = '/mnt/raid1/home/bar_cohen/FaceData/'
-    num_classes = 19  # num of unique classes
+    num_classes = 21  # num of unique classes
     le, dl_train, dl_val, dl_test = load_data(data_path)
     fc = FaceClassifer(num_classes, le)
     fc.model_ft.load_state_dict(torch.load(checkpoint_path))
@@ -417,7 +319,7 @@ def eval_faceClassifier(checkpoint_path):
     test_accuracy_of_dataset(fc, dl_test, 'Test')
 
 
-def main_train(data_path:str,reload_images_from_db:bool, recreate_data:bool, checkpoint_path:str, load_checkpoint:str):
+def main_train(data_path:str,run_name:str, reload_images_from_db:bool, recreate_data:bool, checkpoint_path:str, load_checkpoint:str):
     """
     This is an example of a training pipeline. Insert a raw images path or existing
     faces data path to build a dataset and train a faceClassifer on it. Data will be saved
@@ -428,20 +330,23 @@ def main_train(data_path:str,reload_images_from_db:bool, recreate_data:bool, che
     fd = FaceDetector(faces_data_path=data_path, thresholds=[0.97,0.97,0.97])
     print('loading finding faces base on DB tags, or reading from pickle...')
     fd.filter_out_non_face_corps(recreate_data=reload_images_from_db) # keeps only face-present images in data
-    num_classes = 19 # num of unique classes
+    num_classes = 21 # num of unique classes
 
     if recreate_data:
         print('Creating X,y datasets based on day splits')
         X_train ,y_train, X_val ,y_val, X_test, y_test = fd.create_X_y_faces() # create an X,y dataset from filtered images
         print(f"Creates a label encoder and removes entered classes {num_classes} from dataset")
-        X_train ,y_train, X_val ,y_val, X_test, y_test ,le = labelencode(data_path,X_train ,y_train, X_val ,y_val, X_test, y_test ,[17,19])
-        fc = FaceClassifer(num_classes, le)
+        X_train,y_train,X_val,y_val,X_test,y_test, le = labelencode(data_path,  X_train ,y_train, X_val ,y_val, X_test, y_test, [])
+        # le = preprocessing.LabelEncoder()
+        # le = le.fit([int(i) for cur_y_set in [y_train, y_val, y_test] for i in cur_y_set])
+        # pickle.dump(le, open(os.path.join(data_path, 'le.pkl'), 'wb'))
+        fc = FaceClassifer(num_classes, le, device='cuda:1')
         print("Creates data loaders")
         dl_train,dl_val,dl_test = fc.create_data_loaders(X_train ,y_train, X_val ,y_val, X_test, y_test, data_path)
     else:
         print('Loading data given path ')
         le, dl_train, dl_val, dl_test = load_data(data_path)
-        fc = FaceClassifer(num_classes, le)
+        fc = FaceClassifer(num_classes, le, device='cuda:1')
         if load_checkpoint:
             print('checkpoint path received, loading..')
             fc.model_ft.load_state_dict(torch.load(os.path.join(checkpoint_path,load_checkpoint)))
@@ -449,20 +354,26 @@ def main_train(data_path:str,reload_images_from_db:bool, recreate_data:bool, che
     print(len(dl_train) * dl_train.batch_size, len(dl_val) * dl_val.batch_size, len(dl_test) * dl_test.batch_size)
     print('Begin Training')
     try:
-        fc.run_training(checkpoint_path=checkpoint_path, dl_train=dl_train, dl_val=dl_val,num_epochs=5) # train the model
+        fc.run_training(checkpoint_path=checkpoint_path, dl_train=dl_train, dl_val=dl_val,model_name=run_name,num_epochs=3) # train the model
         print('Training Done')
     except KeyboardInterrupt:
         print('Training was interrupted by user')
+        test_accuracy_of_dataset(fc, dl_train, 'Train')
+        test_accuracy_of_dataset(fc, dl_val, 'Val')
+        test_accuracy_of_dataset(fc, dl_test, 'Test')
 
     test_accuracy_of_dataset(fc, dl_train, 'Train')
     test_accuracy_of_dataset(fc, dl_val, 'Val')
     test_accuracy_of_dataset(fc, dl_test, 'Test')
 
 if __name__ == '__main__':
-    checkpoint = ""
+    data_path = '/mnt/raid1/home/bar_cohen/FaceData'
+    fd = FaceDetector(faces_data_path=data_path, thresholds=[0.97,0.97,0.97])
+    fd.filter_out_non_face_corps(recreate_data=False) # keeps only face-present images in data
+    # fd.create_X_y_faces()
+    # checkpoint = ""
     checkpoint_path = os.path.join("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/")
-    main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/',reload_images_from_db=False,
-               recreate_data=True,
-               checkpoint_path=checkpoint_path, load_checkpoint='')
+    # main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/', run_name='check_le',reload_images_from_db=False, recreate_data=True,
+    #            checkpoint_path=checkpoint_path, load_checkpoint='')
 
-    # eval_faceClassifier(os.path.join(checkpoint_path, '4.pth'))
+    eval_faceClassifier(os.path.join(checkpoint_path, 'check_le, 3.pth'))

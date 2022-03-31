@@ -14,6 +14,7 @@ from torchvision import transforms
 from DataProcessing.DB.dal import get_entries, Crop
 from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 from FaceDetection.facenet_pytorch import MTCNN
+import numpy as np
 from matplotlib import pyplot as plt
 import torch
 
@@ -87,6 +88,7 @@ class FaceDetector():
             print("pickle path to images received, loading...")
             self.high_conf_face_imgs = pickle.load(open(os.path.join(self.faces_data_path, 'images_with_crop.pkl'),'rb'))
         else:
+            print('here')
             face_crops = get_entries(filters={Crop.is_face == True,
                                               Crop.reviewed_one == True,
                                               Crop.is_vague == False,
@@ -103,22 +105,32 @@ class FaceDetector():
                 raw_imgs_dict[NAME_TO_ID[crop.label]].append((img.copy(),crop))
                 img.close()
 
+
             print('Number of unique ids', len(raw_imgs_dict.keys()))
             given_num_of_images = sum([len(raw_imgs_dict[i]) for i in raw_imgs_dict.keys()])
             print(f"Received a total of {given_num_of_images} images")
             counter = 0
+            to_save ='/mnt/raid1/home/bar_cohen/FaceData/labled_images/labled_again/'
             for id in raw_imgs_dict.keys():
+                print('cur id is', id)
+                os.makedirs(os.path.join(to_save, str(ID_TO_NAME[id])), exist_ok=True)
                 for img,crop in raw_imgs_dict[id]:
                     print(f'{counter}/{given_num_of_images}')
+                    plt.title(f'Original Crop, label: {ID_TO_NAME[id]} ,counter : {counter}')
+                    plt.imsave(os.path.join(to_save,str(ID_TO_NAME[id]),str(counter) + '_orig.jpg'),
+                               np.array(img).astype(np.uint8))
                     ret, _ = self.get_single_face(img, is_PIL_input=True)
                     if self.is_img(ret):
-                        print(crop.vid_name[4:8])
+                        img_show = ret.permute(1, 2, 0).int().numpy().astype(np.uint8)
+                        plt.clf()
+                        plt.title(f'Detected Face, label:  {ID_TO_NAME[id]}, counter : {counter}')
+                        plt.imsave(os.path.join(to_save, str(ID_TO_NAME[id]), str(counter) + '_face.jpg'), img_show)
                         self.high_conf_face_imgs[id].append((ret,crop))
                     counter += 1
 
             given_num_of_images_final = sum([len(self.high_conf_face_imgs[i]) for i in raw_imgs_dict.keys()])
             print(f'Post filter left with {given_num_of_images_final}')
-            pickle.dump(self.high_conf_face_imgs, open(os.path.join('/mnt/raid1/home/bar_cohen/FaceData/', 'images_with_crop.pkl'),'wb'))
+            # pickle.dump(self.high_conf_face_imgs, open(os.path.join('/mnt/raid1/home/bar_cohen/FaceData/', 'images_with_crop.pkl'),'wb'))
 
 
     def create_X_y_faces(self):
@@ -130,9 +142,13 @@ class FaceDetector():
             transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         ])
         X_train, X_val, X_test, y_train, y_val, y_test = [], [], [] , [], [], []
+        counter = 0
         for k in self.high_conf_face_imgs.keys():
             for img,crop in self.high_conf_face_imgs[k]:
                 date = crop.vid_name[4:8]
+                # cur_path = os.path.join('/mnt/raid1/home/bar_cohen/FaceData/labled_images/', ID_TO_NAME[k])
+                # os.makedirs(cur_path,exist_ok=True)
+                # mmcv.imwrite(img.permute(1,2,0).numpy()[:,:,::-1], file_path=os.path.join(cur_path,str(counter)+'.jpg'))
                 img = transform(img)
                 if date in ['0730', '0808']:
                     X_test.append(img)
@@ -140,9 +156,12 @@ class FaceDetector():
                 elif date in ['0802','0803']:
                     X_val.append(img)
                     y_val.append(k)
-                else:
+                elif date in ['0729', '0801','0804','0805']:
                     X_train.append(img)
                     y_train.append(k)
+                else:
+                    print('WTF YOY OY OYO ')
+                counter += 1
         return X_train ,y_train, X_val ,y_val, X_test, y_test
 
     def build_samples_hist(self, samples_dict:dict, title:str=None):
@@ -174,10 +193,11 @@ def collect_faces_from_list_of_videos(list_of_videos:list):
 
 def main():
     """Simple test of FaceDetector"""
-    fd = FaceDetector(raw_images_path='/home/bar_cohen/Data-Shoham/Labeled-Data-Cleaned',
-                      faces_data_path='C:\KinderGuardian\FaceDetection\imgs_with_face_highconf.pkl')
-    fd.filter_out_non_face_corps()
-    X,y, _, _,_,_ = fd.create_X_y_faces() # only taining
-    print(len(X), len(y))
-    fd.build_samples_hist(fd.high_conf_face_imgs, 'Face Images Hist')
+    fd = FaceDetector(faces_data_path='/mnt/raid1/home/bar_cohen/FaceData/')
+    fd.filter_out_non_face_corps(recreate_data=True)
+    # X,y, _, _,_,_ = fd.create_X_y_faces() # only taining
+    # print(len(X), len(y))
+    # fd.build_samples_hist(fd.high_conf_face_imgs, 'Face Images Hist')
     # fd.build_samples_hist(read_labled_croped_images(fd.raw_images_path), title='Raw Images Hist')
+if __name__ == '__main__':
+    main()
