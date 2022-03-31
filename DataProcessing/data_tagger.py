@@ -167,8 +167,7 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
         print(f'cur track {i+1}/{len(track_ids)}')
         track_query = get_entries(filters=(Crop.vid_name == vid_name,
                                            Crop.track_id == track_id,
-                                           Crop.reviewed_one == False,
-                                           ),
+                                           Crop.reviewed_one == False),
                                   order=Crop.crop_id,
                                   session=session)
         if track_query.count() > 0:
@@ -181,13 +180,13 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
 
 def tag_and_create_vid():
     session = create_session()
-    label_tracks_DB(vid_name='20210808101731_s0_e501',
-                    crops_folder="/mnt/raid1/home/bar_cohen/20210808101731_s0_e501/",
+    label_tracks_DB(vid_name='20210729115131_s0_e501',
+                    crops_folder="/mnt/raid1/home/bar_cohen/20210729115131_s0_e501/",
                     session=session)
     viz_DB_data_on_video(
-        '/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210808101731/IPCamera_20210808101731_s0_e501.mp4',
-        output_path='/mnt/raid1/home/bar_cohen/labled_videos/20210808101731_s0_e501_reviewed_1.mp4')
+        '/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210729115131/IPCamera_20210729115131_s0_e501.mp4',
+        output_path='/mnt/raid1/home/bar_cohen/labled_videos/20210729115131_s0_e501_reviewed_1.mp4')
 
 
 if __name__ == '__main__':
-    tag_and_create_vid()
+    pass
