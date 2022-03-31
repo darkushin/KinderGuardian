@@ -28,6 +28,9 @@ def get_args():
     parser.add_argument('--reid_opts', help='Modify config options using the command-line', default=None, nargs=REMAINDER)
     parser.add_argument('--crops_folder')
     parser.add_argument('--inference_only', action='store_true', help='use the tracking and reid model for inference')
+    parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
+    parser.add_argument('--experiment_mode', action='store_true', help='run in experiment_mode')
+    parser.add_argument('--exp_description', help='The description of the experiment that should appear in the ablation study output')
 
     return parser.parse_args()
 
@@ -60,6 +63,12 @@ def create_optional_args() -> List:
         optional_args.extend(['--crops_folder', args.crops_folder])
     if args.inference_only:
         optional_args.extend(['--inference_only'])
+    if args.db_tracklets:
+        optional_args.extend(['--db_tracklets'])
+    if args.experiment_mode:
+        optional_args.extend(['--experiment_mode'])
+    if args.exp_description:
+        optional_args.extend(['--exp_description', args.exp_description])
     return optional_args
 
 
@@ -117,28 +126,31 @@ def get_query_set():
 def execute_combined_model():
     """
     Usage example:
-    re-id-and-tracking
-    --track_config
-    ./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py
-    --mmtrack_checkpoint
-    /home/bar_cohen/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth
-    --reid_config
-    ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml
-    --input
-    /mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210803105422/IPCamera_20210803105422_s0_e501.mp4
-    --output
-    /mnt/raid1/home/bar_cohen/labled_videos/20210803105422_s0_e501_new_model.mp4
-    --acc_th
-    0.8
-    --crops_folder
-    /mnt/raid1/home/bar_cohen/DB_Test/
-    --device
-    cuda:1
-    --reid_opts
-    DATASETS.DATASET
-    diff_day_test_as_train_query_03
-    MODEL.WEIGHTS
-    ./fast-reid/checkpoints/diff_day_test_all_query_3.8.pth
+re-id-and-tracking
+--track_config
+./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py
+--mmtrack_checkpoint
+/home/bar_cohen/KinderGuardian/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth
+--reid_config
+./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml
+--input
+/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210803105422/IPCamera_20210803105422_s0_e501.mp4
+--output
+/mnt/raid1/home/bar_cohen/labled_videos/20210803105422_s0_e501_new_model.mp4
+--acc_th
+0.8
+--crops_folder
+/mnt/raid1/home/bar_cohen/DB_Test/
+--inference_only
+--db_tracklets
+--exp_description 'write here the description of the experiment that should appear in the ablation study output'
+--device
+cuda:1
+--reid_opts
+DATASETS.DATASET
+diff_day_test_as_train_query_3007_0808
+MODEL.WEIGHTS
+./fast-reid/checkpoints/diff_day_no_invalid_query_3.8_3007
 
 
     ByteTracker:
