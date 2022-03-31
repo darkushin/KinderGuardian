@@ -63,6 +63,7 @@ def get_args():
                         default=0.8)
     parser.add_argument('--inference_only', action='store_true', help='use the tracking and reid model for inference')
     parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
+    parser.add_argument('--experiment_mode', action='store_true', help='run in experiment_mode')
     parser.add_argument('--exp_description', help='The description of the experiment that should appear in the ablation study output')
     args = parser.parse_args()
     return args
@@ -217,8 +218,8 @@ def create_tracklets_from_db(vid_name, face_detector):
                         crop_id=temp_crop.crop_id,
                         is_face=temp_crop.is_face,
                         label=temp_crop.label,
-                        reviewed_one=False,
-                        reviewed_two=False,
+                        reviewed_one=temp_crop.reviewed_one,
+                        reviewed_two=temp_crop.reviewed_two,
                         invalid=temp_crop.invalid,
                         is_vague=temp_crop.is_vague)
             crop.set_im_name()
@@ -275,6 +276,29 @@ def create_tracklets_using_tracking(args, face_detector):
     return tracklets
 
 
+def create_or_load_tracklets(args, face_detector):
+    create_tracklets = True
+
+    if create_tracklets and not args.db_tracklets:  # create tracklets from video using tracking
+        print('******* Creating tracklets using tracking: *******')
+        tracklets = create_tracklets_using_tracking(args=args, face_detector=face_detector)
+        pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl', 'wb'))
+
+    elif create_tracklets and args.db_tracklets:  # create tracklets using the tagged DB
+        print('***** Creating tracklets using DB *****')
+        tracklets = create_tracklets_from_db(vid_name=args.input.split('/')[-1][9:-4], face_detector=face_detector)
+        pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/db-tracklets.pkl', 'wb'))
+
+    else:
+        if args.db_tracklets:
+            print('***** Using loaded DB tracklets! *****')
+            tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/db-tracklets.pkl', 'rb'))
+        else:
+            print('***** Using loaded tracking tracklets! *****')
+            tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl', 'rb'))
+    return tracklets
+
+
 def create_data_by_re_id_and_track():
     """
     This function takes a video and runs both tracking, face-id and re-id models to create and label tracklets
@@ -321,26 +345,13 @@ def create_data_by_re_id_and_track():
     # gen_reid_features(reid_cfg, reid_model) # UNCOMMENT TO Recreate reid features
     feats, g_feats, g_pids, g_camids = load_reid_features()
 
-    create_tracklets = True
-
-    if create_tracklets and not args.db_tracklets:  # create tracklets from video using tracking
-        print('******* Creating tracklets using tracking: *******')
-        tracklets = create_tracklets_using_tracking(args=args, face_detector=faceDetector)
-        pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','wb'))
-
-    elif create_tracklets and args.db_tracklets:  # create tracklets using the tagged DB
-        print('***** Creating tracklets using DB *****')
-        tracklets = create_tracklets_from_db(vid_name=args.input.split('/')[-1][9:-4], face_detector=faceDetector)
-        pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/db-tracklets.pkl','wb'))
-
+    if args.experiment_mode:
+        tracklets = create_or_load_tracklets(args, faceDetector)
     else:
-        if args.db_tracklets:
-            print('***** Using loaded DB tracklets! *****')
-            tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/db-tracklets.pkl', 'rb'))
-        else:
-            print('***** Using loaded tracking tracklets! *****')
-            tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl','rb'))
-    # print('number of crops', sum([1 for track in tracklets for _ in track]))
+        if not args.db_tracklets:  # create tracklets from video using tracking
+            tracklets = create_tracklets_using_tracking(args=args, face_detector=faceDetector)
+        else:  # create tracklets from DB
+            tracklets = create_tracklets_from_db(vid_name=args.input.split('/')[-1][9:-4], face_detector=faceDetector)
 
     print('******* Making predictions and saving crops to DB *******')
     db_entries = []
@@ -386,9 +397,6 @@ def create_data_by_re_id_and_track():
 
             bincount_face = torch.bincount(face_clf_preds.cpu())
             face_label = ID_TO_NAME[faceClassifer.le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
-            if len(face_imgs) > 1:
-                # faceClassifer.imshow(face_imgs[0:2], labels=[face_label]*2)
-                pass
             face_scores = get_face_score(faceClassifer, face_clf_preds, face_clf_outputs, face_imgs_conf)
             alpha = 0.49 # TODO enter as an arg
             final_scores = {pid : alpha*reid_score + (1-alpha) * face_score for pid, reid_score, face_score in zip(reid_scores.keys() , reid_scores.values(), face_scores.values())}
@@ -401,7 +409,7 @@ def create_data_by_re_id_and_track():
             crop.crop_id = crop_id
             crop_label = ID_TO_NAME[reid_ids[crop_id]]
             crop.label = final_label
-            if crop.conf > float(args.acc_th):
+            if crop.conf >= float(args.acc_th):
                 db_entries.append(crop)
 
             if args.inference_only and crop.conf >= float(args.acc_th):
