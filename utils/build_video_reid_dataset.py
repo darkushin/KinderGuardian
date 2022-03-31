@@ -12,7 +12,7 @@ from DataProcessing.utils import im_name_format
 
 BASE_CROPS_LOCATION = '/mnt/raid1/home/bar_cohen/'
 # DATASET_OUTPUT_LOCATION = '/mnt/raid1/home/bar_cohen/OUR_DATASETS/DukeMTMC-VideoReID' # keep this, it is for video location
-DATASET_OUTPUT_LOCATION = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/same_day_0308' # this is for image
+DATASET_OUTPUT_LOCATION = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/diff_day_train_as_test_0730_0808_quary' # this is for image
 
 
 def im_name_in_mars(crop: Crop, track_counter, crop_id):
@@ -33,7 +33,8 @@ def convert_to_img_reid_duke_naming(dataset_path:str, query_days, same_day=None)
     video_names = [vid.vid_name for vid in get_entries(filters=(),group=Crop.vid_name)]
     crop_counter  = 0
     for vid_name in video_names:
-        if vid_name[0:8] == same_day or vid_name in query_days:
+        if vid_name[0:8] == same_day or vid_name[4:8] in query_days:
+            print(f'in query {vid_name}, {vid_name[4:8]}')
             set_folder = 'query'
         else:
             if same_day:
@@ -52,6 +53,9 @@ def convert_to_img_reid_duke_naming(dataset_path:str, query_days, same_day=None)
             for crop in track_crops:
                 output_name = im_name_in_img_duke(crop, crop_counter)
                 orig_crop_path = os.path.join(BASE_CROPS_LOCATION, crop.vid_name, crop.im_name)
+                if not os.path.isfile(orig_crop_path):
+                    name = 'v'+crop.im_name[2:]
+                    orig_crop_path = os.path.join(BASE_CROPS_LOCATION, crop.vid_name, name)
                 dataset_crop_path = os.path.join(dataset_path, set_folder, output_name)
                 os.makedirs(os.path.join(dataset_path, set_folder), exist_ok=True)
                 shutil.copy(orig_crop_path, dataset_crop_path)
@@ -183,7 +187,7 @@ def create_query_from_gallery(dataset_path, is_video=False):
 
 if __name__ == '__main__':
     # convert_to_duke_naming(DATASET_OUTPUT_LOCATION, test_day='20210804',query_day='20210803')
-    convert_to_img_reid_duke_naming(DATASET_OUTPUT_LOCATION, query_days=['3007, 0808'])
+    convert_to_img_reid_duke_naming(DATASET_OUTPUT_LOCATION, query_days=['0730','0808'])
     create_query_from_gallery(DATASET_OUTPUT_LOCATION, is_video=False)
     im_name_format(DATASET_OUTPUT_LOCATION + '/query', is_video=False)
 

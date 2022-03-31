@@ -30,6 +30,7 @@ def get_args():
     parser.add_argument('--inference_only', action='store_true', help='use the tracking and reid model for inference')
     parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
     parser.add_argument('--experiment_mode', action='store_true', help='run in experiment_mode')
+    parser.add_argument('--exp_description', help='The description of the experiment that should appear in the ablation study output')
 
     return parser.parse_args()
 
@@ -66,6 +67,8 @@ def create_optional_args() -> List:
         optional_args.extend(['--db_tracklets'])
     if args.experiment_mode:
         optional_args.extend(['--experiment_mode'])
+    if args.exp_description:
+        optional_args.extend(['--exp_description', args.exp_description])
     return optional_args
 
 
@@ -140,6 +143,7 @@ re-id-and-tracking
 /mnt/raid1/home/bar_cohen/DB_Test/
 --inference_only
 --db_tracklets
+--exp_description 'write here the description of the experiment that should appear in the ablation study output'
 --device
 cuda:1
 --reid_opts
@@ -159,7 +163,7 @@ MODEL.WEIGHTS
     reid_opts: List = create_reid_opts()
     optional_args: List = create_optional_args()
     inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
-
+    print('Total videos in eval set:', len(get_query_set()))
     for query_vid in get_query_set():
         print(f'running {query_vid}')
         args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
