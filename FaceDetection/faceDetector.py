@@ -69,10 +69,10 @@ class FaceDetector():
         self.facenet_detecor.keep_all = self.keep_all
         return ret , prob
 
-    def is_img(self, img):
-        return img is not None and img is not img.numel()
+
 
     def get_single_face(self,img, is_PIL_input):
+        # TODO this is a horrible function and flow. will later be upgrades with instace segmentaion?
         face_img, prob = self.facenet_detecor(img, return_prob=True)
         if self.is_img(face_img):
             if face_img.size()[0] > 1:  # two or more faces detected in the img crop
@@ -84,6 +84,7 @@ class FaceDetector():
                         face_img = self.normalize_image(face_img)
                 else:
                     face_img, prob = self.detect_single_face_inv_norm(face_img)
+                    face_img, prob = None, 0
                     # TODO try and view these images, make sure they are okay, are they normalized?
                     # if self.is_img(face_img):
                     #     to_show_copy = face_img
@@ -121,7 +122,6 @@ class FaceDetector():
                 raw_imgs_dict[NAME_TO_ID[crop.label]].append((img.copy(),crop))
                 img.close()
 
-
             print('Number of unique ids', len(raw_imgs_dict.keys()))
             given_num_of_images = sum([len(raw_imgs_dict[i]) for i in raw_imgs_dict.keys()])
             print(f"Received a total of {given_num_of_images} images")
@@ -138,16 +138,17 @@ class FaceDetector():
                                    np.array(img).astype(np.uint8))
                     ret, _ = self.get_single_face(img, is_PIL_input=True)
                     if self.is_img(ret):
-                        img_show = ret.permute(1, 2, 0).int().numpy().astype(np.uint8)
-                        plt.clf()
-                        plt.title(f'Detected Face, label:  {ID_TO_NAME[id]}, counter : {counter}')
-                        plt.imsave(os.path.join(to_save, str(ID_TO_NAME[id]), str(counter) + '_face.jpg'), img_show)
+                        if save_images:
+                            img_show = ret.permute(1, 2, 0).int().numpy().astype(np.uint8)
+                            plt.clf()
+                            plt.title(f'Detected Face, label:  {ID_TO_NAME[id]}, counter : {counter}')
+                            plt.imsave(os.path.join(to_save, str(ID_TO_NAME[id]), str(counter) + '_face.jpg'), img_show)
                         self.high_conf_face_imgs[id].append((ret,crop))
                     counter += 1
 
             given_num_of_images_final = sum([len(self.high_conf_face_imgs[i]) for i in raw_imgs_dict.keys()])
             print(f'Post filter left with {given_num_of_images_final}')
-            # pickle.dump(self.high_conf_face_imgs, open(os.path.join('/mnt/raid1/home/bar_cohen/FaceData/', 'images_with_crop.pkl'),'wb'))
+            pickle.dump(self.high_conf_face_imgs, open(os.path.join('/mnt/raid1/home/bar_cohen/FaceData/', 'images_with_crop.pkl'),'wb'))
 
 
     def create_X_y_faces(self):
@@ -155,9 +156,6 @@ class FaceDetector():
         Iterate over high_conf_face_imgs and extract the X images and y labels
         """
         assert self.high_conf_face_imgs , "high conf face images must be non-empty"
-        transform = transforms.Compose([
-            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
-        ])
         X_train, X_val, X_test, y_train, y_val, y_test = [], [], [] , [], [], []
         counter = 0
         for k in self.high_conf_face_imgs.keys():
@@ -166,7 +164,7 @@ class FaceDetector():
                 # cur_path = os.path.join('/mnt/raid1/home/bar_cohen/FaceData/labled_images/', ID_TO_NAME[k])
                 # os.makedirs(cur_path,exist_ok=True)
                 # mmcv.imwrite(img.permute(1,2,0).numpy()[:,:,::-1], file_path=os.path.join(cur_path,str(counter)+'.jpg'))
-                img = transform(img)
+                img = self.normalize_image(img)
                 if date in ['0730', '0808']:
                     X_test.append(img)
                     y_test.append(k)
@@ -190,6 +188,8 @@ class FaceDetector():
         plt.title(title)
         plt.show()
 
+def is_img(img):
+    return img is not None and img is not img.numel()
 
 def collect_faces_from_video(video_path:str) -> []:
     fd = FaceDetector(faces_data_path=None,thresholds=[0.97,0.97,0.97],keep_all=True)
