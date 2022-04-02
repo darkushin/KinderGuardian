@@ -43,6 +43,13 @@ class FaceDetector():
         cropped_img = img.crop((width*0.2, 0, width*0.8, height*0.3))
         return cropped_img
 
+    def normalize_image(self, img):
+
+        transform = transforms.Compose([
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ])
+        return transform(img)
+
     def detect_single_face_inv_norm(self, img):
         # use face detector to find a single face in an image, rests to entered init of keeping face after change
         self.facenet_detecor.keep_all = False
@@ -73,15 +80,24 @@ class FaceDetector():
                 face_img = self.crop_top_third_and_sides(img, is_PIL_input)
                 if is_PIL_input:
                     face_img, prob = self.detect_single_face(face_img)  # this returns a single img of dim 3
+                    if self.is_img(face_img):
+                        face_img = self.normalize_image(face_img)
                 else:
                     face_img, prob = self.detect_single_face_inv_norm(face_img)
+                    # TODO try and view these images, make sure they are okay, are they normalized?
+                    # if self.is_img(face_img):
+                    #     to_show_copy = face_img
+                    #     to_show_copy.permute(2, 1, 0).int().numpy()
+                    #     plt.imshow(to_show_copy)
+                    #     plt.show()
             else:
                 face_img = face_img[0]  # current face_img shape is 1ximage size(dim=3), we only want the img itself
+                face_img = self.normalize_image(face_img)
                 prob = prob[0]
         return face_img , prob
 
 
-    def filter_out_non_face_corps(self, recreate_data) -> None:
+    def filter_out_non_face_corps(self, recreate_data, save_images=False) -> None:
         """ Given a set of image crop filter out all images without the faces present
         and update the high conf face img member """
         if self.faces_data_path and not recreate_data:
@@ -116,9 +132,10 @@ class FaceDetector():
                 os.makedirs(os.path.join(to_save, str(ID_TO_NAME[id])), exist_ok=True)
                 for img,crop in raw_imgs_dict[id]:
                     print(f'{counter}/{given_num_of_images}')
-                    plt.title(f'Original Crop, label: {ID_TO_NAME[id]} ,counter : {counter}')
-                    plt.imsave(os.path.join(to_save,str(ID_TO_NAME[id]),str(counter) + '_orig.jpg'),
-                               np.array(img).astype(np.uint8))
+                    if save_images:
+                        plt.title(f'Original Crop, label: {ID_TO_NAME[id]} ,counter : {counter}')
+                        plt.imsave(os.path.join(to_save,str(ID_TO_NAME[id]),str(counter) + '_orig.jpg'),
+                                   np.array(img).astype(np.uint8))
                     ret, _ = self.get_single_face(img, is_PIL_input=True)
                     if self.is_img(ret):
                         img_show = ret.permute(1, 2, 0).int().numpy().astype(np.uint8)
