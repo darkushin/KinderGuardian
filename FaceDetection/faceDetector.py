@@ -188,6 +188,9 @@ class FaceDetector():
         plt.title(title)
         plt.show()
 
+    def is_img(self, img):
+        return img is not None and img is not img.numel()
+
 def is_img(img):
     return img is not None and img is not img.numel()
 
