@@ -368,12 +368,12 @@ def main_train(data_path:str,run_name:str, reload_images_from_db:bool, recreate_
 
 if __name__ == '__main__':
     data_path = '/mnt/raid1/home/bar_cohen/FaceData'
-    fd = FaceDetector(faces_data_path=data_path, thresholds=[0.97,0.97,0.97])
-    fd.filter_out_non_face_corps(recreate_data=False) # keeps only face-present images in data
+    # fd = FaceDetector(faces_data_path=data_path, thresholds=[0.97,0.97,0.97])
+    # fd.filter_out_non_face_corps(recreate_data=True) # keeps only face-present images in data
     # fd.create_X_y_faces()
     # checkpoint = ""
     checkpoint_path = os.path.join("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/")
-    # main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/', run_name='check_le',reload_images_from_db=False, recreate_data=True,
-    #            checkpoint_path=checkpoint_path, load_checkpoint='')
+    main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/', run_name='check_le',reload_images_from_db=True, recreate_data=True,
+               checkpoint_path=checkpoint_path, load_checkpoint='')
 
-    eval_faceClassifier(os.path.join(checkpoint_path, 'check_le, 3.pth'))
+    # eval_faceClassifier(os.path.join(checkpoint_path, 'check_le, 3.pth'))

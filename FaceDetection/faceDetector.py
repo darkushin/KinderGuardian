@@ -71,19 +71,19 @@ class FaceDetector():
 
 
 
-    def get_single_face(self,img, is_PIL_input):
+    def get_single_face(self,img, is_PIL_input, norm=True):
         # TODO this is a horrible function and flow. will later be upgrades with instace segmentaion?
         face_img, prob = self.facenet_detecor(img, return_prob=True)
-        if self.is_img(face_img):
+        if is_img(face_img):
             if face_img.size()[0] > 1:  # two or more faces detected in the img crop
                 # faceClassifer.imshow(face_img[0:2])
                 face_img = self.crop_top_third_and_sides(img, is_PIL_input)
                 if is_PIL_input:
                     face_img, prob = self.detect_single_face(face_img)  # this returns a single img of dim 3
-                    if self.is_img(face_img):
+                    if is_img(face_img) and norm:
                         face_img = self.normalize_image(face_img)
                 else:
-                    face_img, prob = self.detect_single_face_inv_norm(face_img)
+                    # face_img, prob = self.detect_single_face_inv_norm(face_img)
                     face_img, prob = None, 0
                     # TODO try and view these images, make sure they are okay, are they normalized?
                     # if self.is_img(face_img):
@@ -93,7 +93,7 @@ class FaceDetector():
                     #     plt.show()
             else:
                 face_img = face_img[0]  # current face_img shape is 1ximage size(dim=3), we only want the img itself
-                face_img = self.normalize_image(face_img)
+                face_img = self.normalize_image(face_img) if norm else face_img
                 prob = prob[0]
         return face_img , prob
 
@@ -105,6 +105,7 @@ class FaceDetector():
             print("pickle path to images received, loading...")
             self.high_conf_face_imgs = pickle.load(open(os.path.join(self.faces_data_path, 'images_with_crop.pkl'),'rb'))
         else:
+            norm = not save_images
             print('here')
             face_crops = get_entries(filters={Crop.is_face == True,
                                               Crop.reviewed_one == True,
@@ -126,23 +127,24 @@ class FaceDetector():
             given_num_of_images = sum([len(raw_imgs_dict[i]) for i in raw_imgs_dict.keys()])
             print(f"Received a total of {given_num_of_images} images")
             counter = 0
-            to_save ='/mnt/raid1/home/bar_cohen/FaceData/labled_images/labled_again/'
+            to_save ='/mnt/raid1/home/bar_cohen/FaceData/labeled_images/'
             for id in raw_imgs_dict.keys():
                 print('cur id is', id)
                 os.makedirs(os.path.join(to_save, str(ID_TO_NAME[id])), exist_ok=True)
                 for img,crop in raw_imgs_dict[id]:
                     print(f'{counter}/{given_num_of_images}')
                     if save_images:
-                        plt.title(f'Original Crop, label: {ID_TO_NAME[id]} ,counter : {counter}')
-                        plt.imsave(os.path.join(to_save,str(ID_TO_NAME[id]),str(counter) + '_orig.jpg'),
-                                   np.array(img).astype(np.uint8))
-                    ret, _ = self.get_single_face(img, is_PIL_input=True)
-                    if self.is_img(ret):
+                        pass
+                        # plt.title(f'Original Crop, label: {ID_TO_NAME[id]} ,counter : {counter}')
+                        # plt.imsave(os.path.join(to_save,str(ID_TO_NAME[id]),str(counter) + '_orig.jpg'),
+                        #            np.array(img).astype(np.uint8))
+                    ret, _ = self.get_single_face(img, is_PIL_input=True, norm=norm)
+                    if is_img(ret):
                         if save_images:
                             img_show = ret.permute(1, 2, 0).int().numpy().astype(np.uint8)
                             plt.clf()
-                            plt.title(f'Detected Face, label:  {ID_TO_NAME[id]}, counter : {counter}')
-                            plt.imsave(os.path.join(to_save, str(ID_TO_NAME[id]), str(counter) + '_face.jpg'), img_show)
+                            # plt.title(f'Detected Face, label:  {ID_TO_NAME[id]}, counter : {counter}')
+                            plt.imsave(os.path.join(to_save, str(ID_TO_NAME[id]), f'{crop.im_name}'), img_show)
                         self.high_conf_face_imgs[id].append((ret,crop))
                     counter += 1
 
@@ -213,8 +215,8 @@ def collect_faces_from_list_of_videos(list_of_videos:list):
 
 def main():
     """Simple test of FaceDetector"""
-    fd = FaceDetector(faces_data_path='/mnt/raid1/home/bar_cohen/FaceData/')
-    fd.filter_out_non_face_corps(recreate_data=True)
+    fd = FaceDetector(faces_data_path='/mnt/raid1/home/bar_cohen/FaceData/',device='cuda:0')
+    fd.filter_out_non_face_corps(recreate_data=True, save_images=False)
     # X,y, _, _,_,_ = fd.create_X_y_faces() # only taining
     # print(len(X), len(y))
     # fd.build_samples_hist(fd.high_conf_face_imgs, 'Face Images Hist')
