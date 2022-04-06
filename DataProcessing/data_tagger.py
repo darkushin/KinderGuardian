@@ -1,6 +1,8 @@
 import os
 import sys
 import warnings
+
+import tqdm
 from matplotlib import pyplot as plt
 from sqlalchemy import func
 from DataProcessing.DB.dal import get_entries, Crop, create_session
@@ -188,6 +190,25 @@ def tag_and_create_vid():
         '/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210808101731/IPCamera_20210808101731_s0_e501.mp4',
         output_path='/mnt/raid1/home/bar_cohen/labled_videos/20210808101731_s0_e501_reviewed_1.mp4')
 
+def rewrite_face_tagging(correct_face_img_path:str):
+
+    session = create_session()
+
+    crops = get_entries(filters={}, session=session).all()
+    for crop in crops:
+        crop.is_face = False
+    counter = 0
+    for _, _, files in os.walk(correct_face_img_path):
+        for file in tqdm.tqdm(files):
+            if file != '.DS_Store':
+                counter += 1
+                print(file)
+                cur_crop = get_entries(filters=({Crop.im_name == file}),session=session).all()[0]
+                cur_crop.is_face = True
+    print('commiting...')
+    print(f' Total of {counter} face images found')
+    # session.commit()
+    print('done!')
 
 if __name__ == '__main__':
-    tag_and_create_vid()
+    rewrite_face_tagging("/mnt/raid1/home/bar_cohen/FaceData/reviewed_one_images/")
