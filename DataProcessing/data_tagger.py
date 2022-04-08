@@ -193,7 +193,6 @@ def tag_and_create_vid():
 def rewrite_face_tagging(correct_face_img_path:str):
 
     session = create_session()
-
     crops = get_entries(filters={}, session=session).all()
     for crop in crops:
         crop.is_face = False
@@ -207,8 +206,9 @@ def rewrite_face_tagging(correct_face_img_path:str):
                 cur_crop.is_face = True
     print('commiting...')
     print(f' Total of {counter} face images found')
-    # session.commit()
+    session.commit()
     print('done!')
 
 if __name__ == '__main__':
-    rewrite_face_tagging("/mnt/raid1/home/bar_cohen/FaceData/reviewed_one_images/")
+    # rewrite_face_tagging("/mnt/raid1/home/bar_cohen/FaceData/reviewed_one_images/")
+    pass
