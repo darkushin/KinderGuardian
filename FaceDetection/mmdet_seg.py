@@ -4,7 +4,8 @@ from mmcv.runner import load_checkpoint
 
 from mmdet.apis import inference_detector, show_result_pyplot
 from mmdet.models import build_detector
-from FaceDetection.faceDetector import FaceDetector, is_img
+from FaceDetection.faceDetector import FaceDetector
+from FaceDetection.data_handler import is_img
 import matplotlib.pyplot as plt
 import numpy as np
 

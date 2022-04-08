@@ -18,7 +18,8 @@ import torch.nn.functional as F
 from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 from FaceDetection.faceClassifer import FaceClassifer
-from FaceDetection.faceDetector import FaceDetector, is_img
+from FaceDetection.faceDetector import FaceDetector
+from FaceDetection.data_handler import is_img
 from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import ID_NOT_IN_VIDEO
 import warnings

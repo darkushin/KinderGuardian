@@ -1,69 +1,29 @@
 import os
-import shutil
 import sys
 
-import cv2
-import mmcv
+from FaceDetection.augmentions import smooth_sample_of_training, augment_training_set
+from FaceDetection.data_handler import labelencode, load_data, FacesDataset, create_X_y_faces
+from FaceDetection.evaluation import *
+
 sys.path.append('DataProcessing')
 
-from DataProcessing.DB.dal import get_entries, Crop
 from FaceDetection.faceDetector import FaceDetector
 
 
 import pandas as pd
 import copy
 import pickle
-import time
-from collections import defaultdict
 import seaborn as sns
-from sklearn import preprocessing
-from sklearn.model_selection import train_test_split
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
-from torch.nn import functional as F
-from torchvision import transforms, utils, datasets, models
 from torchvision.utils import make_grid
 
-from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 from FaceDetection.facenet_pytorch import InceptionResnetV1, training
 from torch import nn, optim
 from matplotlib import pyplot as plt
 import torch
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
-
-# helper classes for faceClassifer class
-class Flatten(torch.nn.Module):
-    def __init__(self):
-        super(Flatten, self).__init__()
-
-    def forward(self, x):
-        x = x.view(x.size(0), -1)
-        return x
-
-#
-class normalize(torch.nn.Module):
-    def __init__(self):
-        super(normalize, self).__init__()
-
-    def forward(self, x):
-        x = F.normalize(x, p=2, dim=1)
-        return x
-
-class FacesDataset(torch.utils.data.Dataset):
-    def __init__(self, images:[], labels:[]):
-        super(FacesDataset, self).__init__()
-        self.images = images
-        self.labels = labels
-
-    def __len__(self):
-        return len(self.labels)
-
-    def __getitem__(self, item):
-        label = self.labels[item]
-        image = self.images[item]
-        return image, label
-
 
 class FaceClassifer():
     """
@@ -74,12 +34,11 @@ class FaceClassifer():
         self.num_classes = num_classes
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
         self.model_ft = self._create_Incepction_Resnet_for_finetunning()
-        #print(self.model_ft)
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer_ft = optim.Adam(self.model_ft.parameters(),lr=lr)
         self.writer = SummaryWriter('/mnt/raid1/home/bar_cohen/FaceData/runs/images/')
         self.writer.iteration = 0
-        self.writer.interval = 10
+        self.writer.interval = 1
         self.softmax = nn.Softmax(dim=1)
         self.le = label_encoder
         self.exp_lr_scheduler = lr_scheduler.MultiStepLR(self.optimizer_ft, [5,10])
@@ -91,22 +50,23 @@ class FaceClassifer():
         model_ft = model_ft.to(self.device)
         return model_ft
 
-    def write_images_to_tensorboard(self,dl_iter:iter, epoch:int):
-        images, target = next(dl_iter)
+    def write_images_to_tensorboard(self,dl:DataLoader, grid_name:str,epoch:int):
+        # run this on moba tensorboard --logdir="." --host 0.0.0.0
+        images = [dl.dataset[np.random.randint(0, len(dl.dataset), 1)[0]][0] for i in range(dl.batch_size)]
         img_grid = make_grid(images, normalize=True)
-        self.writer.add_image('val_image_inputs', img_grid,global_step=epoch+2)
+        self.writer.add_image(grid_name, img_grid,global_step=epoch)
 
     def run_training(self,checkpoint_path, dl_train:DataLoader, dl_val:DataLoader,model_name:str, num_epochs=25) -> None:
+        # dataloader_iter_train = iter(dl_train)
+        # dataloader_iter_val = iter(dl_val)
+
+        # images , target = next(dataloader_iter_val)
+        # img_grid = make_grid(images, normalize=False)
+        # self.writer.add_image('val_image_inputs', img_grid,global_step=0)
+        #
+        # img_grid = make_grid(images, normalize=True)
+        # self.writer.add_image('val_image_inputs', img_grid,global_step=1)
         self.model_ft.eval()
-        dataloader_iter_train = iter(dl_train)
-        dataloader_iter_val = iter(dl_val)
-
-        images , target = next(dataloader_iter_val)
-        img_grid = make_grid(images, normalize=False)
-        self.writer.add_image('val_image_inputs', img_grid,global_step=0)
-
-        img_grid = make_grid(images, normalize=True)
-        self.writer.add_image('val_image_inputs', img_grid,global_step=1)
         metrics = {'acc': training.accuracy}
         with torch.no_grad():
             eval_loss, eval_metric = training.pass_epoch(self.model_ft,
@@ -119,7 +79,7 @@ class FaceClassifer():
         for epoch in range(num_epochs):
             print('\nEpoch {}/{}'.format(epoch + 1, num_epochs))
             print('-' * 10)
-            self.write_images_to_tensorboard(dl_iter=dl_train, epoch=epoch)
+            self.write_images_to_tensorboard(dl=dl_train,grid_name='train_sample', epoch=epoch)
             self.model_ft.train()
             training.pass_epoch(
                 self.model_ft, self.criterion, dl_train, self.optimizer_ft,
@@ -128,7 +88,7 @@ class FaceClassifer():
                 writer=self.writer
             )
             with torch.no_grad():
-                self.write_images_to_tensorboard(dl_iter=dl_val,epoch=epoch)
+                self.write_images_to_tensorboard(dl=dl_val,grid_name='val_sample', epoch=epoch)
                 self.model_ft.eval()
                 eval_loss, eval_metric = training.pass_epoch(self.model_ft,
                                 self.criterion,
@@ -142,8 +102,8 @@ class FaceClassifer():
 
     def create_data_loaders(self, X_train ,y_train, X_val ,y_val, X_test, y_test, data_path) -> (DataLoader, DataLoader, DataLoader):
         dl_train = DataLoader(FacesDataset(X_train, y_train), batch_size=100, shuffle=True)
-        dl_val = DataLoader(FacesDataset(X_val,y_val), batch_size=100, shuffle=True)
-        dl_test = DataLoader(FacesDataset(X_test,y_test), batch_size=100, shuffle=True)
+        dl_val = DataLoader(FacesDataset(X_val, y_val), batch_size=100, shuffle=True)
+        dl_test = DataLoader(FacesDataset(X_test, y_test), batch_size=100, shuffle=True)
         # must save datasets dls for reproducibility
         pickle.dump(dl_train, open(os.path.join(data_path, 'dl_train_1.pkl'), 'wb'))
         pickle.dump(dl_val, open(os.path.join(data_path, 'df_val_1.pkl'), 'wb'))
@@ -168,159 +128,9 @@ class FaceClassifer():
             preds = torch.argmax(outputs, dim=1)
             return preds, outputs
 
-    def matplotlib_imshow(self, img, one_channel=False):
-        if one_channel:
-            img = img.mean(dim=0)
-        img = img / 2 + 0.5  # unnormalize
-        npimg = img.numpy()
-        if one_channel:
-            plt.imshow(npimg, cmap="Greys")
-        else:
-            plt.imshow(np.transpose(npimg, (1, 2, 0)))
-
-    def plot_results(self, metrics):
-        """ Simple plots of training and validation """
-        sns.lineplot(x=range(len(metrics['batch_train_loss'])), y=metrics['batch_train_loss'], color='red')
-        plt.xlabel('Batch num')
-        plt.ylabel('Train Loss')
-        plt.title('Training Batch Loss')
-        plt.show()
-
-        sns.lineplot(x=range(len(metrics['batch_val_loss'])), y=metrics['batch_val_loss'], color='orange')
-        plt.xlabel('Batch num')
-        plt.ylabel('Train Loss')
-        plt.title('Validation Batch Loss')
-        plt.show()
-
-        acc_df = pd.DataFrame({'val_acc_by_epoch': metrics['val_acc_by_epoch'],
-                               'train_acc_by_epoch':metrics['train_acc_by_epoch'],
-                               'epoch': range(len(metrics['train_acc_by_epoch']))})
-
-        sns.lineplot(data=acc_df,x='epoch', y='val_acc_by_epoch', color='blue')
-        sns.lineplot(data=acc_df,x='epoch', y='train_acc_by_epoch', color='orange')
-        plt.xlabel('Epoch')
-        plt.ylabel('Accuracy')
-        plt.title('Training and Validation Accuracy by Epoch')
-        plt.legend(['Validation', 'Training'])
-        plt.show()
-
-
-def test_accuracy_of_dataset(fc:FaceClassifer, dl:DataLoader, name:str):
-    """ Simple accuracy tester for face Classfication """
-    print('Accuracy of dataset --- ', name)
-    fc.model_ft.eval() # eval mode
-    acc = []
-    correct = 0
-    total = 0
-    for batch in dl:
-        images, labels = batch
-        inputs = images.to(fc.device)
-        labels = labels.to(fc.device)
-        preds, _ = fc.predict(inputs)
-        correct += torch.sum(preds == labels)
-        total += len(labels)
-    print(correct/ total)
-
-def per_id_test_acc(fc:FaceClassifer,le, dl:DataLoader,name:str):
-    acc_dict = {k:0 for k in NAME_TO_ID.keys()}
-    acc_totals = {k: 0 for k in NAME_TO_ID.keys()}
-    for batch in dl:
-        images, labels = batch
-        inputs = images.to(fc.device)
-        labels = labels.to(fc.device)
-        preds, _  = fc.predict(inputs)
-        for p, l in zip(preds, labels):
-            if p == l:
-                acc_dict[ID_TO_NAME[le.inverse_transform([int(l)])[0]]] += 1
-            acc_totals[ID_TO_NAME[le.inverse_transform([int(l)])[0]]] += 1
-
-
-    for k, v in acc_dict.items():
-        if acc_totals[k] > 0:
-            acc_dict[k] = acc_dict[k] / acc_totals[k]
-    df =pd.DataFrame(acc_dict, columns=NAME_TO_ID.keys(), index=[0])
-    ax = sns.barplot(data=df)
-    ax.set_xticklabels(df.columns, rotation=45)
-    plt.title(f'Acc per ID in {name}')
-    plt.show()
-
-
-
-
-def labelencode(label_encoder_output,X_train ,y_train, X_val ,y_val, X_test, y_test ,classes_to_drop:list):
-    def drop_from_cur_set(X, y, le):
-        indexs_to_drop = [index for index, cls in enumerate(y) if cls in classes_to_drop]
-        X = [x for i, x in enumerate(X) if i not in indexs_to_drop]
-        y = [cls for i, cls in enumerate(y) if i not in indexs_to_drop]
-        y = le.transform(y)
-        assert len(X) == len(y)
-        return X,y
-
-    """
-    creates a label encoder based on inserted classes to drop
-    Args:
-        label_encoder_output: output path to save label encoder
-        X_train ,X_val, X_test: the image tensors
-        y_train, y_val, y_test: image labels
-        classes_to_drop: label classes not to be trained upon
-
-    Returns: X_train_transformed, y_train_transformed, .. , label-encoder
-
-    """
-    # creating an all y vector to account for all images
-    y = [int(i) for cur_y_set in [y_train,y_val,y_test] for i in cur_y_set if i not in classes_to_drop]
-    print(set(y))
-    le = preprocessing.LabelEncoder()
-    le.fit(y)
-    print(le.classes_)
-    X_train ,y_train = drop_from_cur_set(X_train,y_train, le)
-    X_val ,y_val = drop_from_cur_set(X_val,y_val, le)
-    X_test ,y_test = drop_from_cur_set(X_test,y_test , le)
-    pickle.dump(le, open(os.path.join(label_encoder_output, 'le.pkl'), 'wb'))
-    return X_train,y_train,X_val,y_val,X_test,y_test, le
-
-def load_data(data_path):
-    le = pickle.load(open(os.path.join(data_path, 'le.pkl'), 'rb'))
-    dl_train = pickle.load(open(os.path.join(data_path, 'dl_train_1.pkl'), 'rb'))
-    dl_val = pickle.load(open(os.path.join(data_path, 'df_val_1.pkl'), 'rb'))
-    dl_test = pickle.load(open(os.path.join(data_path, 'df_test_1.pkl'), 'rb'))
-    return le, dl_train, dl_val, dl_test
-
-# TODO deprecated use, remove when sure
-def create_face_data_from_db() -> None:
-    face_crops = get_entries(filters={Crop.is_face == True,
-                                      Crop.reviewed_one == True ,
-                                      Crop.is_vague == False ,
-                                      Crop.invalid == False}).all()
-    crops_path = "/mnt/raid1/home/bar_cohen/"
-    data_path = '/mnt/raid1/home/bar_cohen/FaceData/images/'
-    for crop in face_crops:
-        if crop.vid_name[4:8] not in ['0808','0730']:
-            shutil.copy(os.path.join(crops_path, crop.vid_name, crop.im_name), os.path.join(data_path, crop.im_name))
-    print('done')
-
-def classify_list_of_images(num_classes, le, checkpoint_path):
-    fc = FaceClassifer(num_classes=num_classes, label_encoder=le)
-    fc.model_ft.load_state_dict(torch.load(checkpoint_path))
-    fc.model_ft.eval()  # this will train the model after loading weights
-
-def eval_faceClassifier(checkpoint_path):
-    data_path = '/mnt/raid1/home/bar_cohen/FaceData/'
-    num_classes = 21  # num of unique classes
-    le, dl_train, dl_val, dl_test = load_data(data_path)
-    fc = FaceClassifer(num_classes, le)
-    fc.model_ft.load_state_dict(torch.load(checkpoint_path))
-    print(len(dl_train) * dl_train.batch_size, len(dl_val) * dl_val.batch_size, len(dl_test) * dl_test.batch_size)
-    test_accuracy_of_dataset(fc, dl_train, 'Train')
-    per_id_test_acc(fc,le,dl_train,'Train')
-    test_accuracy_of_dataset(fc, dl_val, 'Val')
-    per_id_test_acc(fc,le,dl_val,'Val')
-    test_accuracy_of_dataset(fc, dl_test, 'Test')
-    per_id_test_acc(fc,le,dl_test,'Test')
-
-
-
-def main_train(data_path:str,run_name:str, reload_images_from_db:bool, recreate_data:bool, checkpoint_path:str, load_checkpoint:str):
+def main_train(data_path:str,run_name:str, reload_images_from_db:bool, recreate_data:bool,
+               checkpoint_path:str, load_checkpoint:str, epochs=3, lr=0.001,
+               save_images_path=''):
     """
     This is an example of a training pipeline. Insert a raw images path or existing
     faces data path to build a dataset and train a faceClassifer on it. Data will be saved
@@ -328,23 +138,28 @@ def main_train(data_path:str,run_name:str, reload_images_from_db:bool, recreate_
     Returns:
 
     """
-    fd = FaceDetector(faces_data_path=data_path, thresholds=[0.97,0.97,0.97])
+    fd = FaceDetector(faces_data_path=data_path, thresholds=[0.97,0.97,0.97],keep_all=False)
     print('loading finding faces base on DB tags, or reading from pickle...')
-    fd.filter_out_non_face_corps(recreate_data=reload_images_from_db, save_images=False) # keeps only face-present images in data
+    high_conf_face_images = fd.filter_out_non_face_corps(recreate_data=reload_images_from_db, save_images_path=save_images_path) # keeps only face-present images in data
     num_classes = 21 # num of unique classes
 
     if recreate_data:
         print('Creating X,y datasets based on day splits')
-        X_train ,y_train, X_val ,y_val, X_test, y_test = fd.create_X_y_faces(save_images=False) # create an X,y dataset from filtered images
+        X_train ,y_train, X_val ,y_val, X_test, y_test = create_X_y_faces(high_conf_face_images,
+                                                                          save_images_path='') # create an X,y dataset from filtered images
+
         print(f"Creates a label encoder and removes entered classes {num_classes} from dataset")
-        X_train,y_train,X_val,y_val,X_test,y_test, le = labelencode(data_path,  X_train ,y_train, X_val ,y_val, X_test, y_test, [])
+        X_train,y_train,X_val,y_val,X_test,y_test, le = labelencode(data_path, X_train, y_train, X_val, y_val, X_test, y_test, [])
+        X_train, y_train = smooth_sample_of_training(X_train,y_train,max_sample_tresh=250)
+        X_train, y_train = augment_training_set(X_train,y_train)
         fc = FaceClassifer(num_classes, le, device='cuda:1')
         print("Creates data loaders")
         dl_train,dl_val,dl_test = fc.create_data_loaders(X_train ,y_train, X_val ,y_val, X_test, y_test, data_path)
+
     else:
         print('Loading data given path ')
         le, dl_train, dl_val, dl_test = load_data(data_path)
-        fc = FaceClassifer(num_classes, le, device='cuda:1')
+        fc = FaceClassifer(num_classes, le, device='cuda:1', lr=lr)
         if load_checkpoint:
             print('checkpoint path received, loading..')
             fc.model_ft.load_state_dict(torch.load(os.path.join(checkpoint_path,load_checkpoint)))
@@ -352,26 +167,25 @@ def main_train(data_path:str,run_name:str, reload_images_from_db:bool, recreate_
     print(len(dl_train) * dl_train.batch_size, len(dl_val) * dl_val.batch_size, len(dl_test) * dl_test.batch_size)
     print('Begin Training')
     try:
-        fc.run_training(checkpoint_path=checkpoint_path, dl_train=dl_train, dl_val=dl_val,model_name=run_name,num_epochs=30) # train the model
+        fc.run_training(checkpoint_path=checkpoint_path, dl_train=dl_train, dl_val=dl_val,model_name=run_name,num_epochs=epochs) # train the model
         print('Training Done')
     except KeyboardInterrupt:
         print('Training was interrupted by user')
 
-    test_accuracy_of_dataset(fc, dl_train, 'Train')
-    test_accuracy_of_dataset(fc, dl_val, 'Val')
-    test_accuracy_of_dataset(fc, dl_test, 'Test')
-
-
+    eval_faceClassifier(os.path.join(checkpoint_path, f"{run_name}, {epochs}.pth"))
 
 if __name__ == '__main__':
     data_path = '/mnt/raid1/home/bar_cohen/FaceData'
     fd = FaceDetector(faces_data_path=data_path, thresholds=[0.97,0.97,0.97])
-    # fd.filter_out_non_face_corps(recreate_data=True) # keeps only face-present images in data
-    # fd.create_X_y_faces()
     # checkpoint = ""
     checkpoint_path = os.path.join("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/")
-    main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/', run_name='min_face_60_0.000001 lr',reload_images_from_db=False, recreate_data=True,
-               checkpoint_path=checkpoint_path, load_checkpoint='')
-
-
-    eval_faceClassifier(os.path.join(checkpoint_path, "min_face_60_test_as_train, 1.pth"))
+    # main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/',
+    #            run_name='min_face_20_lr_0.0001_skip_10frame',
+    #            reload_images_from_db=False,
+    #            recreate_data=True,
+    #            checkpoint_path=checkpoint_path,
+    #            load_checkpoint='',
+    #            epochs=10,
+    #            lr=0.00001,
+    #            save_images_path='/mnt/raid1/home/bar_cohen/FaceData/DataSplitSmall')
+    eval_faceClassifier(os.path.join(checkpoint_path, "min_face_20_lr_0.0001_skip_10frame, 4.pth"))
