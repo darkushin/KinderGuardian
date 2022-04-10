@@ -18,8 +18,7 @@ import torch.nn.functional as F
 from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 from FaceDetection.faceClassifer import FaceClassifer
-from FaceDetection.faceDetector import FaceDetector
-from FaceDetection.data_handler import is_img
+from FaceDetection.faceDetector import FaceDetector, is_img
 from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import ID_NOT_IN_VIDEO
 import warnings
@@ -373,7 +372,7 @@ def create_data_by_re_id_and_track():
     all_tracks_final_scores = dict()
 
     faceClassifer = FaceClassifer(num_classes=21, label_encoder=le, device='cuda:0')
-    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/check_le, 3.pth"))
+    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/max sample threshold 500, 2.pth"))
     faceClassifer.model_ft.eval()
 
     # iterate over all tracklets and make a prediction for every tracklet

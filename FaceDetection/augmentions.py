@@ -29,15 +29,15 @@ def detect_single_face_inv_norm(self, img):
     return ret , prob
 
 
-def smooth_sample_of_training(x_train, y_train, max_sample_tresh):
+def smooth_sample_of_training(x_train, y_train, max_sample_threshold):
     inds_to_take = []
     x_train = np.array(x_train)
     y_train = np.array(y_train)
     for k in set(y_train):
         inds_of_label_k = np.where(y_train == k)[0]
-        if len(inds_of_label_k) > max_sample_tresh:
+        if len(inds_of_label_k) > max_sample_threshold:
             # k_label_images, k_label_tags = x_train[inds_of_label_k], y_train[inds_of_label_k]
-            sub_inds =list(np.random.choice(inds_of_label_k, size=max_sample_tresh))
+            sub_inds =list(np.random.choice(inds_of_label_k, size=max_sample_threshold))
             inds_to_take.extend(sub_inds)
         else:
             inds_to_take.extend(list(inds_of_label_k))
@@ -55,6 +55,8 @@ def augment_training_set(x_train:[], y_train:[]):
     augmented_x = []
     augmented_y = []
     for img , label in zip(x_train, y_train):
+        augmented_x.append(normalize_image(img))
+        augmented_y.append(label)
         for aug in augmenters:
             augmented_x.append(normalize_image(aug(img)))
             augmented_y.append(label)

@@ -1,20 +1,20 @@
 import os
 import pickle
-from collections import defaultdict
 
+import PIL
 import numpy as np
-import pandas as pd
-import seaborn as sns
 
 import torch
+import tqdm
 from matplotlib import pyplot as plt
 from sklearn import preprocessing
 
-from DataProcessing.dataProcessingConstants import ID_TO_NAME
+from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 from FaceDetection.augmentions import normalize_image
+from FaceDetection.faceDetector import FaceDetector, is_img
 
-TRAIN_DATES = ['0729', '0801', '0802', '0803','0805']
-VAL_DATES = ['0804']
+TRAIN_DATES = ['0729', '0801', '0802','0804' ,'0805']
+VAL_DATES = ['0803']
 TEST_DATES = ['0730','0808']
 
 def labelencode(label_encoder_output,X_train ,y_train, X_val ,y_val, X_test, y_test ,classes_to_drop:list):
@@ -72,9 +72,6 @@ class FacesDataset(torch.utils.data.Dataset):
         image = self.images[item]
         return image, label
 
-    def apply_augmentations(self):
-        pass
-
 
 def create_X_y_faces(high_conf_face_imgs:dict, save_images_path=''):
     def save(split_type):
@@ -115,6 +112,24 @@ def create_X_y_faces(high_conf_face_imgs:dict, save_images_path=''):
 
     return X_train ,y_train, X_val ,y_val, X_test, y_test
 
-def is_img(img):
-    return img is not None and img is not img.numel()
+def load_old_data(data_path:str, reload_images=False):
+    if not reload_images:
+        x_train_add, y_train_add = pickle.load(open(os.path.join('/mnt/raid1/home/bar_cohen/FaceData/', 'old_face_data.pkl'), 'rb'))
+    else:
+        fd = FaceDetector(keep_all=False, thresholds=[0.97,0.97,0.97])
+        x_train_add = []
+        y_train_add = []
+        for root, _ , files in os.walk(data_path):
+            for file in tqdm.tqdm(files):
+                img = PIL.Image.open(os.path.join(root, file))
+                # ret, _ = fd.get_single_face(img, is_PIL_input=True,norm=False)
+                ret = fd.facenet_detecor(img, return_prob=False)
+                if is_img(ret):
+                    label = int(file[0:4])
+                    # ret = ret.permute(1, 2, 0).int().numpy().astype(np.uint8)
+                    x_train_add.append(ret)
+                    y_train_add.append(label)
+                img.close()
+        pickle.dump((x_train_add, y_train_add), open(os.path.join('/mnt/raid1/home/bar_cohen/FaceData/', 'old_face_data.pkl'), 'wb'))
+    return x_train_add, y_train_add
 

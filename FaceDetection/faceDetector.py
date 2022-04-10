@@ -7,7 +7,6 @@ from PIL import Image
 from DataProcessing.DB.dal import get_entries, Crop
 from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 from FaceDetection.augmentions import normalize_image, crop_top_third_and_sides
-from FaceDetection.data_handler import load_data, is_img
 from FaceDetection.facenet_pytorch import MTCNN
 import numpy as np
 from matplotlib import pyplot as plt
@@ -28,33 +27,6 @@ class FaceDetector():
         self.keep_all = keep_all
         self.facenet_detecor = MTCNN(margin=40, select_largest=True, post_process=False, device=device,
                                      keep_all=self.keep_all, thresholds=thresholds, min_face_size=min_face_size)
-
-    # def crop_top_third_and_sides(self, img, is_PIL_input):
-    #     # this assumes img is a PIL obj
-    #     if not is_PIL_input:
-    #         img = PIL.Image.fromarray(img)
-    #     width, height = img.size
-    #     cropped_img = img.crop((width*0.2, 0, width*0.8, height*0.3))
-    #     return cropped_img
-
-    # def normalize_image(self, img):
-    #
-    #     transform = transforms.Compose([
-    #         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
-    #     ])
-    #     return transform(img)
-
-    # def detect_single_face_inv_norm(self, img):
-    #     # use face detector to find a single face in an image, rests to entered init of keeping face after change
-    #     self.facenet_detecor.keep_all = False
-    #     comp = transforms.Compose([
-    #         transforms.ToTensor(),
-    #         lambda x:x*255,
-    #     ])
-    #     new_im = comp(img).permute(1,2,0).int()
-    #     ret, prob = self.facenet_detecor(new_im, return_prob=True)
-    #     self.facenet_detecor.keep_all = self.keep_all
-    #     return ret , prob
 
     def detect_single_face(self, img):
         # use face detector to find a single face in an image, rests to entered init of keeping face after change
@@ -97,7 +69,7 @@ class FaceDetector():
         high_conf_face_imgs = defaultdict(list)
         if self.faces_data_path and not recreate_data:
             print("pickle path to images received, loading...")
-            high_conf_face_imgs = pickle.load(open(os.path.join(self.faces_data_path, 'images_with_crop.pkl'),'rb'))
+            high_conf_face_imgs = pickle.load(open(os.path.join(self.faces_data_path, 'images_with_crop_skip_5.pkl'),'rb'))
         else:
             norm = not save_images_path
             face_crops = get_entries(filters={Crop.is_face == True,
@@ -107,7 +79,7 @@ class FaceDetector():
             crops_path = "/mnt/raid1/home/bar_cohen/"
             raw_imgs_dict = defaultdict(list)
             for i, crop in tqdm.tqdm(enumerate(face_crops), total=len(face_crops)):
-                if not i % 3 == 0:
+                if not i % 5 == 0:
                     continue
                 # print(i ,'/',len(face_crops))
                 # fix for v, v_ issue
@@ -150,8 +122,9 @@ class FaceDetector():
             given_num_of_images_final = sum([len(high_conf_face_imgs[i]) for i in raw_imgs_dict.keys()])
             print(f'Post filter left with {given_num_of_images_final}')
             print(f'errors: {errors}')
-            pickle.dump(high_conf_face_imgs, open(os.path.join('/mnt/raid1/home/bar_cohen/FaceData/', 'images_with_crop.pkl'),'wb'))
+            pickle.dump(high_conf_face_imgs, open(os.path.join('/mnt/raid1/home/bar_cohen/FaceData/', 'images_with_crop_skip_5.pkl'),'wb'))
         return high_conf_face_imgs
+
 
 
 def collect_faces_from_video(video_path:str) -> []:
@@ -186,3 +159,7 @@ def main():
     # fd.build_samples_hist(read_labled_croped_images(fd.raw_images_path), title='Raw Images Hist')
 if __name__ == '__main__':
     main()
+
+
+def is_img(img):
+    return img is not None and img is not img.numel()
