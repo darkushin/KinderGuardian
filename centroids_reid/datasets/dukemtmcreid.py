@@ -42,9 +42,9 @@ class DukeMTMCreID(ReidBaseDataModule):
     def __init__(self, cfg, **kwargs):
         super().__init__(cfg, **kwargs)
         self.dataset_dir = cfg.DATASETS.ROOT_DIR
-        self.train_dir = osp.join(self.dataset_dir, 'DukeMTMC-reID/bounding_box_train')
-        self.query_dir = osp.join(self.dataset_dir, 'DukeMTMC-reID/query')
-        self.gallery_dir = osp.join(self.dataset_dir, 'DukeMTMC-reID/bounding_box_test')
+        self.train_dir = osp.join(self.dataset_dir, 'bounding_box_train')
+        self.query_dir = osp.join(self.dataset_dir, 'query')
+        self.gallery_dir = osp.join(self.dataset_dir, 'bounding_box_test')
 
     def setup(self):
         self._check_before_run()

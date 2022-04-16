@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch.cuda.amp import autocast
 
-from utils.misc import get_backbone
+from centroids_reid.utils.misc import get_backbone
 
 from .backbones.resnet import BasicBlock, Bottleneck, ResNet
 from .backbones.resnet_ibn_a import resnet50_ibn_a, resnet101_ibn_a

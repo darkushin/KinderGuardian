@@ -4,7 +4,7 @@ from typing import Callable, Dict, List, Union
 
 import numpy as np
 import torch
-from datasets.transforms import ReidTransforms
+from centroids_reid.datasets.transforms import ReidTransforms
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision.datasets import ImageFolder
@@ -67,7 +67,7 @@ class ImageFolderWithPaths(ImageFolder):
 class ImageDataset(Dataset):
     def __init__(self, dataset: str, transform=None, loader=pil_loader):
         self.dataset = get_all_images(dataset)
-        print(self.dataset)
+        # print(self.dataset)
         self.transform = transform
         self.loader = loader
 

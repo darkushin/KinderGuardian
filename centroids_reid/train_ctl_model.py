@@ -21,7 +21,7 @@ from tqdm import tqdm
 
 from config import cfg
 from modelling.bases import ModelBase
-from utils.misc import run_main
+from centroids_reid.utils.misc import run_main
 
 
 class CTLModel(ModelBase):

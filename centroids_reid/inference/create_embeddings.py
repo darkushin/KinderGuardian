@@ -33,6 +33,10 @@ exctract_func = lambda x: Path(
     x
 ).parent.name  ## To extract pid from parent directory of an iamge. Example: /path/to/root/001/image_04.jpg -> pid = 001
 
+# our files have the following path format: `/datasets/DukeMTMC-reID/query/0005_c2_f0046985.jpg`
+our_extract_func = lambda x: x.rsplit("/", 1)[1].rsplit("_")[0]
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Create embeddings for images that will serve as the database (gallery)"
@@ -83,9 +87,9 @@ if __name__ == "__main__":
     )
 
     ### Create centroids
-    log.info("Creating centroids")
     if cfg.MODEL.USE_CENTROIDS:
-        pid_path_index = create_pid_path_index(paths=paths, func=exctract_func)
+        log.info("Creating centroids")
+        pid_path_index = create_pid_path_index(paths=paths, func=our_extract_func)
         embeddings, paths = calculate_centroids(embeddings, pid_path_index)
 
     ### Save

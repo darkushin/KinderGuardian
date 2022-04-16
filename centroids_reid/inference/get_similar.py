@@ -84,7 +84,7 @@ if __name__ == "__main__":
     ### Inference
     log.info("Running inference")
     embeddings, paths = run_inference(
-        model, val_loader, cfg, print_freq=args.print_freq
+        model, val_loader, cfg, print_freq=args.print_freq, use_cuda=True
     )
 
     ### Load gallery data
@@ -105,7 +105,7 @@ if __name__ == "__main__":
         embeddings = torch.from_numpy(embeddings)
 
     # Use GPU if available
-    device = torch.device("cuda") if cfg.GPU_IDS else torch.device("cpu")
+    device = torch.device("cuda:1") if cfg.GPU_IDS else torch.device("cpu")
     embeddings_gallery = embeddings_gallery.to(device)
     embeddings = embeddings.to(device)
 
@@ -126,6 +126,18 @@ if __name__ == "__main__":
         }
         for q_num, query_path in enumerate(paths)
     }
+
+    from create_embeddings import our_extract_func
+    accuracy = 0
+    for q_path, q_pred in out.items():
+        true_label = our_extract_func(q_path)
+        if '/' in q_pred.get('paths')[0]:
+            pred_label = our_extract_func(q_pred.get('paths')[0])
+        else:
+            pred_label = q_pred.get('paths')[0]
+        if true_label == pred_label:
+            accuracy += 1
+    print(f'Total accuracy: {accuracy/len(out)}')
 
     ### Save
     SAVE_DIR = Path(cfg.OUTPUT_DIR)
