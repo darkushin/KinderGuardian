@@ -9,19 +9,18 @@ import numpy as np
 import os
 from model_runner import get_args
 import pickle
-
+import tqdm
 
 # our files have the following path format: `/datasets/DukeMTMC-reID/query/0005_c2_f0046985.jpg`
 extract_id = lambda x: x.rsplit("/", 1)[1].rsplit("_")[0]
+CTL_PICKLES = '/home/bar_cohen/raid/CTL_Reid'
 
 
 def _inference(model, batch, device, normalize_with_bn=True):
     model.eval()
     with torch.no_grad():
         data, _, filename = batch
-        _, global_feat = model.backbone(
-            data.cuda(device=device) if device else data
-        )
+        _, global_feat = model.backbone(data.cuda(device=device))
         if normalize_with_bn:
             global_feat = model.bn(global_feat)
         return global_feat, filename
@@ -32,7 +31,7 @@ def run_inference(model, val_loader, device=0):
     paths = []
     model = model.cuda(device=device)
 
-    for x in val_loader:
+    for x in tqdm.tqdm(val_loader, total=len(val_loader)):
         embedding, path = _inference(model, x, device)
         for vv, pp in zip(embedding, path):
             paths.append(pp)
@@ -60,7 +59,7 @@ def set_CTL_reid_cfgs(args):
     return cfg
 
 
-def create_gallery_features(model, data_loader, device, output_path='/home/bar_cohen/raid/CTL_Reid'):
+def create_gallery_features(model, data_loader, device, output_path=CTL_PICKLES):
     print('Starting to create gallery feature vectors')
     g_feat, paths_gallery = run_inference(model, data_loader, device)
     if cfg.MODEL.USE_CENTROIDS:
@@ -84,7 +83,7 @@ def create_gallery_features(model, data_loader, device, output_path='/home/bar_c
     return g_feat, paths_gallery
 
 
-def load_gallery_features(gallery_path='/home/bar_cohen/raid/CTL_Reid'):
+def load_gallery_features(gallery_path=CTL_PICKLES):
     print('Loading gallery feature vectors from pickles...')
     g_feat = pickle.load(open(os.path.join(gallery_path, 'g_feats.pkl'), 'rb'))
     paths_gallery = pickle.load(open(os.path.join(gallery_path, 'g_paths.pkl'), 'rb'))
@@ -101,11 +100,11 @@ def load_gallery_features(gallery_path='/home/bar_cohen/raid/CTL_Reid'):
     return g_feat, paths_gallery
 
 
-def CTL_reid_track_inference(model, track_images, device):
+def CTL_reid_dataset_inference(model, query_data, device):
     print('Computing query feature vectors')
     # track_batch = (track_images, '', '')
     # q_feat = _inference(model, track_batch, device, normalize_with_bn=False)  # we should not normalize with BN in this case
-    q_feat, q_paths = run_inference(model, track_images, device)
+    q_feat, q_paths = run_inference(model, query_data, device)
     # todo: this needs to change to images and not dataloader, and images should be given as tensors
 
 
@@ -115,6 +114,20 @@ def CTL_reid_track_inference(model, track_images, device):
     # device = torch.device(device)
     # q_feat = q_feat.to(device)
     return q_feat, q_paths
+
+
+def CTL_reid_track_inference(model, track_images, device):
+    print('Computing query feature vectors')
+    track_images = torch.from_numpy(np.array(track_images).astype(np.int8))
+    track_batch = (track_images, '', '')
+    q_feat, _ = _inference(model, track_batch, device, normalize_with_bn=False)  # we should not normalize with BN in this case
+
+    # todo: check if normalization should be applied
+    # # normalize the feature vectors:
+    # q_feat = torch.nn.functional.normalize(q_feat, dim=1, p=2)
+    # device = torch.device(device)
+    # q_feat = q_feat.to(device)
+    return q_feat, _
 
 
 def create_distmat(q_feat, g_feat):
@@ -161,7 +174,36 @@ def compute_accuracy(q_feats, q_paths, g_feats, g_paths):
     print(f'Total accuracy: {accuracy / len(q_feats)}')
 
 
-def usage_example(args):
+def usage_example_dataloader_as_query(args):
+    """
+    Example of how to use the CTL model for inference given the args of the model_runner and the query folder of a reid
+    dataset.
+    """
+    reid_cfg = set_CTL_reid_cfgs(args)
+
+    # initialize reid model:
+    checkpoint = torch.load(reid_cfg.TEST.WEIGHT)
+    checkpoint['hyper_parameters']['MODEL']['PRETRAIN_PATH'] = './centroids_reid/models/resnet50-19c8e357.pth'
+    reid_model = CTLModel._load_model_state(checkpoint)
+
+    # create gallery feature:
+    # gallery_imgs_path = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/diff_day_train_as_test_0730_0808_quary/bounding_box_test'
+    # gallery_data = make_inference_data_loader(reid_cfg, gallery_imgs_path, ImageDataset)
+    # g_feats, g_paths = create_gallery_features(reid_model, gallery_data, int(args.device.split(':')[1]), output_path=CTL_PICKLES)
+
+    # OR load gallery feature:
+    g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
+    
+    # # compute query feature vectors:
+    query_imgs_path = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/diff_day_train_as_test_0730_0808_quary/query'
+    query_data = make_inference_data_loader(reid_cfg, query_imgs_path, ImageDataset)
+    q_feats, q_paths = CTL_reid_dataset_inference(reid_model, query_data, int(args.device.split(':')[1]))
+
+    # compute accuracy for dataset:
+    compute_accuracy(q_feats, q_paths, g_feats, g_paths)
+
+
+def usage_example_track_as_query(args):
     """
     Example of how to use the CTL model for inference given the args of the model_runner and images of a track.
     """
@@ -171,38 +213,34 @@ def usage_example(args):
     checkpoint = torch.load(reid_cfg.TEST.WEIGHT)
     checkpoint['hyper_parameters']['MODEL']['PRETRAIN_PATH'] = './centroids_reid/models/resnet50-19c8e357.pth'
     reid_model = CTLModel._load_model_state(checkpoint)
-    # reid_model = CTLModel.load_from_checkpoint(reid_cfg.TEST.WEIGHT)
 
     # create gallery feature:
-    # gallery_imgs_path = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/diff_day_train_as_test_0730_0808_quary/bounding_box_test'
+    # gallery_imgs_path = reid_cfg.DATASETS.ROOT_DIR
     # gallery_data = make_inference_data_loader(reid_cfg, gallery_imgs_path, ImageDataset)
-    # g_feats, g_paths = create_gallery_features(reid_model, gallery_data, int(args.device.split(':')[1]), output_path='/home/bar_cohen/raid/CTL_Reid')
+    # g_feats, g_paths = create_gallery_features(reid_model, gallery_data, int(args.device.split(':')[1]), output_path=CTL_PICKLES)
 
     # OR load gallery feature:
-    g_feats, g_paths = load_gallery_features(gallery_path='/home/bar_cohen/raid/CTL_Reid')
-    
-    # # compute query feature vectors:
-    query_imgs_path = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/diff_day_train_as_test_0730_0808_quary/query'
-    query_data = make_inference_data_loader(reid_cfg, query_imgs_path, ImageDataset)
-    q_feats, q_paths = CTL_reid_track_inference(reid_model, query_data, int(args.device.split(':')[1]))
+    g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
+
+    # compute query feature vectors:
+    track_imgs = pickle.load(open(os.path.join(CTL_PICKLES, 'track_imgs.pkl'), 'rb'))
+    q_feats, q_paths = CTL_reid_track_inference(reid_model, track_imgs, int(args.device.split(':')[1]))
 
 
     # todo: remove this block, it is just to speed up debugining:
     # print('Saving query feature vectors')
-    # pickle.dump(q_feats, open(os.path.join('/home/bar_cohen/raid/CTL_Reid', 'q_feats.pkl'), 'wb'))
-    # pickle.dump(q_paths, open(os.path.join('/home/bar_cohen/raid/CTL_Reid', 'q_paths.pkl'), 'wb'))
+    # pickle.dump(q_feats, open(os.path.join(CTL_PICKLES, 'q_feats.pkl'), 'wb'))
+    # pickle.dump(q_paths, open(os.path.join(CTL_PICKLES, 'q_paths.pkl'), 'wb'))
     # print('Loading query feature vectors')
-    # q_feats = pickle.load(open(os.path.join('/home/bar_cohen/raid/CTL_Reid', 'q_feats.pkl'), 'rb'))
-    # q_paths = pickle.load(open(os.path.join('/home/bar_cohen/raid/CTL_Reid', 'q_paths.pkl'), 'rb'))
-
-    # compute accuracy for dataset:
-    compute_accuracy(q_feats, q_paths, g_feats, g_paths)
+    # q_feats = pickle.load(open(os.path.join(CTL_PICKLES, 'q_feats.pkl'), 'rb'))
+    # q_paths = pickle.load(open(os.path.join(CTL_PICKLES, 'q_paths.pkl'), 'rb'))
 
     # create a probability vector for every query image:
     # reid_probs_dict = create_query_prob_vector(q_feats, g_feats, g_paths)
-    
+
 
 if __name__ == '__main__':
     args = get_args()
-    usage_example(args)
+    usage_example_dataloader_as_query(args)
+    usage_example_track_as_query(args)
 

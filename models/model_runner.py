@@ -31,6 +31,7 @@ def get_args():
     parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
     parser.add_argument('--experiment_mode', action='store_true', help='run in experiment_mode')
     parser.add_argument('--exp_description', help='The description of the experiment that should appear in the ablation study output')
+    parser.add_argument('--reid_model', choices=['fastreid', 'ctl'], default='fastreid', help='Reid model that should be used.')
 
     return parser.parse_args()
 
@@ -43,8 +44,8 @@ def create_reid_opts() -> List:
     if args.reid_opts:
         for opt in args.reid_opts:
             reid_opts.append(opt)
-    if args.device:
-        reid_opts.extend(['MODEL.DEVICE', args.device])
+    # if args.device:
+    #     reid_opts.extend(['MODEL.DEVICE', args.device])
     return reid_opts
 
 
@@ -69,6 +70,8 @@ def create_optional_args() -> List:
         optional_args.extend(['--experiment_mode'])
     if args.exp_description:
         optional_args.extend(['--exp_description', args.exp_description])
+    if args.reid_model:
+        optional_args.extend(['--reid_model', args.reid_model])
     return optional_args
 
 
@@ -171,14 +174,15 @@ MODEL.WEIGHTS
                                   query_vid)
 
         args.output = os.path.join(inference_output, 'inference_' + query_vid.split('/')[-1])
-        script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
+        # script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
+        script_args = ['/home/bar_cohen/miniconda3/envs/CTL/bin/python3.7', './models/track_and_reid_model.py',
                        args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
         script_args.extend(optional_args)
         script_args.append('--reid_opts')
         script_args.extend(reid_opts)
 
         call(script_args)
-
+        # break
 
 
 def runner():

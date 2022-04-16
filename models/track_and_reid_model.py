@@ -1,6 +1,7 @@
 import csv
 import os
 import pickle
+import shutil
 import tempfile
 from argparse import ArgumentParser, REMAINDER
 import sys
@@ -27,12 +28,14 @@ from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import ID_NOT_IN_VIDEO
 
 sys.path.append('fast-reid')
+sys.path.append('centroids_reid')
 
 from fastreid.config import get_cfg
 from fastreid.data import build_reid_test_loader
 from demo.predictor import FeatureExtractionDemo
 from mmtrack.apis import inference_mot, init_model
 from double_id_handler import remove_double_ids, NODES_ORDER
+from CTL_reid_inference import *
 
 CAM_ID = 1
 ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/dani-ablation-new.csv'
@@ -65,6 +68,7 @@ def get_args():
     parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
     parser.add_argument('--experiment_mode', action='store_true', help='run in experiment_mode')
     parser.add_argument('--exp_description', help='The description of the experiment that should appear in the ablation study output')
+    parser.add_argument('--reid_model', choices=['fastreid', 'ctl'], default='fastreid', help='Reid model that should be used.')
     args = parser.parse_args()
     return args
 
@@ -223,7 +227,8 @@ def create_tracklets_from_db(vid_name, face_detector):
                         invalid=temp_crop.invalid,
                         is_vague=temp_crop.is_vague)
             crop.set_im_name()
-            crop_im = Image.open(f'/home/bar_cohen/raid/{vid_name}/{crop.im_name}')
+            im_location = crop.im_name
+            crop_im = Image.open(f'/home/bar_cohen/raid/{vid_name}/{im_location}')
 
             if not crop_im:
                 im_location = 'v' + crop.im_name[2:]
@@ -300,6 +305,14 @@ def create_or_load_tracklets(args, face_detector):
     return tracklets
 
 
+def create_temp_dataloader(crop_dicts):
+    tempdir = tempfile.mkdtemp()
+    for crop_dict in crop_dicts:
+        im = Image.fromarray(crop_dict.get('crop_img'))
+        im.save(os.path.join(tempdir, crop_dict.get('Crop').im_name))
+    return tempdir
+
+
 def create_data_by_re_id_and_track():
     """
     This function takes a video and runs both tracking, face-id and re-id models to create and label tracklets
@@ -319,7 +332,7 @@ def create_data_by_re_id_and_track():
             ablation_df = pd.DataFrame(columns=ABLATION_COLUMNS)
         columns_dict = {k: 0 for k in ablation_df.columns}
         columns_dict['video_name'] = args.input.split('/')[-1]
-        columns_dict['model_name'] = 'fastreid'
+        columns_dict['model_name'] = args.reid_model
         print('*** Running in inference-only mode ***')
         db_location = '/mnt/raid1/home/bar_cohen/inference_db8.db'
         if os.path.isfile(db_location): # remove temp db if leave-over from prev runs
@@ -335,17 +348,35 @@ def create_data_by_re_id_and_track():
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le.pkl", 'rb'))
     faceClassifer = FaceClassifer(num_classes=19, label_encoder=le)
 
-    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/1.pth"))
-    faceClassifer.model_ft.eval()
-    reid_cfg = set_reid_cfgs(args)
+    # faceClassifer.model_ft.load_state_dict(torch.load("/home/bar_cohen/raid/FaceData/checkpoints/FULL_DATA_augs:True_lr:1e-05_500, 4.pth"))
+    # faceClassifer.model_ft.eval()
 
-    # build re-id inference model:
-    reid_model = FeatureExtractionDemo(reid_cfg, parallel=True)
+    if args.reid_model == 'fastreid':
+        reid_cfg = set_reid_cfgs(args)
 
-    # run re-id model on all images in the test gallery and query folders:
-    # build re-id test set. NOTE: query dir of the dataset should be empty!
-    # gen_reid_features(reid_cfg, reid_model) # UNCOMMENT TO Recreate reid features
-    feats, g_feats, g_pids, g_camids = load_reid_features()
+        # build re-id inference model:
+        reid_model = FeatureExtractionDemo(reid_cfg, parallel=True)
+
+        # run re-id model on all images in the test gallery and query folders:
+        # build re-id test set. NOTE: query dir of the dataset should be empty!
+        # gen_reid_features(reid_cfg, reid_model) # UNCOMMENT TO Recreate reid features
+        feats, g_feats, g_pids, g_camids = load_reid_features()
+    else:
+        args.reid_config = "./centroids_reid/configs/256_resnet50.yml"
+        reid_cfg = set_CTL_reid_cfgs(args)
+        # initialize reid model:
+        checkpoint = torch.load(reid_cfg.TEST.WEIGHT)
+        checkpoint['hyper_parameters']['MODEL']['PRETRAIN_PATH'] = './centroids_reid/models/resnet50-19c8e357.pth'
+        reid_model = CTLModel._load_model_state(checkpoint)
+
+        # create gallery feature:
+        gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
+        g_feats, g_paths = create_gallery_features(reid_model, gallery_data, int(args.device.split(':')[1]),
+                                                   output_path=CTL_PICKLES)
+
+        # OR load gallery feature:
+        g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
+        g_feats = torch.from_numpy(g_feats)
 
     if args.experiment_mode:
         tracklets = create_or_load_tracklets(args, faceDetector)
@@ -373,8 +404,18 @@ def create_data_by_re_id_and_track():
             columns_dict['total_tracks'] += 1
         track_imgs = [crop_dict.get('crop_img') for crop_dict in crop_dicts]
         track_imgs_conf = np.array([crop_dict.get('Crop').conf for crop_dict in crop_dicts])
-        q_feats = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
-        reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
+        if args.reid_model == 'fastreid':
+            q_feats = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
+            reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
+        else:
+            temp_crops_folder = create_temp_dataloader(crop_dicts)
+            query_data = make_inference_data_loader(reid_cfg, temp_crops_folder, ImageDataset)
+            q_feats, _ = CTL_reid_dataset_inference(reid_model, query_data, int(args.device.split(':')[1]))
+            q_feats = torch.from_numpy(q_feats)
+            reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_paths.astype(np.int), track_imgs_conf)
+            # reid_ids = int(reid_ids)
+            # reid_probs_dict = create_query_prob_vector(q_feats, g_feats, g_paths)
+            shutil.rmtree(temp_crops_folder)
         bincount = np.bincount(reid_ids)
         reid_maj_vote = np.argmax(bincount)
         reid_maj_conf = bincount[reid_maj_vote] / len(reid_ids)
