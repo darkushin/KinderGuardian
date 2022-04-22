@@ -35,7 +35,7 @@ from mmtrack.apis import inference_mot, init_model
 from double_id_handler import remove_double_ids, NODES_ORDER
 
 CAM_ID = 1
-ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/dani-ablation-new.csv'
+ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/correlation_test_ablation-Delete.csv'
 ABLATION_COLUMNS = ['description', 'video_name', 'ids_in_video', 'total_ids_in_video', 'total_tracks',
                     'tracks_with_face', 'pure_reid_model', 'reid_with_maj_vote', 'face_clf_only',
                     'face_clf_only_tracks_with_face', 'reid_with_face_clf_maj_vote', 'rank-1', 'sorted-rank-1',
@@ -321,7 +321,7 @@ def create_data_by_re_id_and_track():
         columns_dict['video_name'] = args.input.split('/')[-1]
         columns_dict['model_name'] = 'fastreid'
         print('*** Running in inference-only mode ***')
-        db_location = f'/mnt/raid1/home/bar_cohen/correlation_test/inference_db_{args.input.split("/")[-1][9:-4]}.db'
+        db_location = f'/mnt/raid1/home/bar_cohen/correlation_test/{args.input.split("/")[-1][9:-4]}_temp_db.db'
         if os.path.isfile(db_location): # remove temp db if leave-over from prev runs
             assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
             os.remove(db_location)
@@ -335,7 +335,7 @@ def create_data_by_re_id_and_track():
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le.pkl", 'rb'))
     faceClassifer = FaceClassifer(num_classes=19, label_encoder=le)
 
-    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/1.pth"))
+    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/FULL_DATA_augs:True_lr:1e-05_0, 4.pth"))
     faceClassifer.model_ft.eval()
     reid_cfg = set_reid_cfgs(args)
 
@@ -424,6 +424,10 @@ def create_data_by_re_id_and_track():
                 mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder, crop.im_name))
 
     add_entries(db_entries, db_location)
+
+    # Save track score for correlation test:
+    print('Finished adding to temp db and saving track scores...')
+    pickle.dump(all_tracks_final_scores, open(os.path.join('/mnt/raid1/home/bar_cohen/correlation_test', f'{args.input.split("/")[-1][9:-4]}_track_scores'), 'wb'))
 
     # handle double-id and update it in the DB
     # Remove double ids according to different heuristics and record it in the ablation study results
