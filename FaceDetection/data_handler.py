@@ -13,9 +13,10 @@ from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 from FaceDetection.augmentions import normalize_image
 from FaceDetection.faceDetector import FaceDetector, is_img
 
-TRAIN_DATES = ['0729', '0801', '0802','0804' ,'0805']
-VAL_DATES = ['0803']
-TEST_DATES = ['0730','0808']
+TRAIN_DATES = ['0729', '0801', '0802','0804' ,'0805', '0803']
+VAL_DATES = ['0730','0808']
+TEST_DATES = ['0803']
+
 
 def labelencode(label_encoder_output,X_train ,y_train, X_val ,y_val, X_test, y_test ,classes_to_drop:list):
     def drop_from_cur_set(X, y, le):
