@@ -129,6 +129,7 @@ def get_query_set():
 def execute_combined_model():
     """
     Usage example:
+USING fast-reid:
 re-id-and-tracking
 --track_config
 ./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py
@@ -154,6 +155,45 @@ DATASETS.DATASET
 diff_day_test_as_train_query_3007_0808
 MODEL.WEIGHTS
 ./fast-reid/checkpoints/diff_day_no_invalid_query_3.8_3007
+
+USING CTL ReID:
+re-id-and-tracking
+--track_config
+./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py
+--mmtrack_checkpoint
+/home/bar_cohen/KinderGuardian/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth
+--reid_config
+./centroids_reid/configs/256_resnet50.yml
+--input
+/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210803105422/IPCamera_20210803105422_s0_e501.mp4
+--output
+/mnt/raid1/home/bar_cohen/labled_videos/20210803105422_s0_e501_new_model.mp4
+--acc_th
+0.8
+--crops_folder
+/mnt/raid1/home/bar_cohen/DB_Test/
+--inference_only
+--db_tracklets
+--exp_description
+"testing CTL model - cv2 imsave"
+--device
+cuda:0
+--experiment_mode
+--reid_model
+ctl
+--reid_opts
+TEST.IMS_PER_BATCH
+128
+TEST.ONLY_TEST
+True
+TEST.WEIGHT
+/home/bar_cohen/D-KinderGuardian/centroids_reid/checkpoints/dukemtmcreid_resnet50_256_128_epoch_120.ckpt
+DATASETS.NAMES
+dukemtmcreid
+DATASETS.ROOT_DIR
+/home/bar_cohen/KinderGuardian/fast-reid/datasets/diff_day_train_as_test_0730_0808_quary/bounding_box_test
+MODEL.USE_CENTROIDS
+True
 
 
     ByteTracker:
@@ -182,7 +222,6 @@ MODEL.WEIGHTS
         script_args.extend(reid_opts)
 
         call(script_args)
-        # break
 
 
 def runner():

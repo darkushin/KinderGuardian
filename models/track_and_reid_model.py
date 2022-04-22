@@ -307,9 +307,14 @@ def create_or_load_tracklets(args, face_detector):
 
 def create_temp_dataloader(crop_dicts):
     tempdir = tempfile.mkdtemp()
+    # save using PIL:
+    # for crop_dict in crop_dicts:
+    #     im = Image.fromarray(crop_dict.get('crop_img'))
+    #     im.save(os.path.join(tempdir, crop_dict.get('Crop').im_name))
+    # save using cv2:
     for crop_dict in crop_dicts:
-        im = Image.fromarray(crop_dict.get('crop_img'))
-        im.save(os.path.join(tempdir, crop_dict.get('Crop').im_name))
+        im = crop_dict.get('crop_img')
+        cv2.imwrite(os.path.join(tempdir, crop_dict.get('Crop').im_name), im)
     return tempdir
 
 
@@ -370,9 +375,9 @@ def create_data_by_re_id_and_track():
         reid_model = CTLModel._load_model_state(checkpoint)
 
         # create gallery feature:
-        gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
-        g_feats, g_paths = create_gallery_features(reid_model, gallery_data, int(args.device.split(':')[1]),
-                                                   output_path=CTL_PICKLES)
+        # gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
+        # g_feats, g_paths = create_gallery_features(reid_model, gallery_data, int(args.device.split(':')[1]),
+        #                                            output_path=CTL_PICKLES)
 
         # OR load gallery feature:
         g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
