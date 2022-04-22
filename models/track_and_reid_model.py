@@ -321,7 +321,7 @@ def create_data_by_re_id_and_track():
         columns_dict['video_name'] = args.input.split('/')[-1]
         columns_dict['model_name'] = 'fastreid'
         print('*** Running in inference-only mode ***')
-        db_location = '/mnt/raid1/home/bar_cohen/inference_db8.db'
+        db_location = f'/mnt/raid1/home/bar_cohen/correlation_test/inference_db_{args.input.split("/")[-1][9:-4]}.db'
         if os.path.isfile(db_location): # remove temp db if leave-over from prev runs
             assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
             os.remove(db_location)

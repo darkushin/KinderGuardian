@@ -15,7 +15,7 @@ IDS_TO_COLORS = {
     8: 'tab:gray', 9: 'tab:olive', 10: 'tab:cyan'
 }
 
-# The order in which the ids should be allocated to ids:
+# The order in which the ids should be allocated to tracks:
 # - rank-1: take the id with the highest score for each track (doesn't remove double ids! should be identical to the
 #   combination of reid and face)
 # - sorted-rank-1: sort the nodes from highest rank-1 to lowest and allocate ids first for higher ranking nodes
