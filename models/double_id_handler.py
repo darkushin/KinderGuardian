@@ -143,6 +143,9 @@ def assign_color_to_node(G: nx.Graph(), ids_rank: dict, nodes_order: str = 'rank
         ordered_nodes = G.nodes
     elif nodes_order == 'max-difference':
         ordered_nodes = sort_by_max_difference(ids_rank)
+    elif nodes_order == 'random':
+        ordered_nodes = list(G.nodes)
+        random.shuffle(ordered_nodes)
     else:
         raise Exception(f'Double Booking: nodes order method not selected or invalid. Options are: {NODES_ORDER}')
 
@@ -207,14 +210,110 @@ def remove_double_ids(vid_name: str, tracks_scores: dict, db_location: str, node
     return tracks_to_ids
 
 
+def compute_scores_sum(track_scores, tracks_to_ids):
+    """
+    Compute the total scores sum based on the given tracks_to_ids allocation.
+    """
+    sum = 0
+    for track, id in tracks_to_ids.items():
+        sum += track_scores[track][id]
+    return sum
+
+
+def compute_ids_allocation_accuracy(tracks_to_ids, db_location):
+    """
+    Compute the accuracy of the current tracks_to_ids allocation compared to the ground truth labels.
+    """
+    session = create_session(db_location)
+    tracks = [track.track_id for track in
+              get_entries(filters=(), group=Crop.track_id, db_path=db_location, session=session)]
+    num_crops = 0
+    correct_labels = 0
+    for track in tracks:
+        crops = get_entries(filters=({Crop.track_id == track}), db_path=db_location, session=session).all()
+        num_crops += len(crops)
+        for crop in crops:
+            crop.label = ID_TO_NAME[tracks_to_ids[track]]
+            tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
+            if tagged_label_crop and tagged_label_crop[0].label == crop.label:
+                correct_labels += 1
+    return correct_labels / num_crops
+
+
+def correlation_test(vid_name: str, num_tests: int):
+    """
+    Run the correlation test on the given video. This function runs num_tests time the remove_double_ids function, each
+    time with a different permutation of the nodes order and records the resulting scores sum and accuracy.
+    This method assumes that pickles containing the temp_db of the video and the track_scores were already created (they
+    should be created through the model runner).
+    """
+    db_loc = f'/mnt/raid1/home/bar_cohen/correlation_test/{vid_name}_temp_db.db'
+    track_scores = pickle.load(open(f'/mnt/raid1/home/bar_cohen/correlation_test/{vid_name}_track_scores', 'rb'))
+    all_accuracies = []
+    prob_sums = []
+    for t in range(num_tests):
+        if t % 10 == 0:
+            print(f'running correlation test {t}/{num_tests} for video {vid_name}')
+        tracks_to_ids = remove_double_ids(vid_name, track_scores, db_loc, nodes_order='random')
+        prob_sum = compute_scores_sum(track_scores, tracks_to_ids)
+        accuracy = compute_ids_allocation_accuracy(tracks_to_ids, db_loc)
+        prob_sums.append(prob_sum)
+        all_accuracies.append(accuracy)
+
+    # plot all points on a graph
+    pickle.dump(all_accuracies, open(f'/mnt/raid1/home/bar_cohen/correlation_test/{vid_name}_accuracies', 'wb'))
+    pickle.dump(prob_sums, open(f'/mnt/raid1/home/bar_cohen/correlation_test/{vid_name}_probs', 'wb'))
+    plt.scatter(prob_sums, all_accuracies, marker='.')
+    plt.title(f'Correlation for video: {vid_name}')
+    plt.show()
+
+
+def create_correlation_results(results_dir):
+    """
+    Given the directory to the scores_sum and accuracies lists of all videos, create the corresponding graph and
+    correlation plot of all videos in the directory.
+    """
+    vid_names = set()
+    for v in os.listdir(results_dir):
+        if 'probs' not in v:
+            continue
+        vid_names.add(v.split('_probs')[0])
+
+    for vid_name in vid_names:
+        probs = pickle.load(open(os.path.join(results_dir, f'{vid_name}_probs'), 'rb'))
+        accuracies = pickle.load(open(os.path.join(results_dir, f'{vid_name}_accuracies'), 'rb'))
+
+        # visualize graph:
+        ranges = get_track_ranges(vid_name, db_location=os.path.join(results_dir, f'{vid_name}_temp_db.db'))
+        groups = find_intersecting_tracks(ranges)
+        G = create_graph(groups)
+        draw_graph(G, title=vid_name, color_map=[1] * len(G.nodes))
+
+        # Save the scatter plot:
+        plt.figure()
+        plt.scatter(probs, accuracies, marker='.')
+        plt.title(f'Correlation for video: {vid_name}')
+        plt.xlabel('Score Sum')
+        plt.ylabel('Accuracy')
+        plt.savefig(os.path.join(results_dir, f'{vid_name}_correlation.png'))
+
+
 if __name__ == '__main__':
-    db_location = '/home/bar_cohen/raid/dani-inference_db8.db'
-    all_tracks_final_scores = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/all-tracks-20210808111437_s45000_e45501.pkl','rb'))
+    # db_location = '/home/bar_cohen/raid/dani-inference_db8.db'
+    # all_tracks_final_scores = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/all-tracks-20210808111437_s45000_e45501.pkl','rb'))
+    #
+    # # new_id_dict = remove_double_ids('20210808111437_s45000_e45501', all_tracks_final_scores, db_location, 'max-difference')
+    # ids_rank = sort_track_scores(None, all_tracks_final_scores)
+    # new_id_dict = sort_by_max_difference(ids_rank)
+    # print(new_id_dict)
 
-    # new_id_dict = remove_double_ids('20210808111437_s45000_e45501', all_tracks_final_scores, db_location, 'max-difference')
-    ids_rank = sort_track_scores(None, all_tracks_final_scores)
-    new_id_dict = sort_by_max_difference(ids_rank)
-    print(new_id_dict)
+    # from model_runner import get_query_set
+    # for query_vid in get_query_set():
+    #     correlation_test(query_vid[9:-4], 100)
 
+    for vid in ['20210808082440_s0_e501']:
+        correlation_test(vid, 100)
+    # vid_name = '20210730111802_s0_e501'
 
+    create_correlation_results('/mnt/raid1/home/bar_cohen/correlation_test/')
 
