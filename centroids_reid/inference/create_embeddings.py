@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 sys.path.append(".")
-
+sys.path.append('centroids_reid')
 from config import cfg
 from train_ctl_model import CTLModel
 

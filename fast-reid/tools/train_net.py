@@ -6,6 +6,7 @@
 """
 
 import sys
+import wandb
 
 sys.path.append('.')
 sys.path.append('fast-reid')
@@ -13,7 +14,6 @@ sys.path.append('fast-reid')
 from fastreid.config import get_cfg
 from fastreid.engine import DefaultTrainer, default_argument_parser, default_setup, launch
 from fastreid.utils.checkpoint import Checkpointer
-
 
 '''
 USAGE:
@@ -43,6 +43,7 @@ def setup(args):
 def main(args):
     validate_args(args)
     cfg = setup(args)
+    wandb.init(project="fast-reid-test", entity="kinder-guardian", config=cfg)
 
     if args.eval_only:
         cfg.defrost()

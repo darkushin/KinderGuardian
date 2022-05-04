@@ -16,6 +16,7 @@ from torch.nn.parallel import DataParallel, DistributedDataParallel
 import fastreid.utils.comm as comm
 from fastreid.utils.events import EventStorage, get_event_storage
 from fastreid.utils.params import ContiguousParams
+import wandb
 
 __all__ = ["HookBase", "TrainerBase", "SimpleTrainer"]
 
@@ -342,6 +343,8 @@ class AMPTrainer(SimpleTrainer):
         with autocast():
             loss_dict = self.model(data)
             losses = sum(loss_dict.values())
+            wandb.log({"classification loss": loss_dict.get('loss_cls')})
+            wandb.log({"triplet loss": loss_dict.get('loss_triplet')})
 
         self.optimizer.zero_grad()
         self.grad_scaler.scale(losses).backward()

@@ -11,8 +11,9 @@ import pytorch_lightning as pl
 import torch
 import torchvision
 from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger
+from pytorch_lightning.loggers import MLFlowLogger, TensorBoardLogger, WandbLogger
 from pytorch_lightning.utilities.seed import seed_everything
+import wandb
 from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler
@@ -74,8 +75,9 @@ def run_single(cfg, method, logger_save_dir):
 
     logger = TensorBoardLogger(cfg.LOG_DIR, name=logger_save_dir)
     mlflow_logger = MLFlowLogger(experiment_name="default")
+    wandb_logger = WandbLogger(project="CTL_reid")
 
-    loggers = [logger, mlflow_logger]
+    loggers = [logger, mlflow_logger, wandb_logger]
 
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(logger.log_dir, "checkpoints"),
@@ -156,9 +158,13 @@ def run_single(cfg, method, logger_save_dir):
         trainer.fit(
             method, train_dataloader=train_loader, val_dataloaders=[val_dataloader]
         )
+
         method.hparams.MODEL.USE_CENTROIDS = not method.hparams.MODEL.USE_CENTROIDS
         trainer.test(model=method, test_dataloaders=val_dataloader)
         method.hparams.MODEL.USE_CENTROIDS = not method.hparams.MODEL.USE_CENTROIDS
+
+        print(f'Current Run Configurations: {cfg}')
+
 
 
 def run_main(cfg, method, logger_save_dir):
