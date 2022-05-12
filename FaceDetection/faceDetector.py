@@ -1,11 +1,12 @@
 import os
 import pickle
 from collections import defaultdict
+import mmcv
 import tqdm
 from PIL import Image
 from DataProcessing.DB.dal import get_entries, Crop
 from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
-from FaceDetection.augmentions import normalize_image, crop_top_third_and_sides, detect_single_face_inv_norm
+from FaceDetection.augmentions import normalize_image, crop_top_third_and_sides
 from FaceDetection.facenet_pytorch import MTCNN
 import numpy as np
 from matplotlib import pyplot as plt
@@ -46,7 +47,7 @@ class FaceDetector():
                     if is_img(face_img) and norm:
                         face_img = normalize_image(face_img)
                 else:
-                    # face_img, prob = detect_single_face_inv_norm(face_img)
+                    # face_img, prob = self.detect_single_face_inv_norm(face_img)
                     face_img, prob = None, 0
                     # TODO try and view these images, make sure they are okay, are they normalized?
                     # if self.is_img(face_img):
@@ -68,7 +69,7 @@ class FaceDetector():
         high_conf_face_imgs = defaultdict(list)
         if self.faces_data_path and not recreate_data:
             print("pickle path to images received, loading...")
-            high_conf_face_imgs = pickle.load(open(os.path.join(self.faces_data_path, 'images_with_crop_full.pkl'),'rb'))
+            high_conf_face_imgs = pickle.load(open(os.path.join(self.faces_data_path, 'images_with_crop_skip_5.pkl'),'rb'))
         else:
             norm = not save_images_path
             face_crops = get_entries(filters={Crop.is_face == True,
@@ -124,6 +125,24 @@ class FaceDetector():
             pickle.dump(high_conf_face_imgs, open(os.path.join('/mnt/raid1/home/bar_cohen/FaceData/', 'images_with_crop_skip_5.pkl'),'wb'))
         return high_conf_face_imgs
 
+
+
+def collect_faces_from_video(video_path:str) -> []:
+    fd = FaceDetector(faces_data_path=None,thresholds=[0.97,0.97,0.97],keep_all=True)
+    imgs = mmcv.VideoReader(video_path)
+    ret = []
+    for img in tqdm.tqdm(imgs):
+        face_img, prob = fd.facenet_detecor(img, return_prob=True)
+        if is_img(face_img):
+            if face_img.size()[0] == 1:  # two or more faces detected in the img crop
+                ret.append(face_img[0])
+    return ret
+
+def collect_faces_from_list_of_videos(list_of_videos:list):
+    face_imgs = []
+    for video_path in list_of_videos:
+        face_imgs.extend(collect_faces_from_video(video_path=video_path))
+    return face_imgs
 
 def main():
     """Simple test of FaceDetector"""

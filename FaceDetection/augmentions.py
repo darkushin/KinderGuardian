@@ -44,7 +44,7 @@ def smooth_sample_of_training(x_train, y_train, max_sample_threshold):
     return x_train[inds_to_take], y_train[inds_to_take]
 
 
-def augment_training_set(x_train:[], y_train:[], augment_data):
+def augment_training_set(x_train:[], y_train:[]):
     augmenters = [T.RandomHorizontalFlip(),
                  T.ColorJitter(),
                  T.GaussianBlur(kernel_size=(5,9), sigma=(0.1,5)),
@@ -57,10 +57,9 @@ def augment_training_set(x_train:[], y_train:[], augment_data):
     for img , label in zip(x_train, y_train):
         augmented_x.append(normalize_image(img))
         augmented_y.append(label)
-        if augment_data:
-            for aug in augmenters:
-                augmented_x.append(normalize_image(aug(img)))
-                augmented_y.append(label)
+        for aug in augmenters:
+            augmented_x.append(normalize_image(aug(img)))
+            augmented_y.append(label)
     return augmented_x, augmented_y
 
 
