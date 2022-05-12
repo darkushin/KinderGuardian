@@ -198,24 +198,25 @@ def main_train(data_path:str,run_name:str, reload_images_from_db:bool, recreate_
     # eval_faceClassifier(run_name,os.path.join(checkpoint_path, f"{run_name}, {epochs-1}.pth"))
 
 if __name__ == '__main__':
+    pass
     from FaceDetection.evaluation import eval_faceClassifier
-    from FaceDetection.faceDetector import FaceDetector
-    data_path = '/mnt/raid1/home/bar_cohen/FaceData'
-    fd = FaceDetector(faces_data_path=data_path, thresholds=[0.97,0.97,0.97])
-    # checkpoint = ""
-    checkpoint_path = os.path.join("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/")
-    # for max_sample_threshold in [50, 100, 150,200,300,400,500, 0]:
-    for max_sample_threshold in [500]:
-        main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/',
-                   run_name=f"max sample threshold {max_sample_threshold}",
-                   reload_images_from_db=False,
-                   recreate_data=True,
-                   checkpoint_path=checkpoint_path,
-                   load_checkpoint='',
-                   epochs=5,
-                   lr=0.0001,
-                   save_images_path='',
-                   max_sample_threshold=max_sample_threshold)
+    # from FaceDetection.faceDetector import FaceDetector
+    # data_path = '/mnt/raid1/home/bar_cohen/FaceData'
+    # fd = FaceDetector(faces_data_path=data_path, thresholds=[0.97,0.97,0.97])
+    # # checkpoint = ""
+    # checkpoint_path = os.path.join("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/")
+    # # for max_sample_threshold in [50, 100, 150,200,300,400,500, 0]:
+    # for max_sample_threshold in [500]:
+    #     main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/',
+    #                run_name=f"max sample threshold {max_sample_threshold}",
+    #                reload_images_from_db=False,
+    #                recreate_data=True,
+    #                checkpoint_path=checkpoint_path,
+    #                load_checkpoint='',
+    #                epochs=5,
+    #                lr=0.0001,
+    #                save_images_path='',
+    #                max_sample_threshold=max_sample_threshold)
     # load_old_data('/mnt/raid1/home/bar_cohen/FaceData/old_data_for_train/')
     # eval_faceClassifier(exp_name='test',
     #                     checkpoint_path=os.path.join(checkpoint_path, "5_skip_images_lr_0.00001_with_augss_no_smoothing_with_old_data, 4.pth"))
