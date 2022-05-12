@@ -11,22 +11,31 @@ from FaceDetection.augmentions import normalize_image
 from FaceDetection.faceClassifer import FaceClassifer
 from FaceDetection.faceDetector import FaceDetector, is_img
 from mmtracking.mmtrack.apis import init_model, inference_mot
+from demo.predictor import FeatureExtractionDemo
+from fastreid.config import get_cfg
+from fastreid.data import build_reid_test_loader
+from demo.predictor import FeatureExtractionDemo
+from mmtrack.apis import inference_mot, init_model
+from double_id_handler import remove_double_ids, NODES_ORDER
 
 TRACKING_CONFIG_PATH = "/home/bar_cohen/KinderGuardian/mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py"
 TRACKING_CHECKPOINT = "/home/bar_cohen/KinderGuardian/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth"
-
+FACE_CHECKPOINT = "/mnt/raid1/home/bar_cohen/FaceData/checkpoints/FULL_DATA_augs:True_lr:1e-05_0, 4.pth"
 class GalleryCreator:
     def __init__(self, gallery_path, label_encoder,
-                 min_face_size=40,
+                 min_face_size=20,
                  tracker_conf_threshold = 0.98,
                  device='cuda:1',
                  track_config=TRACKING_CONFIG_PATH,
-                 track_checkpoint=TRACKING_CHECKPOINT):
+                 track_checkpoint=TRACKING_CHECKPOINT,
+                 face_clf_checkpoint=FACE_CHECKPOINT):
         self.gallery_path = gallery_path
         self.faceDetector = FaceDetector(faces_data_path=None,thresholds=[0.97,0.97,0.97],
                                     keep_all=False,min_face_size=min_face_size,
                                     device=device)
-        self.faceClassfier = FaceClassifer(num_classes=21, label_encoder=label_encoder,device=device)
+        self.faceClassifer = FaceClassifer(num_classes=21, label_encoder=label_encoder, device=device)
+        self.faceClassifer.model_ft.load_state_dict(torch.load(FACE_CHECKPOINT))
+        self.faceClassifer.model_ft.eval()
         self.tracking_model = init_model(track_config, track_checkpoint, device=device)
         self.tracker_conf_threshold = tracker_conf_threshold
 
@@ -50,14 +59,17 @@ class GalleryCreator:
                     crop_candidates_faces.append(face_img)
                     crop_candidates_inds.append(i)
             if len(crop_candidates_faces) > 0: # some faces where detected
-                preds, _ = self.faceClassfier.predict(torch.stack(crop_candidates_faces))
-                labels = [self.faceClassfier.le.inverse_transform([int(pred)])[0] for pred in preds]
+                preds, _ = self.faceClassifer.predict(torch.stack(crop_candidates_faces))
+                labels = [self.faceClassifer.le.inverse_transform([int(pred)])[0] for pred in preds]
                 crop_cands = np.array(crops_imgs)[crop_candidates_inds]
                 for i , (crop_im, label) in enumerate(zip(crop_cands, labels)):
                     crop_name = f'{label:04d}_c1_f{i:07d}_{vid_name}.jpg'
-                    dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
+                    # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
+                    dir_path = self.gallery_path
                     os.makedirs(dir_path, exist_ok=True)
                     mmcv.imwrite(np.array(crop_im), os.path.join(dir_path, crop_name))
+
+
 
 def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
     result = inference_mot(tracking_model, img, frame_id=frame_id)
