@@ -1,12 +1,5 @@
 import os
 import sys
-
-from FaceDetection.InsightFace_Pytorch.model import Backbone
-
-sys.path.append('DataProcessing')
-
-
-
 import pandas as pd
 import copy
 import pickle
@@ -39,14 +32,6 @@ class FaceClassifer():
         self.softmax = nn.Softmax(dim=1)
         self.le = label_encoder
         self.exp_lr_scheduler = lr_scheduler.MultiStepLR(self.optimizer_ft, [5,10])
-
-    def load_arcface(self):
-        model = Backbone(num_layers=50, drop_ratio=0.6, mode='ir_se').to('cpu')
-        model.requires_grad_(False)
-        cls_ckpt = "/mnt/raid1/home/bar_cohen/FaceData/temp_checkpoint_for_bar/model_ir_se50.pth"
-        model.load_state_dict(torch.load(cls_ckpt, map_location='cpu'))
-        model = model.to(self.device)
-        return model.eval()
 
     def _create_Incepction_Resnet_for_finetunning(self):
         model_ft = InceptionResnetV1(pretrained='vggface2', classify=True,num_classes=self.num_classes, dropout_prob=0.6)
@@ -208,29 +193,30 @@ def main_train(data_path:str,run_name:str, reload_images_from_db:bool, recreate_
     # eval_faceClassifier(run_name,os.path.join(checkpoint_path, f"{run_name}, {epochs-1}.pth"))
 
 if __name__ == '__main__':
+    pass
     from FaceDetection.evaluation import eval_faceClassifier
-    from FaceDetection.faceDetector import FaceDetector
-    data_path = '/mnt/raid1/home/bar_cohen/FaceData'
-    fd = FaceDetector(faces_data_path=data_path, thresholds=[0.97,0.97,0.97], device='cuda:0')
-    # checkpoint = ""
-    checkpoint_path = os.path.join("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/")
-    for with_augs in [True,False]:
-        for max_sample_threshold in [0,500,400,300]:
-            for lr in [0.001,0.0001,0.00001]:
-                run_name = f"FULL_DATA_augs:{with_augs}_lr:{lr}_{max_sample_threshold}"
-                print(run_name)
-                main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/',
-                           run_name=run_name,
-                           reload_images_from_db=False,
-                           recreate_data=True,
-                           augment_data = with_augs,
-                           checkpoint_path=checkpoint_path,
-                           load_checkpoint='',
-                           epochs=5,
-                           lr=lr,
-                           save_images_path='',
-                           max_sample_threshold=max_sample_threshold,
-                           device='cuda:0')
+    # from FaceDetection.faceDetector import FaceDetector
+    # data_path = '/mnt/raid1/home/bar_cohen/FaceData'
+    # fd = FaceDetector(faces_data_path=data_path, thresholds=[0.97,0.97,0.97], device='cuda:0')
+    # # checkpoint = ""
+    # checkpoint_path = os.path.join("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/")
+    # for with_augs in [True,False]:
+    #     for max_sample_threshold in [0,500,400,300]:
+    #         for lr in [0.001,0.0001,0.00001]:
+    #             run_name = f"FULL_DATA_augs:{with_augs}_lr:{lr}_{max_sample_threshold}"
+    #             print(run_name)
+    #             main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/',
+    #                        run_name=run_name,
+    #                        reload_images_from_db=False,
+    #                        recreate_data=True,
+    #                        augment_data = with_augs,
+    #                        checkpoint_path=checkpoint_path,
+    #                        load_checkpoint='',
+    #                        epochs=5,
+    #                        lr=lr,
+    #                        save_images_path='',
+    #                        max_sample_threshold=max_sample_threshold,
+    #                        device='cuda:0')
     # eval_faceClassifier(exp_name='test',
     #                     checkpoint_path=os.path.join(checkpoint_path, "/mnt/raid1/home/bar_cohen/FaceData/checkpoints/all_data_with_augs_sample_threshold_500_weight_decay_dropout_0.8, 3.pth"))
 #

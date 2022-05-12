@@ -11,12 +11,7 @@ from FaceDetection.augmentions import normalize_image
 from FaceDetection.faceClassifer import FaceClassifer
 from FaceDetection.faceDetector import FaceDetector, is_img
 from mmtracking.mmtrack.apis import init_model, inference_mot
-from demo.predictor import FeatureExtractionDemo
-from fastreid.config import get_cfg
-from fastreid.data import build_reid_test_loader
-from demo.predictor import FeatureExtractionDemo
 from mmtrack.apis import inference_mot, init_model
-from double_id_handler import remove_double_ids, NODES_ORDER
 
 TRACKING_CONFIG_PATH = "/home/bar_cohen/KinderGuardian/mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py"
 TRACKING_CHECKPOINT = "/home/bar_cohen/KinderGuardian/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth"
