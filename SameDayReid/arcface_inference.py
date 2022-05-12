@@ -1,12 +1,17 @@
+import sys
 import pickle
+from pprint import pprint
+
 import tqdm
-from model import Backbone
 import torch
 from torchvision import transforms as trans
 import os
 from PIL import Image
-from mtcnn import MTCNN
 import numpy as np
+sys.path.append('/home/bar_cohen/KinderGuardian/InsightFace_Pytorch')
+from InsightFace_Pytorch.model import Backbone
+from InsightFace_Pytorch.mtcnn import MTCNN
+
 
 FACE_GALLERY = '/home/bar_cohen/raid/OUR_DATASETS/ArcFaceGallery/faces_clean'
 FACE_GALLERY_PICKLE = '/home/bar_cohen/raid/OUR_DATASETS/ArcFaceGallery/pickles/face_gallery_embds.pkl'
@@ -42,19 +47,20 @@ class ArcFace:
             gallery_embedding = pickle.load(open(FACE_GALLERY_PICKLE, 'rb'))
             self.g_feats = gallery_embedding.get('embeddings')
             self.g_ids = gallery_embedding.get('ids')
-        embeddings = []
-        ids = []
-        imgs = os.listdir(self.face_gallery_data)
-        print('Creating feature vectors for gallery images:')
-        for im_path in tqdm.tqdm(imgs, total=len(imgs)):
-            img = Image.open(os.path.join(self.face_gallery_data, im_path))
-            embeddings.append(self.create_embedding(img))
-            ids.append(im_path.split('_')[0])
-        gallery_embedding = {'embeddings': embeddings, 'ids': ids}
-        print(f'Saving gallery embeddings to pickle at: {FACE_GALLERY_PICKLE}')
-        pickle.dump(gallery_embedding, open(FACE_GALLERY_PICKLE, 'wb'))
-        self.g_feats = embeddings
-        self.g_ids = ids
+        else:
+            embeddings = []
+            ids = []
+            imgs = os.listdir(self.face_gallery_data)
+            print('Creating feature vectors for gallery images:')
+            for im_path in tqdm.tqdm(imgs, total=len(imgs)):
+                img = Image.open(os.path.join(self.face_gallery_data, im_path))
+                embeddings.append(self.create_embedding(img))
+                ids.append(im_path.split('_')[0])
+            gallery_embedding = {'embeddings': embeddings, 'ids': ids}
+            print(f'Saving gallery embeddings to pickle at: {FACE_GALLERY_PICKLE}')
+            pickle.dump(gallery_embedding, open(FACE_GALLERY_PICKLE, 'wb'))
+            self.g_feats = embeddings
+            self.g_ids = ids
 
     def create_embedding(self, img):
         self.model.eval()
@@ -77,11 +83,21 @@ class ArcFace:
             q_feats.append(self.create_embedding(face_im))
 
         # create the distmat of the q_feats and g_feats
-        distmat = 1 - (np.array(q_feats) @ np.array(self.g_feats.T))
+
+        # q_feats_tensor = torch.Tensor(len(q_feats), 512)
+        # torch.cat(q_feats, out=q_feats_tensor)
+        # g_feats_tensor = torch.Tensor(len(self.g_feats), 512)
+        # torch.cat(self.g_feats, out=g_feats_tensor)
+
+        # q_feats_tensor = torch.stack(q_feats)
+        # g_feats_tensor = torch.stack(self.g_feats)
+        distmat = 1 - (torch.stack(q_feats).resize(len(q_feats), 512) @ torch.stack(self.g_feats).resize(len(self.g_feats),512).T)
+
+        # distmat = 1 - (np.array(q_feats) @ np.array(self.g_feats.T))
 
         # compute the minimal distance of every q_feat from the gallery
-        best_match_in_gallery = np.argmin(distmat, axis=1)
-        return self.g_ids[best_match_in_gallery], distmat
+        best_match_in_gallery = torch.argmin(distmat, dim=1)
+        return np.array(self.g_ids)[best_match_in_gallery.cpu()], distmat
 
     def detect_face(self, img, thresholds=[0.8, 0.8, 0.8]):
         """
