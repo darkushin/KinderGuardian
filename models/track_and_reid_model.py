@@ -372,7 +372,7 @@ def create_data_by_re_id_and_track():
     all_tracks_final_scores = dict()
 
     faceClassifer = FaceClassifer(num_classes=21, label_encoder=le, device='cuda:0')
-    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/max sample threshold 500, 2.pth"))
+    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/FULL_DATA_augs:True_lr:1e-05_0, 4.pth"))
     faceClassifer.model_ft.eval()
 
     # iterate over all tracklets and make a prediction for every tracklet
