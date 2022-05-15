@@ -87,7 +87,7 @@ class GalleryCreator:
             crop_candidates_inds = []
             crop_candidates_faces = []
             for i, (id, conf, crop_im) in enumerate(zip(ids, confs, crops_imgs)):
-                face_img = self.arc.detect_face(PIL.Image.fromarray(np.uint8(crop_im)), thresholds=[0.8,0.8,0.8]) # TODO make sure the transform from ndarray to PIL works
+                face_img = self.arc.detect_face(PIL.Image.fromarray(np.uint8(crop_im)), thresholds=[0.6,0.7,0.6]) # TODO make sure the transform from ndarray to PIL works
                 if face_img is not None:
                     print('Face Detected!')
                     crop_candidates_faces.append(face_img)# TODO check if type fits
@@ -134,4 +134,5 @@ if __name__ == '__main__':
     # le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le.pkl",'rb'))
     gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/OUR_DATASETS/same_day_gallery/",
                         label_encoder=None, device='cuda:1', face_model=ARC_FACE)
-    gc.add_video_to_gallery_using_ArcFace("/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210803105422/IPCamera_20210803105422_s0_e501.mp4")
+    gc.add_video_to_gallery_using_ArcFace("/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210804122428/IPCamera_20210804122428_s231000_e231501.mp4")
+    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210804122428/IPCamera_20210804122428_s231000_e231501.mp4")
