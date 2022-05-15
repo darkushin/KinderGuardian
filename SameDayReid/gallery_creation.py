@@ -1,4 +1,7 @@
+import pickle
+
 import PIL
+import matplotlib.pyplot as plt
 import mmcv
 import os
 
@@ -16,14 +19,14 @@ from SameDayReid.arcface_inference import ArcFace
 
 TRACKING_CONFIG_PATH = "/home/bar_cohen/KinderGuardian/mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py"
 TRACKING_CHECKPOINT = "/home/bar_cohen/KinderGuardian/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth"
-FACE_CHECKPOINT = "/mnt/raid1/home/bar_cohen/FaceData/checkpoints/FULL_DATA_augs:True_lr:1e-05_0, 4.pth"
+FACE_CHECKPOINT = "/mnt/raid1/home/bar_cohen/FaceData/checkpoints/FULL_DATA_augs:True_lr:0.001_0, 4.pth"
 
 ARC_FACE = 'ArcFace'
 FACE_NET = 'FaceNet'
 class GalleryCreator:
     def __init__(self, gallery_path, face_model, label_encoder,
-                 min_face_size=20,
-                 tracker_conf_threshold = 0.98,
+                 min_face_size=40,
+                 tracker_conf_threshold = 0.99,
                  device='cuda:1',
                  track_config=TRACKING_CONFIG_PATH,
                  track_checkpoint=TRACKING_CHECKPOINT,
@@ -33,7 +36,7 @@ class GalleryCreator:
         self.gallery_path = gallery_path
 
         if face_model == FACE_NET:
-            self.faceDetector = FaceDetector(faces_data_path=None,thresholds=[0.97,0.97,0.97],
+            self.faceDetector = FaceDetector(faces_data_path=None,thresholds=[0.98,0.98,0.98],
                                         keep_all=False,min_face_size=min_face_size,
                                         device=device)
             self.faceClassifer = FaceClassifer(num_classes=21, label_encoder=label_encoder, device=device)
@@ -62,15 +65,20 @@ class GalleryCreator:
                     crop_candidates_faces.append(face_img)
                     crop_candidates_inds.append(i)
             if len(crop_candidates_faces) > 0: # some faces where detected
-                preds, _ = self.faceClassifer.predict(torch.stack(crop_candidates_faces))
+                preds, outs = self.faceClassifer.predict(torch.stack(crop_candidates_faces))
                 labels = [self.faceClassifer.le.inverse_transform([int(pred)])[0] for pred in preds]
+                confidences = [out.argmax() for out in outs]
                 crop_cands = np.array(crops_imgs)[crop_candidates_inds]
-                for i , (crop_im, label) in enumerate(zip(crop_cands, labels)):
-                    crop_name = f'{label:04d}_c1_f{i:07d}_{vid_name}.jpg'
-                    # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
-                    dir_path = self.gallery_path
-                    os.makedirs(dir_path, exist_ok=True)
-                    mmcv.imwrite(np.array(crop_im), os.path.join(dir_path, crop_name))
+                for i , (crop_im, label, confidence) in enumerate(zip(crop_cands, labels, confidences)):
+                    if confidence > 0.95:
+                        print(label, confidence)
+                        crop_name = f'FACENET_{label:04d}_c1_f{i:07d}_{vid_name}_{i}.jpg'
+                        # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
+                        dir_path = self.gallery_path
+                        os.makedirs(dir_path, exist_ok=True)
+                        plt.imshow(np.array(crop_im))
+                        plt.show()
+                        mmcv.imwrite(np.array(crop_im), os.path.join(dir_path, crop_name))
 
     def add_video_to_gallery_using_ArcFace(self, video_path:str):
         imgs = mmcv.VideoReader(video_path)
@@ -99,7 +107,7 @@ class GalleryCreator:
                 labels, _ = self.arc.predict(crop_candidates_faces)
                 crop_cands = np.array(crops_imgs)[crop_candidates_inds]
                 for i , (crop_im, label) in enumerate(zip(crop_cands, list(labels))):
-                    crop_name = f'{int(label):04d}_c1_f{i:07d}_{vid_name}.jpg'
+                    crop_name = f'{int(label):04d}_c1_f{i:07d}_{vid_name}_{i}.jpg'
                     # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
                     dir_path = self.gallery_path
                     os.makedirs(dir_path, exist_ok=True)
@@ -131,8 +139,8 @@ def collect_faces_from_list_of_videos(list_of_videos:list):
     return face_imgs
 
 if __name__ == '__main__':
-    # le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le.pkl",'rb'))
+    le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le.pkl",'rb'))
     gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/OUR_DATASETS/same_day_gallery/",
-                        label_encoder=None, device='cuda:1', face_model=ARC_FACE)
-    gc.add_video_to_gallery_using_ArcFace("/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210804122428/IPCamera_20210804122428_s231000_e231501.mp4")
-    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210804122428/IPCamera_20210804122428_s231000_e231501.mp4")
+                        label_encoder=le, device='cuda:1', face_model=FACE_NET)
+    # gc.add_video_to_gallery_using_ArcFace("/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210804122428/IPCamera_20210804122428_s231000_e231501.mp4")
+    gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210804122428/IPCamera_20210804122428_s231000_e231501.mp4")
