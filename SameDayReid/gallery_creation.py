@@ -24,8 +24,8 @@ FACE_CHECKPOINT = "/mnt/raid1/home/bar_cohen/FaceData/checkpoints/FULL_DATA_augs
 ARC_FACE = 'ArcFace'
 FACE_NET = 'FaceNet'
 class GalleryCreator:
-    def __init__(self, gallery_path, face_model, label_encoder,
-                 min_face_size=40,
+    def __init__(self, gallery_path, label_encoder,
+                 min_face_size=60,
                  tracker_conf_threshold = 0.99,
                  device='cuda:1',
                  track_config=TRACKING_CONFIG_PATH,
@@ -35,21 +35,23 @@ class GalleryCreator:
         self.tracker_conf_threshold = tracker_conf_threshold
         self.gallery_path = gallery_path
 
-        if face_model == FACE_NET:
-            self.faceDetector = FaceDetector(faces_data_path=None,thresholds=[0.98,0.98,0.98],
-                                        keep_all=False,min_face_size=min_face_size,
-                                        device=device)
-            self.faceClassifer = FaceClassifer(num_classes=21, label_encoder=label_encoder, device=device)
-            self.faceClassifer.model_ft.load_state_dict(torch.load(FACE_CHECKPOINT))
-            self.faceClassifer.model_ft.eval()
-        elif face_model == ARC_FACE:
-            self.arc = ArcFace(device=device)
+        # if face_model == FACE_NET:
+        self.faceDetector = FaceDetector(faces_data_path=None,thresholds=[0.98,0.98,0.98],
+                                    keep_all=False,min_face_size=min_face_size,
+                                    device=device)
+        self.faceClassifer = FaceClassifer(num_classes=21, label_encoder=label_encoder, device=device)
+        self.faceClassifer.model_ft.load_state_dict(torch.load(FACE_CHECKPOINT))
+        self.faceClassifer.model_ft.eval()
+        # elif face_model == ARC_FACE:
+        self.arc = ArcFace(device=device)
 
-    def add_video_to_gallery_using_FaceNet(self, video_path:str):
+    def add_video_to_gallery_using_FaceNet(self, video_path:str, skip_every=500):
         imgs = mmcv.VideoReader(video_path)
         vid_name = video_path.split('/')[-1][9:-4]
-
+        global_i = 0
         for image_index, img in tqdm.tqdm(enumerate(imgs), total=len(imgs)):
+            if image_index % skip_every != 0:
+                continue
             result = tracking_inference(self.tracking_model, img, image_index,
                                         acc_threshold=float(self.tracker_conf_threshold))
             ids = list(map(int, result['track_results'][0][:, 0]))
@@ -68,23 +70,24 @@ class GalleryCreator:
                 preds, outs = self.faceClassifer.predict(torch.stack(crop_candidates_faces))
                 labels = [self.faceClassifer.le.inverse_transform([int(pred)])[0] for pred in preds]
                 confidences = [out.argmax() for out in outs]
-                crop_cands = np.array(crops_imgs)[crop_candidates_inds]
+                crop_cands = [crop_im for i, crop_im in enumerate(crops_imgs) if i in crop_candidates_inds]
                 for i , (crop_im, label, confidence) in enumerate(zip(crop_cands, labels, confidences)):
-                    if confidence > 0.95:
+                    if confidence > 0.98:
                         print(label, confidence)
-                        crop_name = f'FACENET_{label:04d}_c1_f{i:07d}_{vid_name}_{i}.jpg'
+                        crop_name = f'FACENET_{label:04d}_c1_f{i:07d}_{vid_name}_{global_i}.jpg'
                         # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
                         dir_path = self.gallery_path
                         os.makedirs(dir_path, exist_ok=True)
-                        plt.imshow(np.array(crop_im))
-                        plt.show()
+                        global_i += 1
                         mmcv.imwrite(np.array(crop_im), os.path.join(dir_path, crop_name))
+
 
     def add_video_to_gallery_using_ArcFace(self, video_path:str):
         imgs = mmcv.VideoReader(video_path)
         vid_name = video_path.split('/')[-1][9:-4]
         missed = 0
         total = 0
+        global_i = 0
         for image_index, img in tqdm.tqdm(enumerate(imgs), total=len(imgs)):
             result = tracking_inference(self.tracking_model, img, image_index,
                                         acc_threshold=float(self.tracker_conf_threshold))
@@ -107,11 +110,12 @@ class GalleryCreator:
                 labels, _ = self.arc.predict(crop_candidates_faces)
                 crop_cands = np.array(crops_imgs)[crop_candidates_inds]
                 for i , (crop_im, label) in enumerate(zip(crop_cands, list(labels))):
-                    crop_name = f'{int(label):04d}_c1_f{i:07d}_{vid_name}_{i}.jpg'
+                    crop_name = f'ARCFACE_{int(label):04d}_c1_f{i:07d}_{vid_name}_{global_i}.jpg'
                     # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
                     dir_path = self.gallery_path
                     os.makedirs(dir_path, exist_ok=True)
                     mmcv.imwrite(np.array(crop_im), os.path.join(dir_path, crop_name))
+                    global_i += 1
         print(f"missed a total of {missed} crops out of {total}")
 
 
@@ -140,7 +144,9 @@ def collect_faces_from_list_of_videos(list_of_videos:list):
 
 if __name__ == '__main__':
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le.pkl",'rb'))
-    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/OUR_DATASETS/same_day_gallery/",
-                        label_encoder=le, device='cuda:1', face_model=FACE_NET)
+    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/OUR_DATASETS/same_day_gallery_0730/",
+                        label_encoder=le, device='cuda:1')
     # gc.add_video_to_gallery_using_ArcFace("/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210804122428/IPCamera_20210804122428_s231000_e231501.mp4")
-    gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210804122428/IPCamera_20210804122428_s231000_e231501.mp4")
+
+
+    gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730072959.avi")

@@ -8,6 +8,10 @@ from torchvision import transforms as trans
 import os
 from PIL import Image
 import numpy as np
+
+from DataProcessing.DB.dal import get_entries, Crop
+from DataProcessing.dataProcessingConstants import ID_TO_NAME
+
 sys.path.append('/home/bar_cohen/KinderGuardian/InsightFace_Pytorch')
 from InsightFace_Pytorch.model import Backbone
 from InsightFace_Pytorch.mtcnn import MTCNN
@@ -110,6 +114,40 @@ class ArcFace:
             return None
 
 
+def evaluate_with_DB():
+    arc = ArcFace(device='cuda:1') # TODO something is wrong with cuda to, does not work with cuda:0
+    correct = 0
+    total_face_images = 0
+    crops = get_entries(filters={Crop.reviewed_one == True,
+                                      Crop.is_vague == False,
+                                      Crop.invalid == False,
+                                      }).all()
+    # crops = [crop for crop in crops if str(crop.vid_name[4:8]) == '0730']
+    print("Running Arc face Evaluation")
+    crops_path = "/mnt/raid1/home/bar_cohen/"
+    for i, crop in tqdm.tqdm(enumerate(crops), total=len(crops)):
+        # print(i ,'/',len(face_crops))
+        # fix for v, v_ issue
+        name = crop.im_name
+        if not os.path.isfile(os.path.join(crops_path, crop.vid_name, name)):
+            name = 'v' + crop.im_name[2:]
+        img = Image.open(os.path.join(crops_path, crop.vid_name, name))
+        face_img = arc.detect_face(img)
+        if face_img is not None:
+            total_face_images += 1
+            pred = ID_TO_NAME[int(arc.predict([face_img])[0])]
+            if pred == crop.label:
+                correct += 1
+            else:
+                pass
+                # img.save(f"/mnt/raid1/home/bar_cohen/FaceData/temp/pred:{pred}_label{crop.label}_{i}.png", quality=100, subsampling=0)
+
+    print(f'A total of {total_face_images}/{len(crops)} where extracted, with a total of {correct} of them classified correctly')
+    print(f"The Total acc is {correct/total_face_images}%")
+
+
+
+
 def detect_faces_for_gallery(path, mtcnn):
     """
     Given a path to a folder with person crops, iterate over all images and save only the images that contain faces.
@@ -128,11 +166,12 @@ def detect_faces_for_gallery(path, mtcnn):
             continue
         face_img.save(os.path.join(output_root, 'faces', im_path), quality=100, subsampling=0)  # these parameters preserve the original image quality
         img.save(os.path.join(output_root, 'crops_with_faces', im_path), quality=100, subsampling=0)  # these parameters preserve the original image quality
+        img.close()
     print(f'Total number of images failed: {failed_imgs}')
     pickle.dump(failed_names, open(os.path.join(output_root, 'imgs_without_face.pkl'), 'wb'))
 
 
 if __name__ == '__main__':
-    pass
+    evaluate_with_DB()
     # mtcnn = MTCNN()
     # detect_faces('/home/bar_cohen/raid/OUR_DATASETS/ArcFaceGallery/all_data_without_3007/data', mtcnn)
