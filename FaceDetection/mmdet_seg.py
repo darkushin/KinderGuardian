@@ -162,7 +162,7 @@ if __name__ == '__main__':
 
     device = "cuda:1"
     # load the image:
-    img = '/home/bar_cohen/raid/FaceData/labled_images/labled_again/Adam/10214_orig.jpg'
+    img = '/home/bar_cohen/raid/OUR_DATASETS/10146_orig.jpg'
     # img = "/mnt/raid1/home/bar_cohen/OUR_DATASETS/10172_orig.jpg"
     if isinstance(img, str):
         img = mmcv.imread(img)
