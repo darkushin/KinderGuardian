@@ -347,7 +347,7 @@ def create_data_by_re_id_and_track():
 
     # run re-id model on all images in the test gallery and query folders:
     # build re-id test set. NOTE: query dir of the dataset should be empty!
-    # gen_reid_features(reid_cfg, reid_model) # UNCOMMENT TO Recreate reid features
+    gen_reid_features(reid_cfg, reid_model) # UNCOMMENT TO Recreate reid features
     feats, g_feats, g_pids, g_camids = load_reid_features()
 
     if args.experiment_mode:

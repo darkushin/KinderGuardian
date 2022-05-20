@@ -29,6 +29,7 @@ class FaceClassifer():
         self.num_classes = num_classes
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
         self.model_ft = self._create_Incepction_Resnet_for_finetunning()
+        self.model_ft.to(device)
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer_ft = optim.Adam(self.model_ft.parameters(),lr=lr)
         self.writer = SummaryWriter(f'/mnt/raid1/home/bar_cohen/FaceData/runs/images/{exp_name}')
