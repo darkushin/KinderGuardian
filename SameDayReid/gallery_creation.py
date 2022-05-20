@@ -80,7 +80,7 @@ class GalleryCreator:
                 for i , (crop_im, label, confidence) in enumerate(zip(crop_cands, labels, confidences)):
                     if confidence > 0.98:
                         print(label, confidence)
-                        crop_name = f'{label:04d}_c1_f{self.global_video_counter:01d}{global_i:06d}.jpg'
+                        crop_name = f'{label:04d}_c{self.global_video_counter}_f{global_i:07d}.jpg'
                         # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
                         dir_path = self.gallery_path
                         os.makedirs(dir_path, exist_ok=True)
@@ -160,7 +160,7 @@ if __name__ == '__main__':
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808073000.avi", skip_every=200)
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808082440.avi", skip_every=200)
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam2/videos/IPCamera_20210808123433.avi", skip_every=100)
-    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808120339.avi", skip_every=1)
+    gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808120339.avi", skip_every=1)
     gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808073000.avi", skip_every=1)
     gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808082440.avi", skip_every=1)
     gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808092457.avi", skip_every=1)
