@@ -1,7 +1,6 @@
 import csv
 import os
 import pickle
-import shutil
 import tempfile
 from argparse import ArgumentParser, REMAINDER
 import sys
@@ -305,19 +304,6 @@ def create_or_load_tracklets(args, face_detector):
     return tracklets
 
 
-def create_temp_dataloader(crop_dicts):
-    tempdir = tempfile.mkdtemp()
-    # save using PIL:
-    # for crop_dict in crop_dicts:
-    #     im = Image.fromarray(crop_dict.get('crop_img'))
-    #     im.save(os.path.join(tempdir, crop_dict.get('Crop').im_name))
-    # save using cv2:
-    for crop_dict in crop_dicts:
-        im = crop_dict.get('crop_img')
-        cv2.imwrite(os.path.join(tempdir, crop_dict.get('Crop').im_name), im)
-    return tempdir
-
-
 def create_data_by_re_id_and_track():
     """
     This function takes a video and runs both tracking, face-id and re-id models to create and label tracklets
@@ -376,8 +362,7 @@ def create_data_by_re_id_and_track():
 
         # create gallery feature:
         # gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
-        # g_feats, g_paths = create_gallery_features(reid_model, gallery_data, int(args.device.split(':')[1]),
-        #                                            output_path=CTL_PICKLES)
+        # g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
 
         # OR load gallery feature:
         g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
@@ -419,15 +404,6 @@ def create_data_by_re_id_and_track():
             q_feats = torch.from_numpy(q_feats)
             reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
 
-            # use dataloader for CTL inference (not recommended):
-            # temp_crops_folder = create_temp_dataloader(crop_dicts)
-            # query_data = make_inference_data_loader(reid_cfg, temp_crops_folder, ImageDataset)
-            # q_feats, _ = CTL_reid_dataset_inference(reid_model, query_data, int(args.device.split(':')[1]))
-            # q_feats = torch.from_numpy(q_feats)
-            # reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_paths.astype(np.int), track_imgs_conf)
-            # # reid_ids = int(reid_ids)
-            # # reid_probs_dict = create_query_prob_vector(q_feats, g_feats, g_paths)
-            # shutil.rmtree(temp_crops_folder)
         bincount = np.bincount(reid_ids)
         reid_maj_vote = np.argmax(bincount)
         reid_maj_conf = bincount[reid_maj_vote] / len(reid_ids)
