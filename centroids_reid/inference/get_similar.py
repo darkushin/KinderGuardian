@@ -19,7 +19,30 @@ from inference_utils import (
     ImageFolderWithPaths,
     make_inference_data_loader,
     run_inference,
+    TrackDataset
 )
+
+"""
+Run Example:
+--config_file="configs/320_resnet50_ibn_a.yml"
+--gallery_data='output-dir'
+--normalize_features
+GPU_IDS
+[0]
+DATASETS.ROOT_DIR
+'/home/bar_cohen/KinderGuardian/fast-reid/datasets/same_day_0808_verified/bounding_box_test'
+TEST.IMS_PER_BATCH
+128
+OUTPUT_DIR
+'centroids_reid/output-dir'
+TEST.ONLY_TEST
+True
+MODEL.PRETRAIN_PATH
+"/home/bar_cohen/D-KinderGuardian/centroids_reid/checkpoints/dukemtmcreid_resnet50_256_128_epoch_120.ckpt"
+SOLVER.DISTANCE_FUNC
+'cosine'
+"""
+
 
 ### Prepare logging
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
@@ -148,3 +171,5 @@ if __name__ == "__main__":
     np.save(SAVE_DIR / "results.npy", out)
     np.save(SAVE_DIR / "query_embeddings.npy", embeddings)
     np.save(SAVE_DIR / "query_paths.npy", paths)
+
+

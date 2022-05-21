@@ -381,6 +381,7 @@ def create_data_by_re_id_and_track():
 
         # OR load gallery feature:
         g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
+        g_pids = g_paths.astype(int)
         g_feats = torch.from_numpy(g_feats)
 
     if args.experiment_mode:
@@ -413,14 +414,20 @@ def create_data_by_re_id_and_track():
             q_feats = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
             reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
         else:
-            temp_crops_folder = create_temp_dataloader(crop_dicts)
-            query_data = make_inference_data_loader(reid_cfg, temp_crops_folder, ImageDataset)
-            q_feats, _ = CTL_reid_dataset_inference(reid_model, query_data, int(args.device.split(':')[1]))
+            # use loaded images for inference:
+            q_feats = ctl_track_inference(model=reid_model, cfg=reid_cfg, track_imgs=track_imgs, device=args.device)
             q_feats = torch.from_numpy(q_feats)
-            reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_paths.astype(np.int), track_imgs_conf)
-            # reid_ids = int(reid_ids)
-            # reid_probs_dict = create_query_prob_vector(q_feats, g_feats, g_paths)
-            shutil.rmtree(temp_crops_folder)
+            reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
+
+            # use dataloader for CTL inference (not recommended):
+            # temp_crops_folder = create_temp_dataloader(crop_dicts)
+            # query_data = make_inference_data_loader(reid_cfg, temp_crops_folder, ImageDataset)
+            # q_feats, _ = CTL_reid_dataset_inference(reid_model, query_data, int(args.device.split(':')[1]))
+            # q_feats = torch.from_numpy(q_feats)
+            # reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_paths.astype(np.int), track_imgs_conf)
+            # # reid_ids = int(reid_ids)
+            # # reid_probs_dict = create_query_prob_vector(q_feats, g_feats, g_paths)
+            # shutil.rmtree(temp_crops_folder)
         bincount = np.bincount(reid_ids)
         reid_maj_vote = np.argmax(bincount)
         reid_maj_conf = bincount[reid_maj_vote] / len(reid_ids)

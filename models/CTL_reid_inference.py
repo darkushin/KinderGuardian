@@ -1,9 +1,10 @@
 import sys
 sys.path.append('centroids_reid')
-from centroids_reid.inference.inference_utils import ImageDataset, make_inference_data_loader, calculate_centroids, create_pid_path_index
+from centroids_reid.inference.inference_utils import ImageDataset, TrackDataset, make_inference_data_loader, calculate_centroids, create_pid_path_index
 from centroids_reid.train_ctl_model import CTLModel
 from centroids_reid.config import cfg
 from centroids_reid.utils.reid_metric import get_dist_func
+from centroids_reid.datasets.transforms import ReidTransforms
 import torch
 import numpy as np
 import os
@@ -26,10 +27,12 @@ def _inference(model, batch, device, normalize_with_bn=True):
         return global_feat, filename
 
 
-def run_inference(model, val_loader, device=0):
+def run_inference(model, val_loader, device=None):
     embeddings = []
     paths = []
-    model = model.cuda(device=device)
+    if device:
+        device = int(device.split(':')[1])
+        model = model.cuda(device=device)
 
     for x in tqdm.tqdm(val_loader, total=len(val_loader)):
         embedding, path = _inference(model, x, device)
@@ -39,6 +42,7 @@ def run_inference(model, val_loader, device=0):
 
     embeddings = np.array(np.vstack(embeddings))
     paths = np.array(paths)
+    print('Finished creating CTL embeddings!')
     return embeddings, paths
 
 
@@ -116,18 +120,42 @@ def CTL_reid_dataset_inference(model, query_data, device):
     return q_feat, q_paths
 
 
-def CTL_reid_track_inference(model, track_images, device):
-    print('Computing query feature vectors')
-    track_images = torch.from_numpy(np.array(track_images).astype(np.int8))
-    track_batch = (track_images, '', '')
-    q_feat, _ = _inference(model, track_batch, device, normalize_with_bn=False)  # we should not normalize with BN in this case
+def ctl_track_inference(model, cfg, track_imgs, device):
+    query_data = make_inference_data_loader(cfg, path='', dataset_class=TrackDataset, loaded_imgs=track_imgs)
+    q_feats, _ = CTL_reid_dataset_inference(model, query_data, device)
+    return q_feats
 
-    # todo: check if normalization should be applied
-    # # normalize the feature vectors:
-    # q_feat = torch.nn.functional.normalize(q_feat, dim=1, p=2)
-    # device = torch.device(device)
-    # q_feat = q_feat.to(device)
-    return q_feat, _
+
+
+
+
+# def create_batches(images, cfg):  # todo: need to add param of model.TEST.IMS_PER_BATCH
+#     transforms_base = ReidTransforms(cfg)
+#     val_transforms = transforms_base.build_transforms(is_train=False)
+#
+#     for ima
+
+
+
+# def CTL_reid_track_inference(model, cfg, track_images, device):
+#     print('Computing query feature vectors')
+#     embeddings = []
+#     # Apply the transforms defined in the cfg, and return all images in batches
+#     track_batches = create_batches(cfg, track_images)
+#     # track_images = torch.from_numpy(np.array(track_images).astype(np.int8))
+#     # track_batch = (track_images, '', '')
+#
+#     for track_batch in track_batches:
+#         q_feat, _ = _inference(model, track_batch, device)  # todo: check if we should normalize with BN in this case (by default we do)
+#         for embedding in q_feat:
+#             embeddings.append(embedding.detach().cpu().numpy())
+#
+#     # todo: check if normalization should be applied
+#     # # normalize the feature vectors:
+#     # q_feat = torch.nn.functional.normalize(q_feat, dim=1, p=2)
+#     # device = torch.device(device)
+#     # q_feat = q_feat.to(device)
+#     return embeddings, _
 
 
 def create_distmat(q_feat, g_feat):
@@ -174,7 +202,7 @@ def compute_accuracy(q_feats, q_paths, g_feats, g_paths):
     print(f'Total accuracy: {accuracy / len(q_feats)}')
 
 
-def usage_example_dataloader_as_query(args):
+def usage_example_folder_path_query(args):
     """
     Example of how to use the CTL model for inference given the args of the model_runner and the query folder of a reid
     dataset.
@@ -195,9 +223,9 @@ def usage_example_dataloader_as_query(args):
     g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
     
     # # compute query feature vectors:
-    query_imgs_path = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/diff_day_train_as_test_0730_0808_quary/query'
+    query_imgs_path = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/same_day_0730/bounding_box_test'
     query_data = make_inference_data_loader(reid_cfg, query_imgs_path, ImageDataset)
-    q_feats, q_paths = CTL_reid_dataset_inference(reid_model, query_data, int(args.device.split(':')[1]))
+    q_feats, q_paths = CTL_reid_dataset_inference(reid_model, query_data, args.device)
 
     # compute accuracy for dataset:
     compute_accuracy(q_feats, q_paths, g_feats, g_paths)
@@ -224,7 +252,13 @@ def usage_example_track_as_query(args):
 
     # compute query feature vectors:
     track_imgs = pickle.load(open(os.path.join(CTL_PICKLES, 'track_imgs.pkl'), 'rb'))
-    q_feats, q_paths = CTL_reid_track_inference(reid_model, track_imgs, int(args.device.split(':')[1]))
+    # q_feats, q_paths = CTL_reid_track_inference(reid_model, track_imgs, int(args.device.split(':')[1]))
+
+    query_data = make_inference_data_loader(reid_cfg, path='', dataset_class=TrackDataset, loaded_imgs=track_imgs)
+    q_feats, q_paths = CTL_reid_dataset_inference(reid_model, query_data, args.device)
+
+
+    print('daniel')
 
 
     # todo: remove this block, it is just to speed up debugining:
@@ -241,6 +275,6 @@ def usage_example_track_as_query(args):
 
 if __name__ == '__main__':
     args = get_args()
-    usage_example_dataloader_as_query(args)
-    usage_example_track_as_query(args)
+    usage_example_folder_path_query(args)
+    # usage_example_track_as_query(args)
 

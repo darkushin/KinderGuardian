@@ -87,11 +87,41 @@ class ImageDataset(Dataset):
         )  ## Hack to be consistent with ImageFolderWithPaths dataset
 
 
-def make_inference_data_loader(cfg, path, dataset_class):
+class TrackDataset(Dataset):
+    """
+    Our custom DataLoader which receives images that were loaded already instead of a folder path.
+    """
+    def __init__(self, imgs: list, transform=None):
+        self.dataset = imgs
+        # print(self.dataset)
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, index):
+        img = self.dataset[index]
+
+        if isinstance(img, np.ndarray):
+            img = Image.fromarray(np.uint8(img))
+
+        if self.transform is not None:
+            img = self.transform(img)
+        return (
+            img,
+            "",
+            "",
+        )  ## Hack to be consistent with ImageFolderWithPaths dataset
+
+
+def make_inference_data_loader(cfg, path, dataset_class, loaded_imgs=None):
     transforms_base = ReidTransforms(cfg)
     val_transforms = transforms_base.build_transforms(is_train=False)
     num_workers = cfg.DATALOADER.NUM_WORKERS
-    val_set = dataset_class(path, val_transforms)
+    if loaded_imgs:  # images are already loaded, use them with the custom TrackDataset dataloader
+        val_set = dataset_class(loaded_imgs, val_transforms)
+    else:
+        val_set = dataset_class(path, val_transforms)
     val_loader = DataLoader(
         val_set,
         batch_size=cfg.TEST.IMS_PER_BATCH,
