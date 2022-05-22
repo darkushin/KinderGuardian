@@ -41,7 +41,7 @@ def run_inference(model, val_loader, device=None):
         device = int(device.split(':')[1])
         model = model.cuda(device=device)
 
-    for x in tqdm.tqdm(val_loader, total=len(val_loader)):
+    for x in val_loader:
         embedding, path = _inference(model, x, device)
         for vv, pp in zip(embedding, path):
             paths.append(pp)
@@ -70,6 +70,7 @@ def create_gallery_features(model, data_loader, device, output_path=None):
         g_feat, paths_gallery = calculate_centroids(g_feat, pid_path_index)
         print('Created gallery feature vectors using centroids.')
     else:
+        paths_gallery = np.array([pid.split('/')[-1].split('_')[0] for pid in paths_gallery])  # need to be only the string id of a person ('0015' etc.)
         print('Did not use centroids for gallery feature vectors.')
 
     if output_path:

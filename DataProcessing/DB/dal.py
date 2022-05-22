@@ -43,7 +43,7 @@ def create_table(db_location: str = DB_LOCATION):
     Creates a new table in the database with the given location. Will create a new table with the name defined in the
     global class if it doesn't exist already.
     """
-    engine = create_engine(f'sqlite:///{db_location}', echo=True)  # should include the path to the db file
+    engine = create_engine(f'sqlite:///{db_location}', echo=False)  # should include the path to the db file
     Base.metadata.create_all(engine)
 
 

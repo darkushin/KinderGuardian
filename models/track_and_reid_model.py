@@ -2,6 +2,7 @@ import csv
 import os
 import pickle
 import tempfile
+import time
 from argparse import ArgumentParser, REMAINDER
 import sys
 from collections import defaultdict, Counter
@@ -34,11 +35,12 @@ from double_id_handler import remove_double_ids, NODES_ORDER
 from CTL_reid_inference import *
 
 CAM_ID = 1
+FAST_PICKLES = '/home/bar_cohen/raid/OUR_DATASETS/FAST_reid'
 ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/dani-ablation-new.csv'
 ABLATION_COLUMNS = ['description', 'video_name', 'ids_in_video', 'total_ids_in_video', 'total_tracks',
                     'tracks_with_face', 'pure_reid_model', 'reid_with_maj_vote', 'face_clf_only',
                     'face_clf_only_tracks_with_face', 'reid_with_face_clf_maj_vote', 'rank-1', 'sorted-rank-1',
-                    'appearance-order', 'max-difference', 'model_name',
+                    'appearance-order', 'max-difference', 'model_name', 'running_time'
                     'Adam', 'Avigail', 'Ayelet', 'Bar', 'Batel', 'Big-Gali', 'Eitan', 'Gali', 'Guy', 'Halel', 'Lea',
                     'Noga', 'Ofir', 'Omer', 'Roni', 'Sofi', 'Sofi-Daughter', 'Yahel', 'Hagai', 'Ella', 'Daniel']
 
@@ -153,30 +155,34 @@ def get_face_score(faceClassifer, preds,probs, detector_conf):
     return face_id_scores
 
 
-def gen_reid_features(reid_cfg, reid_model):
+def gen_reid_features(reid_cfg, reid_model, output_path=None):
     test_loader, num_query = build_reid_test_loader(reid_cfg,
                                                     dataset_name='DukeMTMC')  # will take the dataset given as argument
     feats, g_feats, g_pids, g_camids = apply_reid_model(reid_model, test_loader)
+    if not output_path:
+        output_path = "/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/"
     print('dumping gallery to pickles....:')
-    with open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'feats'), 'wb') as feats_filer:
+    with open(os.path.join(output_path, 'feats'), 'wb') as feats_filer:
         pickle.dump(feats, feats_filer)
-    with open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_feats'), 'wb') as g_feats_filer:
+    with open(os.path.join(output_path, 'g_feats'), 'wb') as g_feats_filer:
         pickle.dump(g_feats,g_feats_filer)
-    with open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_pids'), 'wb') as g_pids_filer:
+    with open(os.path.join(output_path, 'g_pids'), 'wb') as g_pids_filer:
         pickle.dump(g_pids, g_pids_filer)
-    with open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_camids'), 'wb') as g_cam_filer:
+    with open(os.path.join(output_path, 'g_camids'), 'wb') as g_cam_filer:
         pickle.dump(g_camids, g_cam_filer)
 
 
-def load_reid_features():
+def load_reid_features(output_path=None):
     print('loading gallery from pickles....:')
-    with open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'feats'), 'rb') as feats_filer:
+    if not output_path:
+        output_path = "/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/"
+    with open(os.path.join(output_path, 'feats'), 'rb') as feats_filer:
       feats = pickle.load(feats_filer)
-    with open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_feats'), 'rb') as g_feats_filer:
+    with open(os.path.join(output_path, 'g_feats'), 'rb') as g_feats_filer:
       g_feats = pickle.load(g_feats_filer)
-    with open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_pids'), 'rb') as g_pids_filer:
+    with open(os.path.join(output_path, 'g_pids'), 'rb') as g_pids_filer:
       g_pids = pickle.load(g_pids_filer)
-    with open(os.path.join("/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/", 'g_camids'), 'rb') as g_cam_filer:
+    with open(os.path.join(output_path, 'g_camids'), 'rb') as g_cam_filer:
       g_camids = pickle.load(g_cam_filer)
     return feats, g_feats, g_pids, g_camids
 
@@ -238,10 +244,15 @@ def create_tracklets_from_db(vid_name, args):
             if not crop_im:
                 im_location = 'v' + crop.im_name[2:]
                 crop_im = Image.open(f'/home/bar_cohen/raid/{vid_name}/{im_location}')
+            # added for CTL inference
+            ctl_img = crop_im
+            ctl_img.convert("RGB")
+
             face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=True)
             face_prob = face_prob if face_prob else 0
             crop_im = mmcv.imread(f'/home/bar_cohen/raid/{vid_name}/{im_location}')
-            tracklets[track].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob})
+            tracklets[track].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
+                                    'ctl_img': ctl_img})
     del face_detector
     return tracklets
 
@@ -284,6 +295,7 @@ def create_tracklets_using_tracking(args):
                         is_vague=False)
             crop.set_im_name()
             tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob})
+            # todo: need to add ctl_img similar to create_tracklets_from_DB()
     del face_detector
     return tracklets
 
@@ -321,6 +333,7 @@ def create_data_by_re_id_and_track():
     print(f'Args: {args}')
     db_location = DB_LOCATION
     columns_dict = {}
+    start = time.time()
     if args.inference_only:
         if os.path.isfile(ABLATION_OUTPUT):
             ablation_df = pd.read_csv(ABLATION_OUTPUT, index_col=[0])
@@ -351,10 +364,12 @@ def create_data_by_re_id_and_track():
 
         # run re-id model on all images in the test gallery and query folders:
         # build re-id test set. NOTE: query dir of the dataset should be empty!
-        # gen_reid_features(reid_cfg, reid_model) # UNCOMMENT TO Recreate reid features
-        feats, g_feats, g_pids, g_camids = load_reid_features()
+        if not os.path.isdir(FAST_PICKLES):
+            os.makedirs(FAST_PICKLES, exist_ok=True)
+            gen_reid_features(reid_cfg, reid_model, output_path=FAST_PICKLES)  # UNCOMMENT TO Recreate reid features
+        feats, g_feats, g_pids, g_camids = load_reid_features(output_path=FAST_PICKLES)
     else:
-        args.reid_config = "./centroids_reid/configs/256_resnet50.yml"
+        # args.reid_config = "./centroids_reid/configs/256_resnet50.yml"
         reid_cfg = set_CTL_reid_cfgs(args)
         # initialize reid model:
         checkpoint = torch.load(reid_cfg.TEST.WEIGHT)
@@ -362,14 +377,18 @@ def create_data_by_re_id_and_track():
         reid_model = CTLModel._load_model_state(checkpoint)
 
         # create gallery feature:
-        # gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
-        # g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
+        if not os.path.isdir(CTL_PICKLES):
+            os.makedirs(CTL_PICKLES, exist_ok=True)
+            gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
+            g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
 
         # OR load gallery feature:
         g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
         g_pids = g_paths.astype(int)
         g_feats = torch.from_numpy(g_feats)
 
+    tl_start = time.time()
+    print('Starting to create tracklets')
     if args.experiment_mode:
         tracklets = create_or_load_tracklets(args,create_tracklets=True)
     else:
@@ -377,7 +396,8 @@ def create_data_by_re_id_and_track():
             tracklets = create_tracklets_using_tracking(args=args)
         else:  # create tracklets from DB
             tracklets = create_tracklets_from_db(vid_name=args.input.split('/')[-1][9:-4], args=args)
-
+    tl_end = time.time()
+    print(f'Total time for loading tracklets from db for video {args.input.split("/")[-1]}: {int(tl_end-tl_start)}')
     print('******* Making predictions and saving crops to DB *******')
     db_entries = []
     # id dict value at index 0 - number of times appeared in video
@@ -399,12 +419,13 @@ def create_data_by_re_id_and_track():
     for track_id, crop_dicts in tqdm.tqdm(tracklets.items(), total=len(tracklets.keys())):
         if args.inference_only:
             columns_dict['total_tracks'] += 1
-        track_imgs = [crop_dict.get('crop_img') for crop_dict in crop_dicts]
         track_imgs_conf = np.array([crop_dict.get('Crop').conf for crop_dict in crop_dicts])
         if args.reid_model == 'fastreid':
+            track_imgs = [crop_dict.get('crop_img') for crop_dict in crop_dicts]
             q_feats = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
             reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
         else:
+            track_imgs = [crop_dict.get('ctl_img') for crop_dict in crop_dicts]
             # use loaded images for inference:
             q_feats = ctl_track_inference(model=reid_model, cfg=reid_cfg, track_imgs=track_imgs, device=args.device)
             q_feats = torch.from_numpy(q_feats)
@@ -480,10 +501,12 @@ def create_data_by_re_id_and_track():
 
     # calculate new precision after IDs update and add to ablation study
     session.commit()
+    end = time.time()
+    columns_dict['running_time'] = int(end-start)
     if args.inference_only and total_crops > 0:
         write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, ablation_df, db_location)
 
-    print("Done")
+    print(f"Done within {int(end-start)} seconds.")
 
 
 def update_ablation_results(columns_dict, crop, crop_label, face_label, final_label, ids_acc_dict, is_face_in_track,
