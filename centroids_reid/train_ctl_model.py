@@ -23,6 +23,34 @@ from config import cfg
 from modelling.bases import ModelBase
 from centroids_reid.utils.misc import run_main
 
+"""
+Usage example:
+--config_file="configs/256_resnet50.yml"
+GPU_IDS
+[0]
+DATASETS.NAMES
+'dukemtmcreid'
+DATASETS.ROOT_DIR
+'/home/bar_cohen/KinderGuardian/fast-reid/datasets/diff_day_train_as_test_0730_0808_quary/'
+SOLVER.IMS_PER_BATCH
+16
+TEST.IMS_PER_BATCH
+128
+SOLVER.BASE_LR
+0.00035
+OUTPUT_DIR
+'./logs/dukemtmcreid/256_resnet50'
+DATALOADER.USE_RESAMPLING
+False
+DATALOADER.NUM_WORKERS
+0
+MODEL.USE_CENTROIDS
+True
+MODEL.PRETRAIN_PATH
+'./models/resnet50-19c8e357.pth'
+"""
+
+
 
 class CTLModel(ModelBase):
     def __init__(self, cfg=None, **kwargs):
