@@ -155,7 +155,7 @@ def build_reid_test_loader(device, test_set, test_batch_size, num_query, num_wor
         device,
         dataset=test_set,
         batch_sampler=batch_sampler,
-        num_workers=num_workers,  # save some memory
+        num_workers=0,  # save some memory
         collate_fn=fast_batch_collator,
         pin_memory=True,
     )
