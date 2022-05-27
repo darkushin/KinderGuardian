@@ -347,7 +347,7 @@ def create_data_by_re_id_and_track():
 
     # run re-id model on all images in the test gallery and query folders:
     # build re-id test set. NOTE: query dir of the dataset should be empty!
-    # gen_reid_features(reid_cfg, reid_model) # UNCOMMENT TO Recreate reid features
+    gen_reid_features(reid_cfg, reid_model) # UNCOMMENT TO Recreate reid features
     feats, g_feats, g_pids, g_camids = load_reid_features()
 
     if args.experiment_mode:
@@ -372,7 +372,7 @@ def create_data_by_re_id_and_track():
     all_tracks_final_scores = dict()
 
     faceClassifer = FaceClassifer(num_classes=21, label_encoder=le, device='cuda:0')
-    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/FULL_DATA_augs:True_lr:1e-05_0, 4.pth"))
+    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/FULL_DATA_augs:True_lr:0.001_0, 4.pth"))
     faceClassifer.model_ft.eval()
 
     # iterate over all tracklets and make a prediction for every tracklet

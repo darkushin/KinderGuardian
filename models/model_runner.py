@@ -166,6 +166,8 @@ MODEL.WEIGHTS
     print('Total videos in eval set:', len(get_query_set()))
     for query_vid in get_query_set():
         print(f'running {query_vid}')
+        if query_vid[13:17] != '0808':
+            continue
         args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
                                   query_vid.split('_')[0]+'_'+query_vid.split('_')[1],
                                   query_vid)
