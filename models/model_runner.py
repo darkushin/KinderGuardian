@@ -31,6 +31,7 @@ def get_args():
     parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
     parser.add_argument('--experiment_mode', action='store_true', help='run in experiment_mode')
     parser.add_argument('--exp_description', help='The description of the experiment that should appear in the ablation study output')
+    parser.add_argument('--reid_model', choices=['fastreid', 'ctl'], default='fastreid', help='Reid model that should be used.')
 
     return parser.parse_args()
 
@@ -43,7 +44,7 @@ def create_reid_opts() -> List:
     if args.reid_opts:
         for opt in args.reid_opts:
             reid_opts.append(opt)
-    if args.device:
+    if args.device and args.reid_model == 'fastreid':
         reid_opts.extend(['MODEL.DEVICE', args.device])
     return reid_opts
 
@@ -69,6 +70,8 @@ def create_optional_args() -> List:
         optional_args.extend(['--experiment_mode'])
     if args.exp_description:
         optional_args.extend(['--exp_description', args.exp_description])
+    if args.reid_model:
+        optional_args.extend(['--reid_model', args.reid_model])
     return optional_args
 
 
@@ -126,32 +129,82 @@ def get_query_set():
 def execute_combined_model():
     """
     Usage example:
-re-id-and-tracking
---track_config
-./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py
---mmtrack_checkpoint
-/home/bar_cohen/KinderGuardian/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth
---reid_config
-./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml
---input
-/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210803105422/IPCamera_20210803105422_s0_e501.mp4
---output
-/mnt/raid1/home/bar_cohen/labled_videos/20210803105422_s0_e501_new_model.mp4
---acc_th
-0.8
---crops_folder
-/mnt/raid1/home/bar_cohen/DB_Test/
---inference_only
---db_tracklets
---exp_description 'write here the description of the experiment that should appear in the ablation study output'
---device
-cuda:1
---reid_opts
-DATASETS.DATASET
-diff_day_test_as_train_query_3007_0808
-MODEL.WEIGHTS
-./fast-reid/checkpoints/diff_day_no_invalid_query_3.8_3007
 
+    fastreid configs:
+    re-id-and-tracking
+    --track_config
+    ./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py
+    --mmtrack_checkpoint
+    /home/bar_cohen/KinderGuardian/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth
+    --reid_config
+    ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml
+    --input
+    /mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210803105422/IPCamera_20210803105422_s0_e501.mp4
+    --output
+    /mnt/raid1/home/bar_cohen/labled_videos/20210803105422_s0_e501_new_model.mp4
+    --acc_th
+    0.8
+    --crops_folder
+    /mnt/raid1/home/bar_cohen/DB_Test/
+    --inference_only
+    --db_tracklets
+    --exp_description
+    "Compare reid models - fastreid - same_day_0808"
+    --device
+    cuda:0
+    --experiment_mode
+    --reid_model
+    fastreid
+    --reid_opts
+    DATASETS.DATASET
+    /home/bar_cohen/KinderGuardian/fast-reid/datasets/same_day_0808/
+    MODEL.WEIGHTS
+    /home/bar_cohen/KinderGuardian/fast-reid/checkpoints/duke_bot_R101-ibn.pth
+    DATALOADER.NUM_WORKERS 0
+
+
+    CTL configs:
+    re-id-and-tracking
+    --track_config
+    ./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py
+    --mmtrack_checkpoint
+    /home/bar_cohen/KinderGuardian/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth
+    --reid_config
+    ./centroids_reid/configs/256_resnet50.yml
+    --input
+    /mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210803105422/IPCamera_20210803105422_s0_e501.mp4
+    --output
+    /mnt/raid1/home/bar_cohen/labled_videos/20210803105422_s0_e501_new_model.mp4
+    --acc_th
+    0.8
+    --crops_folder
+    /mnt/raid1/home/bar_cohen/DB_Test/
+    --inference_only
+    --db_tracklets
+    --exp_description
+    "Compare reid models - CTL - same_day_0808"
+    --device
+    cuda:0
+    --experiment_mode
+    --reid_model
+    ctl
+    --reid_opts
+    TEST.IMS_PER_BATCH
+    128
+    TEST.ONLY_TEST
+    True
+    TEST.WEIGHT
+    /home/bar_cohen/D-KinderGuardian/centroids_reid/checkpoints/dukemtmcreid_resnet50_256_128_epoch_120.ckpt
+    DATASETS.NAMES
+    dukemtmcreid
+    DATASETS.ROOT_DIR
+    /home/bar_cohen/KinderGuardian/fast-reid/datasets/same_day_0808/bounding_box_test
+    MODEL.USE_CENTROIDS
+    True
+    GPU_IDS
+    [1]
+    DATALOADER.NUM_WORKERS
+    0
 
     ByteTracker:
     re-id-and-tracking --track_config ./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py
@@ -165,20 +218,23 @@ MODEL.WEIGHTS
     inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
     print('Total videos in eval set:', len(get_query_set()))
     for query_vid in get_query_set():
+        if '20210808' not in query_vid:
+            print(f'skipping {query_vid}')
+            continue
         print(f'running {query_vid}')
         args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
                                   query_vid.split('_')[0]+'_'+query_vid.split('_')[1],
                                   query_vid)
 
         args.output = os.path.join(inference_output, 'inference_' + query_vid.split('/')[-1])
-        script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
+        # script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
+        script_args = ['/home/bar_cohen/miniconda3/envs/CTL/bin/python3.7', './models/track_and_reid_model.py',
                        args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
         script_args.extend(optional_args)
         script_args.append('--reid_opts')
         script_args.extend(reid_opts)
 
         call(script_args)
-
 
 
 def runner():
