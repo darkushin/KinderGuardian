@@ -218,7 +218,7 @@ def execute_combined_model():
     inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
     print('Total videos in eval set:', len(get_query_set()))
     for query_vid in get_query_set():
-        if '20210808' not in query_vid:
+        if '20210730' not in query_vid:
             print(f'skipping {query_vid}')
             continue
         print(f'running {query_vid}')

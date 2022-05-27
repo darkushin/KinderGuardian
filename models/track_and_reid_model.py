@@ -112,6 +112,13 @@ def get_reid_score(track_im_conf, distmat, g_pids):
 
     return ids_score
 
+def get_reid_score_cosine_sim(track_im_conf, simmat, g_pids):
+    best_match_scores = track_im_conf * (((np.max(simmat, axis=1) + 1)/2) ** 5)
+    ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
+    best_match_in_gallery = np.argmax(simmat, axis=1)
+    for pid, score in zip(g_pids[best_match_in_gallery], best_match_scores):  # an id chosen as the best match
+        ids_score[pid] += score / track_im_conf.shape[0]
+    return ids_score
 
 def find_best_reid_match(q_feat, g_feat, g_pids, track_imgs_conf):
     """
@@ -119,9 +126,11 @@ def find_best_reid_match(q_feat, g_feat, g_pids, track_imgs_conf):
     """
     features = F.normalize(q_feat, p=2, dim=1)
     others = F.normalize(g_feat, p=2, dim=1)
-    distmat = 1 - torch.mm(features, others.t())
-    distmat = distmat.numpy()
-    ids_score = get_reid_score(track_imgs_conf, distmat, g_pids)
+    simmat = torch.mm(features, others.t()).numpy()
+    distmat = 1 - simmat
+    # distmat = distmat.numpy()
+    # ids_score = get_reid_score(track_imgs_conf, distmat, g_pids)
+    ids_score = get_reid_score_cosine_sim(track_imgs_conf, simmat, g_pids)
     best_match_in_gallery = np.argmin(distmat, axis=1)
     return g_pids[best_match_in_gallery] , ids_score
 
@@ -145,7 +154,9 @@ def get_face_score(faceClassifer, preds,probs, detector_conf):
     face_id_scores = {pid : 0 for pid in ID_TO_NAME.keys()}
     for pid, prob, conf in zip(preds, probs, detector_conf):
         real_pid = int(faceClassifer.le.inverse_transform([int(pid)])[0])
-        face_id_scores[real_pid] += (float(prob[pid]) + conf) / (2 * len(preds))
+        # face_id_scores[real_pid] += (float(prob[pid]) + conf) / (2 * len(preds))
+        face_id_scores[real_pid] += ((float(prob[pid]) * conf)**5) / len(preds)
+
 
     # # normalize the scores
     # max_score = max(face_id_scores.values())
@@ -377,10 +388,10 @@ def create_data_by_re_id_and_track():
         reid_model = CTLModel._load_model_state(checkpoint)
 
         # create gallery feature:
-        if not os.path.isdir(CTL_PICKLES):
-            os.makedirs(CTL_PICKLES, exist_ok=True)
-            gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
-            g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
+        # if not os.path.isdir(CTL_PICKLES):
+        os.makedirs(CTL_PICKLES, exist_ok=True)
+        gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
+        g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
 
         # OR load gallery feature:
         g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
