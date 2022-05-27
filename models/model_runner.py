@@ -6,7 +6,7 @@ from subprocess import call
 import sys
 
 from DataProcessing.DB.dal import Crop, get_entries
-from DataProcessing.utils import viz_DB_data_on_video
+# from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import *
 import DataProcessing.dataFactory
 from typing import List

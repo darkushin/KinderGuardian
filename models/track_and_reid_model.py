@@ -20,7 +20,6 @@ from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 from FaceDetection.faceClassifer import FaceClassifer
 from FaceDetection.faceDetector import FaceDetector, is_img
-from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import ID_NOT_IN_VIDEO
 import warnings
 warnings.filterwarnings('ignore')
@@ -364,9 +363,9 @@ def create_data_by_re_id_and_track():
 
         # run re-id model on all images in the test gallery and query folders:
         # build re-id test set. NOTE: query dir of the dataset should be empty!
-        if not os.path.isdir(FAST_PICKLES):
-            os.makedirs(FAST_PICKLES, exist_ok=True)
-            gen_reid_features(reid_cfg, reid_model, output_path=FAST_PICKLES)  # UNCOMMENT TO Recreate reid features
+        # if not os.path.isdir(FAST_PICKLES):
+        #     os.makedirs(FAST_PICKLES, exist_ok=True)
+        gen_reid_features(reid_cfg, reid_model, output_path=FAST_PICKLES)  # UNCOMMENT TO Recreate reid features
         feats, g_feats, g_pids, g_camids = load_reid_features(output_path=FAST_PICKLES)
     else:
         # args.reid_config = "./centroids_reid/configs/256_resnet50.yml"
@@ -377,10 +376,10 @@ def create_data_by_re_id_and_track():
         reid_model = CTLModel._load_model_state(checkpoint)
 
         # create gallery feature:
-        if not os.path.isdir(CTL_PICKLES):
-            os.makedirs(CTL_PICKLES, exist_ok=True)
-            gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
-            g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
+        # if not os.path.isdir(CTL_PICKLES):
+        os.makedirs(CTL_PICKLES, exist_ok=True)
+        gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
+        g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
 
         # OR load gallery feature:
         g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
@@ -416,7 +415,9 @@ def create_data_by_re_id_and_track():
     faceClassifer.model_ft.eval()
 
     # iterate over all tracklets and make a prediction for every tracklet
+    tracks_scores = {}
     for track_id, crop_dicts in tqdm.tqdm(tracklets.items(), total=len(tracklets.keys())):
+        tracks_scores[track_id] = {}
         if args.inference_only:
             columns_dict['total_tracks'] += 1
         track_imgs_conf = np.array([crop_dict.get('Crop').conf for crop_dict in crop_dicts])
@@ -459,8 +460,15 @@ def create_data_by_re_id_and_track():
             final_scores = {pid : alpha*reid_score + (1-alpha) * face_score for pid, reid_score, face_score in zip(reid_scores.keys() , reid_scores.values(), face_scores.values())}
             all_tracks_final_scores[track_id] = final_scores
             final_label = ID_TO_NAME[max(final_scores, key=final_scores.get)]
+
+            tracks_scores[track_id]['face_clf_outputs'] = face_clf_outputs
+            tracks_scores[track_id]['face_scores'] = face_scores
+
+        tracks_scores[track_id]['reid_scores'] = reid_scores
+        tracks_scores[track_id]['reid_ids'] = reid_ids
         # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
 
+        true_labels = []
         for crop_id, crop_dict in enumerate(crop_dicts):
             crop = crop_dict.get('Crop')
             crop.crop_id = crop_id
@@ -470,14 +478,16 @@ def create_data_by_re_id_and_track():
                 db_entries.append(crop)
 
             if args.inference_only and crop.conf >= float(args.acc_th):
-                total_crops, total_crops_of_tracks_with_face = update_ablation_results(columns_dict, crop, crop_label,
+                total_crops, total_crops_of_tracks_with_face, tagged_label = update_ablation_results(columns_dict, crop, crop_label,
                                                                                        face_label, final_label,
                                                                                        ids_acc_dict, is_face_in_track,
                                                                                        maj_vote_label, total_crops,
                                                                                        total_crops_of_tracks_with_face)
+                true_labels.append(tagged_label)
 
             if not args.inference_only:
                 mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder, crop.im_name))
+        tracks_scores[track_id]['true_label'] = true_labels
 
     add_entries(db_entries, db_location)
 
@@ -506,6 +516,7 @@ def create_data_by_re_id_and_track():
     if args.inference_only and total_crops > 0:
         write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, ablation_df, db_location)
 
+    pickle.dump(tracks_scores, open(os.path.join('/home/bar_cohen/raid/alpha_tuning', f'{args.input.split("/")[-1][9:-4]}_tracks_scores.pkl'), 'wb'))
     print(f"Done within {int(end-start)} seconds.")
 
 
@@ -533,7 +544,7 @@ def update_ablation_results(columns_dict, crop, crop_label, face_label, final_la
         if tagged_label == final_label:
             columns_dict['reid_with_face_clf_maj_vote'] += 1
             ids_acc_dict[tagged_label][1] += 1
-    return total_crops, total_crops_of_tracks_with_face
+    return total_crops, total_crops_of_tracks_with_face, tagged_label
 
 
 if __name__ == '__main__':
