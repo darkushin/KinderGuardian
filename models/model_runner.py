@@ -218,10 +218,15 @@ def execute_combined_model():
     inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
     print('Total videos in eval set:', len(get_query_set()))
     for query_vid in get_query_set():
-        if '20210730' not in query_vid:
+        if '20210808' not in query_vid:
             print(f'skipping {query_vid}')
             continue
         print(f'running {query_vid}')
+
+        if 'IPCamera_20210808101731_s0_e501.mp4' != query_vid and 'IPCamera_20210808082440_s0_e501.mp4' != query_vid:
+            continue
+        print(f'running {query_vid}')
+
         args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
                                   query_vid.split('_')[0]+'_'+query_vid.split('_')[1],
                                   query_vid)
