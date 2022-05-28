@@ -112,6 +112,14 @@ def get_reid_score(track_im_conf, distmat, g_pids):
 
     return ids_score
 
+def get_reid_score_mult_ids(track_im_conf, simmat, g_pids):
+    print(simmat.shape)
+    ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
+    for pid in ID_TO_NAME.keys():
+        ids_score[pid] += np.sum(simmat,axis=0)
+
+
+
 def get_reid_score_cosine_sim(track_im_conf, simmat, g_pids):
     best_match_scores = track_im_conf * (((np.max(simmat, axis=1) + 1)/2) ** 5)
     ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
@@ -130,6 +138,7 @@ def find_best_reid_match(q_feat, g_feat, g_pids, track_imgs_conf):
     distmat = 1 - simmat
     # distmat = distmat.numpy()
     # ids_score = get_reid_score(track_imgs_conf, distmat, g_pids)
+    ids_scores = get_reid_score_mult_ids(track_imgs_conf, simmat, g_pids)
     ids_score = get_reid_score_cosine_sim(track_imgs_conf, simmat, g_pids)
     best_match_in_gallery = np.argmin(distmat, axis=1)
     return g_pids[best_match_in_gallery] , ids_score
@@ -422,7 +431,8 @@ def create_data_by_re_id_and_track():
 
     all_tracks_final_scores = dict()
 
-    faceClassifer = FaceClassifer(num_classes=21, label_encoder=le, device='cuda:0')
+    faceClassifer = FaceClassifer(num_classes=19, label_encoder=le, device='cuda:0')
+    # faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/FULL_DATA_augs:True_lr:1e-05_0, 4.pth"))
     faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/FULL_DATA_augs:True_lr:1e-05_0, 4.pth"))
     faceClassifer.model_ft.eval()
 
