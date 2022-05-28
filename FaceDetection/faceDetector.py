@@ -69,7 +69,7 @@ class FaceDetector():
         high_conf_face_imgs = defaultdict(list)
         if self.faces_data_path and not recreate_data:
             print("pickle path to images received, loading...")
-            high_conf_face_imgs = pickle.load(open(os.path.join(self.faces_data_path, 'images_with_crop_skip_5.pkl'),'rb'))
+            high_conf_face_imgs = pickle.load(open(os.path.join(self.faces_data_path, 'images_with_crop_full.pkl'),'rb'))
         else:
             norm = not save_images_path
             face_crops = get_entries(filters={Crop.is_face == True,

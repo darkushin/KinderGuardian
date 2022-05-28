@@ -69,13 +69,13 @@ def build_samples_hist(le, y, exp_name, title:str=None):
 
 def eval_faceClassifier(exp_name, checkpoint_path):
     def run_test_for_dataset(dl, datasplit):
-        build_samples_hist(le, dl.dataset.labels , exp_name, datasplit)
-        per_id_test_acc(fc, le, exp_name, dl, datasplit)
+        # build_samples_hist(le, dl.dataset.labels , exp_name, datasplit)
+        # per_id_test_acc(fc, le, exp_name, dl, datasplit)
         test_accuracy_of_dataset(fc, dl, datasplit)
 
 
     data_path = '/mnt/raid1/home/bar_cohen/FaceData/'
-    num_classes = 21  # num of unique classes
+    num_classes = 19  # num of unique classes
     le, dl_train, dl_val, dl_test = load_data(data_path)
     fc = FaceClassifer(num_classes, le)
     fc.model_ft.load_state_dict(torch.load(checkpoint_path))
