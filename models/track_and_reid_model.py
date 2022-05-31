@@ -40,7 +40,7 @@ ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/dani
 ABLATION_COLUMNS = ['description', 'video_name', 'ids_in_video', 'total_ids_in_video', 'total_tracks',
                     'tracks_with_face', 'pure_reid_model', 'reid_with_maj_vote', 'face_clf_only',
                     'face_clf_only_tracks_with_face', 'reid_with_face_clf_maj_vote', 'rank-1', 'sorted-rank-1',
-                    'appearance-order', 'max-difference', 'model_name', 'running_time'
+                    'appearance-order', 'max-difference', 'model_name', 'running_time', 'total_crops',
                     'Adam', 'Avigail', 'Ayelet', 'Bar', 'Batel', 'Big-Gali', 'Eitan', 'Gali', 'Guy', 'Halel', 'Lea',
                     'Noga', 'Ofir', 'Omer', 'Roni', 'Sofi', 'Sofi-Daughter', 'Yahel', 'Hagai', 'Ella', 'Daniel']
 
@@ -227,6 +227,7 @@ def write_ablation_results(args, columns_dict, total_crops, total_crops_of_track
         columns_dict['total_ids_in_video'] = len(ids_set)
         columns_dict['ids_in_video'] = str(ids_set)
         columns_dict['description'] = args.exp_description if args.exp_description else ""
+        columns_dict['total_crops'] = total_crops
         for name, value in ids_acc_dict.items():
             if value[0] == ID_NOT_IN_VIDEO: # this id was never in video
                 columns_dict[name] = ID_NOT_IN_VIDEO
