@@ -5,6 +5,8 @@ import sys
 import pandas
 
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
+import numpy as np
+import matplotlib.pyplot as plt
 
 sys.path.append('fast-reid')
 
@@ -18,7 +20,6 @@ sys.path.append('fast-reid')
 # import numpy as np
 # import torch.nn.functional as F
 # import matplotlib.pyplot as plt
-
 
 
 def create_feature_embeddings(reid_model, data_loader):
@@ -72,7 +73,7 @@ def plot_results(scores_dict, title):
     ax2.bar(r3, y_incorrect, color='red', width=barWidth, edgecolor='white', label='Incorrect')
 
     plt.xlabel('Scores', fontweight='bold')
-    # plt.xticks([r + barWidth for r in range(len(y_probs))], x)
+    plt.xticks([r + barWidth for r in range(len(y_probs))], x)
     plt.title(title)
     plt.legend()
     plt.show()
@@ -125,11 +126,55 @@ def fast_reid_example():
 
     plot_results(scores_dict, 'Title for the plot')
 
-import numpy as np
-import matplotlib.pyplot as plt
+
+def scores_probability():
+    """
+    Runs on all the pre-recorded scores of tracks and computes the accuracy as a function of the score of a track.
+    """
+    root_dir = '/home/bar_cohen/raid/alpha_tuning/new_score_functions_31.5/'
+    reid_scores_dict = {}
+    face_scores_dict = {}
+    for gallery in os.listdir(root_dir):
+        for pkl in os.listdir(os.path.join(root_dir, gallery)):
+            if '.pkl' not in pkl:
+                continue
+            tracks_scores = pickle.load(open(os.path.join(root_dir, gallery, pkl), 'rb'))
+            for track_item in tracks_scores.items():
+                track = track_item[1]
+                assert len(np.unique(track.get('true_label'))) == 1
+                true_label = track.get('true_label')[0]
+
+                # update reid_scores:
+                reid_scores = track.get('reid_scores')
+                reid_score = max(reid_scores.values())
+                reid_score = round(reid_score, 2)
+                if reid_score not in reid_scores_dict:
+                    reid_scores_dict[reid_score] = {'correct': 0, 'incorrect': 0}
+                predicted_reid_label = ID_TO_NAME[max(reid_scores, key=reid_scores.get)]
+                if true_label == predicted_reid_label:
+                    reid_scores_dict[reid_score]['correct'] += 1
+                else:
+                    reid_scores_dict[reid_score]['incorrect'] += 1
+
+                # update face_scores:
+                face_scores = track.get('face_scores')
+                if face_scores:
+                    face_score = max(face_scores.values())
+                    face_score = round(face_score, 2)
+                    if face_score not in face_scores_dict:
+                        face_scores_dict[face_score] = {'correct': 0, 'incorrect': 0}
+                    predicted_face_label = ID_TO_NAME[max(face_scores, key=face_scores.get)]
+                    if true_label == predicted_face_label:
+                        face_scores_dict[face_score]['correct'] += 1
+                    else:
+                        face_scores_dict[face_score]['incorrect'] += 1
+
+    plot_results(reid_scores_dict, 'Re-ID Scores Probability')
+    plot_results(face_scores_dict, 'Face Scores Probability')
+
 
 def alpha_tuning():
-    root_dir = '/home/bar_cohen/raid/alpha_tuning/'
+    root_dir = '/home/bar_cohen/raid/alpha_tuning/new_score_functions_31.5/'
     for gallery in os.listdir(root_dir):
         for pkl in os.listdir(os.path.join(root_dir, gallery)):
             if '.pkl' not in pkl:
@@ -169,5 +214,6 @@ def alpha_tuning():
 
 
 if __name__ == '__main__':
-    alpha_tuning()
+    # alpha_tuning()
+    scores_probability()
 

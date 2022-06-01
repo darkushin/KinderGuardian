@@ -33,6 +33,7 @@ from mmtrack.apis import inference_mot, init_model
 from double_id_handler import remove_double_ids, NODES_ORDER
 from CTL_reid_inference import *
 
+SCORE_INCLINE = 5
 CAM_ID = 1
 FAST_PICKLES = '/home/bar_cohen/raid/OUR_DATASETS/FAST_reid'
 ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/dani-ablation-new.csv'
@@ -114,7 +115,7 @@ def get_reid_score(track_im_conf, distmat, g_pids):
 def get_reid_score_mult_ids(track_im_conf, simmat, g_pids):
     print(simmat.shape)
     ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
-    aligned_simmat = (track_im_conf[:, np.newaxis] * ((simmat + 1)/2)) ** 5
+    aligned_simmat = (track_im_conf[:, np.newaxis] * ((simmat + 1)/2)) ** SCORE_INCLINE
     scores = aligned_simmat.sum(axis=0) / len(track_im_conf)
     for pid, score in  zip(g_pids, scores):
         ids_score[pid] += score
@@ -122,7 +123,7 @@ def get_reid_score_mult_ids(track_im_conf, simmat, g_pids):
 
 
 def get_reid_score_cosine_sim(track_im_conf, simmat, g_pids):
-    best_match_scores = track_im_conf * (((np.max(simmat, axis=1) + 1)/2) ** 5)
+    best_match_scores = track_im_conf * (((np.max(simmat, axis=1) + 1)/2) ** SCORE_INCLINE)
     ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
     best_match_in_gallery = np.argmax(simmat, axis=1)
     for pid, score in zip(g_pids[best_match_in_gallery], best_match_scores):  # an id chosen as the best match
@@ -165,7 +166,7 @@ def get_face_score(faceClassifer, preds,probs, detector_conf):
     for pid, prob, conf in zip(preds, probs, detector_conf):
         real_pid = int(faceClassifer.le.inverse_transform([int(pid)])[0])
         # face_id_scores[real_pid] += (float(prob[pid]) + conf) / (2 * len(preds))
-        face_id_scores[real_pid] += ((float(prob[pid]) * conf)**5) / len(preds)
+        face_id_scores[real_pid] += ((float(prob[pid]) * conf)**SCORE_INCLINE) / len(preds)
 
     # # normalize the scores
     # max_score = max(face_id_scores.values())
@@ -234,7 +235,7 @@ def write_ablation_results(args, columns_dict, total_crops, total_crops_of_track
                 columns_dict[name] = value[1] / value[0]
         ablation_df.append(columns_dict, ignore_index=True).to_csv(ABLATION_OUTPUT)
         # print('Making visualization using temp DB')
-        viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
+        # viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
         print('removing temp DB')
         os.remove(db_location)
@@ -547,7 +548,7 @@ def create_data_by_re_id_and_track():
     if args.inference_only and total_crops > 0:
         write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, ablation_df, db_location)
 
-    pickle.dump(tracks_scores, open(os.path.join('/home/bar_cohen/raid/alpha_tuning', f'{args.input.split("/")[-1][9:-4]}_tracks_scores.pkl'), 'wb'))
+    pickle.dump(tracks_scores, open(os.path.join('/home/bar_cohen/raid/alpha_tuning/new_score_functions_31.5/same_day_0808_no_skip', f'{args.input.split("/")[-1][9:-4]}_tracks_scores.pkl'), 'wb'))
     print(f"Done within {int(end-start)} seconds.")
 
 

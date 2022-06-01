@@ -223,8 +223,8 @@ def execute_combined_model():
             continue
         print(f'running {query_vid}')
 
-        if 'IPCamera_20210808101731_s0_e501.mp4' != query_vid and 'IPCamera_20210808082440_s0_e501.mp4' != query_vid:
-            continue
+        # if 'IPCamera_20210808101731_s0_e501.mp4' != query_vid and 'IPCamera_20210808082440_s0_e501.mp4' != query_vid:
+        #     continue
         print(f'running {query_vid}')
 
         args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
