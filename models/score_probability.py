@@ -3,6 +3,7 @@ import pickle
 import sys
 
 import pandas
+import pandas as pd
 
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 import numpy as np
@@ -59,24 +60,44 @@ def plot_results(scores_dict, title):
     y_correct = [s['correct'] for s in sorted_scores.values()]
     y_incorrect = [s['incorrect'] for s in sorted_scores.values()]
 
+
+    import  seaborn as sns
+
+    df = pd.DataFrame({'score': x, 'accuracy':y_probs, 'correct':y_correct, 'incorrect':y_incorrect})
+    sns.barplot(data=df, x='score',y='accuracy', color='orange')
+    plt.title(f"{title}")
+    plt.show()
+
+    plt.clf()
+
+
+    sns.barplot(data=df, x='score',y='correct', color='green')
+    sns.barplot(data=df, x='score',y='incorrect', color='red')
+    plt.ylabel('Correct / Incorrect Count')
+    plt.title(f"{title}")
+    plt.show()
+
+
+
+
     # create a graph that left y-axis is probability and right y-axis is counter of appearances. This graph should have
     # three bars for every score in the x-axis.
-    fig, ax = plt.subplots()
-    ax2 = ax.twinx()
-    barWidth = 0.3
-    r1 = np.arange(len(y_probs))
-    r2 = [x + barWidth for x in r1]
-    r3 = [x + barWidth for x in r2]
-
-    ax.bar(r1, y_probs, color='blue', width=barWidth, edgecolor='white', label='Probability')
-    ax2.bar(r2, y_correct, color='green', width=barWidth, edgecolor='white', label='Correct')
-    ax2.bar(r3, y_incorrect, color='red', width=barWidth, edgecolor='white', label='Incorrect')
-
-    plt.xlabel('Scores', fontweight='bold')
-    plt.xticks([r + barWidth for r in range(len(y_probs))], x)
-    plt.title(title)
-    plt.legend()
-    plt.show()
+    # fig, ax = plt.subplots()
+    # ax2 = ax.twinx()
+    # barWidth = 0.3
+    # r1 = np.arange(len(y_probs))
+    # r2 = [x + barWidth for x in r1]
+    # r3 = [x + barWidth for x in r2]
+    #
+    # ax.bar(r1, y_probs, color='blue', width=barWidth, edgecolor='white', label='Probability')
+    # ax2.bar(r2, y_correct, color='green', width=barWidth, edgecolor='white', label='Correct')
+    # ax2.bar(r3, y_incorrect, color='red', width=barWidth, edgecolor='white', label='Incorrect')
+    #
+    # plt.xlabel('Scores', fontweight='bold')
+    # plt.xticks([r + barWidth for r in range(len(y_probs))], x)
+    # plt.title(title)
+    # plt.legend(labels=['a','b'])
+    # plt.show()
 
     print('daniel')
 
@@ -147,7 +168,7 @@ def scores_probability():
                 # update reid_scores:
                 reid_scores = track.get('reid_scores')
                 reid_score = max(reid_scores.values())
-                reid_score = round(reid_score, 2)
+                reid_score = round(reid_score, 1)
                 if reid_score not in reid_scores_dict:
                     reid_scores_dict[reid_score] = {'correct': 0, 'incorrect': 0}
                 predicted_reid_label = ID_TO_NAME[max(reid_scores, key=reid_scores.get)]
@@ -160,7 +181,7 @@ def scores_probability():
                 face_scores = track.get('face_scores')
                 if face_scores:
                     face_score = max(face_scores.values())
-                    face_score = round(face_score, 2)
+                    face_score = round(face_score, 1)
                     if face_score not in face_scores_dict:
                         face_scores_dict[face_score] = {'correct': 0, 'incorrect': 0}
                     predicted_face_label = ID_TO_NAME[max(face_scores, key=face_scores.get)]
@@ -169,8 +190,8 @@ def scores_probability():
                     else:
                         face_scores_dict[face_score]['incorrect'] += 1
 
-    plot_results(reid_scores_dict, 'Re-ID Scores Probability')
-    plot_results(face_scores_dict, 'Face Scores Probability')
+    plot_results(reid_scores_dict, 'Re-ID Scores-Acc Trend')
+    plot_results(face_scores_dict, 'Face Scores-Acc Trend')
 
 
 def alpha_tuning():
