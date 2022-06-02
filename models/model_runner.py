@@ -6,7 +6,7 @@ from subprocess import call
 import sys
 
 from DataProcessing.DB.dal import Crop, get_entries
-from DataProcessing.utils import viz_DB_data_on_video
+# from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import *
 import DataProcessing.dataFactory
 from typing import List
@@ -222,6 +222,11 @@ def execute_combined_model():
             print(f'skipping {query_vid}')
             continue
         print(f'running {query_vid}')
+
+        # if 'IPCamera_20210808101731_s0_e501.mp4' != query_vid and 'IPCamera_20210808082440_s0_e501.mp4' != query_vid:
+        #     continue
+        print(f'running {query_vid}')
+
         args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
                                   query_vid.split('_')[0]+'_'+query_vid.split('_')[1],
                                   query_vid)

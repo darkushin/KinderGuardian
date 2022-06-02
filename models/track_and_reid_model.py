@@ -20,7 +20,6 @@ from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 from FaceDetection.faceClassifer import FaceClassifer
 from FaceDetection.faceDetector import FaceDetector, is_img
-from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import ID_NOT_IN_VIDEO
 import warnings
 warnings.filterwarnings('ignore')
@@ -34,13 +33,14 @@ from mmtrack.apis import inference_mot, init_model
 from double_id_handler import remove_double_ids, NODES_ORDER
 from CTL_reid_inference import *
 
+SCORE_INCLINE = 5
 CAM_ID = 1
 FAST_PICKLES = '/home/bar_cohen/raid/OUR_DATASETS/FAST_reid'
 ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/dani-ablation-new.csv'
 ABLATION_COLUMNS = ['description', 'video_name', 'ids_in_video', 'total_ids_in_video', 'total_tracks',
                     'tracks_with_face', 'pure_reid_model', 'reid_with_maj_vote', 'face_clf_only',
                     'face_clf_only_tracks_with_face', 'reid_with_face_clf_maj_vote', 'rank-1', 'sorted-rank-1',
-                    'appearance-order', 'max-difference', 'model_name', 'running_time'
+                    'appearance-order', 'max-difference', 'model_name', 'running_time', 'total_crops',
                     'Adam', 'Avigail', 'Ayelet', 'Bar', 'Batel', 'Big-Gali', 'Eitan', 'Gali', 'Guy', 'Halel', 'Lea',
                     'Noga', 'Ofir', 'Omer', 'Roni', 'Sofi', 'Sofi-Daughter', 'Yahel', 'Hagai', 'Ella', 'Daniel']
 
@@ -112,6 +112,23 @@ def get_reid_score(track_im_conf, distmat, g_pids):
 
     return ids_score
 
+def get_reid_score_mult_ids(track_im_conf, simmat, g_pids):
+    print(simmat.shape)
+    ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
+    aligned_simmat = (track_im_conf[:, np.newaxis] * ((simmat + 1)/2)) ** SCORE_INCLINE
+    scores = aligned_simmat.sum(axis=0) / len(track_im_conf)
+    for pid, score in  zip(g_pids, scores):
+        ids_score[pid] += score
+    return ids_score
+
+
+def get_reid_score_cosine_sim(track_im_conf, simmat, g_pids):
+    best_match_scores = track_im_conf * (((np.max(simmat, axis=1) + 1)/2) ** SCORE_INCLINE)
+    ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
+    best_match_in_gallery = np.argmax(simmat, axis=1)
+    for pid, score in zip(g_pids[best_match_in_gallery], best_match_scores):  # an id chosen as the best match
+        ids_score[pid] += score / track_im_conf.shape[0]
+    return ids_score
 
 def find_best_reid_match(q_feat, g_feat, g_pids, track_imgs_conf):
     """
@@ -119,9 +136,12 @@ def find_best_reid_match(q_feat, g_feat, g_pids, track_imgs_conf):
     """
     features = F.normalize(q_feat, p=2, dim=1)
     others = F.normalize(g_feat, p=2, dim=1)
-    distmat = 1 - torch.mm(features, others.t())
-    distmat = distmat.numpy()
-    ids_score = get_reid_score(track_imgs_conf, distmat, g_pids)
+    simmat = torch.mm(features, others.t()).numpy()
+    distmat = 1 - simmat
+    # distmat = distmat.numpy()
+    # ids_score = get_reid_score(track_imgs_conf, distmat, g_pids)
+    ids_score = get_reid_score_mult_ids(track_imgs_conf, simmat, g_pids)
+    # ids_score = get_reid_score_cosine_sim(track_imgs_conf, simmat, g_pids)
     best_match_in_gallery = np.argmin(distmat, axis=1)
     return g_pids[best_match_in_gallery] , ids_score
 
@@ -145,15 +165,23 @@ def get_face_score(faceClassifer, preds,probs, detector_conf):
     face_id_scores = {pid : 0 for pid in ID_TO_NAME.keys()}
     for pid, prob, conf in zip(preds, probs, detector_conf):
         real_pid = int(faceClassifer.le.inverse_transform([int(pid)])[0])
-        face_id_scores[real_pid] += (float(prob[pid]) + conf) / (2 * len(preds))
+        # face_id_scores[real_pid] += (float(prob[pid]) + conf) / (2 * len(preds))
+        face_id_scores[real_pid] += ((float(prob[pid]) * conf)**SCORE_INCLINE) / len(preds)
 
     # # normalize the scores
     # max_score = max(face_id_scores.values())
     # for pid in face_id_scores.keys():
     #     face_id_scores[pid] = face_id_scores[pid] / max_score
-
     return face_id_scores
 
+def get_face_score_all_ids(faceClassifer,track_probs, detector_conf):
+    face_id_scores = {pid: 0 for pid in ID_TO_NAME.keys()}
+    for crop_probs, conf in zip(track_probs, detector_conf):
+        for pid, prob_i in enumerate(crop_probs):
+            real_pid = int(faceClassifer.le.inverse_transform([int(pid)])[0])
+            # face_id_scores[real_pid] += (float(prob[pid]) + conf) / (2 * len(preds))
+            face_id_scores[real_pid] += ((float(prob_i) * conf) ** 5) / len(detector_conf)
+    return face_id_scores
 
 def gen_reid_features(reid_cfg, reid_model, output_path=None):
     test_loader, num_query = build_reid_test_loader(reid_cfg,
@@ -199,6 +227,7 @@ def write_ablation_results(args, columns_dict, total_crops, total_crops_of_track
         columns_dict['total_ids_in_video'] = len(ids_set)
         columns_dict['ids_in_video'] = str(ids_set)
         columns_dict['description'] = args.exp_description if args.exp_description else ""
+        columns_dict['total_crops'] = total_crops
         for name, value in ids_acc_dict.items():
             if value[0] == ID_NOT_IN_VIDEO: # this id was never in video
                 columns_dict[name] = ID_NOT_IN_VIDEO
@@ -353,7 +382,7 @@ def create_data_by_re_id_and_track():
         print(f'Saving the output crops to: {args.crops_folder}')
         assert args.crops_folder, "You must insert crop_folder param in order to create data"
 
-    with open("/mnt/raid1/home/bar_cohen/FaceData/le.pkl", 'rb') as f:
+    with open("/mnt/raid1/home/bar_cohen/FaceData/le_19.pkl", 'rb') as f:
         le = pickle.load(f)
 
     if args.reid_model == 'fastreid':
@@ -364,9 +393,9 @@ def create_data_by_re_id_and_track():
 
         # run re-id model on all images in the test gallery and query folders:
         # build re-id test set. NOTE: query dir of the dataset should be empty!
-        if not os.path.isdir(FAST_PICKLES):
-            os.makedirs(FAST_PICKLES, exist_ok=True)
-            gen_reid_features(reid_cfg, reid_model, output_path=FAST_PICKLES)  # UNCOMMENT TO Recreate reid features
+        # if not os.path.isdir(FAST_PICKLES):
+        #     os.makedirs(FAST_PICKLES, exist_ok=True)
+        gen_reid_features(reid_cfg, reid_model, output_path=FAST_PICKLES)  # UNCOMMENT TO Recreate reid features
         feats, g_feats, g_pids, g_camids = load_reid_features(output_path=FAST_PICKLES)
     else:
         # args.reid_config = "./centroids_reid/configs/256_resnet50.yml"
@@ -377,10 +406,10 @@ def create_data_by_re_id_and_track():
         reid_model = CTLModel._load_model_state(checkpoint)
 
         # create gallery feature:
-        if not os.path.isdir(CTL_PICKLES):
-            os.makedirs(CTL_PICKLES, exist_ok=True)
-            gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
-            g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
+        # if not os.path.isdir(CTL_PICKLES):
+        os.makedirs(CTL_PICKLES, exist_ok=True)
+        gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
+        g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
 
         # OR load gallery feature:
         g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
@@ -411,12 +440,15 @@ def create_data_by_re_id_and_track():
 
     all_tracks_final_scores = dict()
 
-    faceClassifer = FaceClassifer(num_classes=21, label_encoder=le, device='cuda:0')
-    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/FULL_DATA_augs:True_lr:1e-05_0, 4.pth"))
+    faceClassifer = FaceClassifer(num_classes=19, label_encoder=le, device='cuda:0')
+    # faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/FULL_DATA_augs:True_lr:1e-05_0, 4.pth"))
+    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/REAPEAT OLD EXP 19, 0.pth"))
     faceClassifer.model_ft.eval()
 
     # iterate over all tracklets and make a prediction for every tracklet
+    tracks_scores = {}
     for track_id, crop_dicts in tqdm.tqdm(tracklets.items(), total=len(tracklets.keys())):
+        tracks_scores[track_id] = {}
         if args.inference_only:
             columns_dict['total_tracks'] += 1
         track_imgs_conf = np.array([crop_dict.get('Crop').conf for crop_dict in crop_dicts])
@@ -454,13 +486,21 @@ def create_data_by_re_id_and_track():
 
             bincount_face = torch.bincount(face_clf_preds.cpu())
             face_label = ID_TO_NAME[faceClassifer.le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
-            face_scores = get_face_score(faceClassifer, face_clf_preds, face_clf_outputs, face_imgs_conf)
+            # face_scores = get_face_score(faceClassifer, face_clf_preds, face_clf_outputs, face_imgs_conf)
+            face_scores = get_face_score_all_ids(faceClassifer, face_clf_outputs, face_imgs_conf)
             alpha = 0.49 # TODO enter as an arg
             final_scores = {pid : alpha*reid_score + (1-alpha) * face_score for pid, reid_score, face_score in zip(reid_scores.keys() , reid_scores.values(), face_scores.values())}
             all_tracks_final_scores[track_id] = final_scores
             final_label = ID_TO_NAME[max(final_scores, key=final_scores.get)]
+
+            tracks_scores[track_id]['face_clf_outputs'] = face_clf_outputs
+            tracks_scores[track_id]['face_scores'] = face_scores
+
+        tracks_scores[track_id]['reid_scores'] = reid_scores
+        tracks_scores[track_id]['reid_ids'] = reid_ids
         # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
 
+        true_labels = []
         for crop_id, crop_dict in enumerate(crop_dicts):
             crop = crop_dict.get('Crop')
             crop.crop_id = crop_id
@@ -470,14 +510,16 @@ def create_data_by_re_id_and_track():
                 db_entries.append(crop)
 
             if args.inference_only and crop.conf >= float(args.acc_th):
-                total_crops, total_crops_of_tracks_with_face = update_ablation_results(columns_dict, crop, crop_label,
+                total_crops, total_crops_of_tracks_with_face, tagged_label = update_ablation_results(columns_dict, crop, crop_label,
                                                                                        face_label, final_label,
                                                                                        ids_acc_dict, is_face_in_track,
                                                                                        maj_vote_label, total_crops,
                                                                                        total_crops_of_tracks_with_face)
+                true_labels.append(tagged_label)
 
             if not args.inference_only:
                 mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder, crop.im_name))
+        tracks_scores[track_id]['true_label'] = true_labels
 
     add_entries(db_entries, db_location)
 
@@ -506,6 +548,7 @@ def create_data_by_re_id_and_track():
     if args.inference_only and total_crops > 0:
         write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, ablation_df, db_location)
 
+    pickle.dump(tracks_scores, open(os.path.join('/home/bar_cohen/raid/alpha_tuning/new_score_functions_31.5/same_day_0808_no_skip', f'{args.input.split("/")[-1][9:-4]}_tracks_scores.pkl'), 'wb'))
     print(f"Done within {int(end-start)} seconds.")
 
 
@@ -533,7 +576,7 @@ def update_ablation_results(columns_dict, crop, crop_label, face_label, final_la
         if tagged_label == final_label:
             columns_dict['reid_with_face_clf_maj_vote'] += 1
             ids_acc_dict[tagged_label][1] += 1
-    return total_crops, total_crops_of_tracks_with_face
+    return total_crops, total_crops_of_tracks_with_face, tagged_label
 
 
 if __name__ == '__main__':
