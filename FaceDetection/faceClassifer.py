@@ -152,7 +152,7 @@ def main_train(data_path:str,run_name:str, reload_images_from_db:bool, recreate_
         X_train ,y_train, X_val ,y_val, X_test, y_test = create_X_y_faces(high_conf_face_images,
                                                                           save_images_path='') # create an X,y dataset from filtered images
         print('Adding Train Data from previously labeled data-set')
-        x_train_add , y_train_add = load_old_data('/mnt/raid1/home/bar_cohen/FaceData/old_data_for_train/', reload_images=reload_images_from_db)
+        x_train_add , y_train_add = load_old_data('/mnt/raid1/home/bar_cohen/FaceData/old_data_for_train_no_4_8/', reload_images=reload_images_from_db)
         X_train.extend(x_train_add)
         y_train.extend(y_train_add)
         print(f"Creates a label encoder and removes entered classes {num_classes} from dataset")
@@ -204,20 +204,20 @@ if __name__ == '__main__':
     # for with_augs in [True,False]:
     #     for max_sample_threshold in [0,500,400,300]:
     #         for lr in [0.001,0.0001,0.00001]:
-    run_name = f"REAPEAT OLD EXP 19"
-    # print(run_name)
-    # main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/',
-    #            run_name=run_name,
-    #            reload_images_from_db=False,
-    #            recreate_data=True,
-    #            augment_data = True,
-    #            checkpoint_path=checkpoint_path,
-    #            load_checkpoint='',
-    #            epochs=5,
-    #            lr=0.0001,
-    #            save_images_path='',
-    #            max_sample_threshold=0,
-    #            device='cuda:0')
+    run_name = f"4.8 Val"
+    print(run_name)
+    main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/',
+               run_name=run_name,
+               reload_images_from_db=False,
+               recreate_data=True,
+               augment_data = True,
+               checkpoint_path=checkpoint_path,
+               load_checkpoint='',
+               epochs=2,
+               lr=0.0001,
+               save_images_path='',
+               max_sample_threshold=0,
+               device='cuda:0')
     eval_faceClassifier(exp_name='test',
-                        checkpoint_path=os.path.join(checkpoint_path, "/mnt/raid1/home/bar_cohen/FaceData/checkpoints/REAPEAT OLD EXP 19, 0.pth"))
+                        checkpoint_path=os.path.join(checkpoint_path, "/mnt/raid1/home/bar_cohen/FaceData/checkpoints/4.8 Val, 1.pth"))
 #

@@ -13,8 +13,8 @@ from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 from FaceDetection.augmentions import normalize_image
 from FaceDetection.faceDetector import FaceDetector, is_img
 
-TRAIN_DATES = ['0729', '0801', '0802','0804' ,'0805']
-VAL_DATES = ['0803']
+TRAIN_DATES = ['0729', '0801', '0802','0803' ,'0805']
+VAL_DATES = ['0804']
 TEST_DATES = ['0730','0808']
 
 def labelencode(label_encoder_output,X_train ,y_train, X_val ,y_val, X_test, y_test ,classes_to_drop:list):
@@ -130,6 +130,6 @@ def load_old_data(data_path:str, reload_images=False):
                     x_train_add.append(ret)
                     y_train_add.append(label)
                 img.close()
-        pickle.dump((x_train_add, y_train_add), open(os.path.join('/mnt/raid1/home/bar_cohen/FaceData/', 'old_face_data.pkl'), 'wb'))
+        pickle.dump((x_train_add, y_train_add), open(os.path.join('/mnt/raid1/home/bar_cohen/FaceData/', 'old_face_data_no_4_8.pkl'), 'wb'))
     return x_train_add, y_train_add
 
