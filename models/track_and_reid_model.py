@@ -268,18 +268,22 @@ def create_tracklets_from_db(vid_name, args):
                         invalid=temp_crop.invalid,
                         is_vague=temp_crop.is_vague)
             crop.set_im_name()
-            crop_im = Image.open(f'/home/bar_cohen/raid/{vid_name}/{crop.im_name}')
-            im_location = crop.im_name
-            if not crop_im:
+            im_path = f'/home/bar_cohen/raid/{vid_name}/{crop.im_name}'
+            if not os.path.isfile(im_path):
                 im_location = 'v' + crop.im_name[2:]
-                crop_im = Image.open(f'/home/bar_cohen/raid/{vid_name}/{im_location}')
+                im_path =  f'/home/bar_cohen/raid/{vid_name}/{im_location}'
+            crop_im = Image.open(im_path)
+            # im_location = crop.im_name
+            # if not crop_im:
+            #     im_location = 'v' + crop.im_name[2:]
+            #     crop_im = Image.open(f'/home/bar_cohen/raid/{vid_name}/{im_location}')
             # added for CTL inference
             ctl_img = crop_im
             ctl_img.convert("RGB")
 
             face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=True)
             face_prob = face_prob if face_prob else 0
-            crop_im = mmcv.imread(f'/home/bar_cohen/raid/{vid_name}/{im_location}')
+            crop_im = mmcv.imread(im_path)
             tracklets[track].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
                                     'ctl_img': ctl_img})
     del face_detector
@@ -441,8 +445,7 @@ def create_data_by_re_id_and_track():
     all_tracks_final_scores = dict()
 
     faceClassifer = FaceClassifer(num_classes=19, label_encoder=le, device='cuda:0')
-    # faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/FULL_DATA_augs:True_lr:1e-05_0, 4.pth"))
-    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/REAPEAT OLD EXP 19, 0.pth"))
+    faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/4.8 Val, 1.pth"))
     faceClassifer.model_ft.eval()
 
     # iterate over all tracklets and make a prediction for every tracklet
@@ -475,6 +478,7 @@ def create_data_by_re_id_and_track():
         face_imgs_conf = np.array([crop_dict.get('face_img_conf') for crop_dict in crop_dicts if crop_dict.get('face_img_conf') > 0])
         assert len(face_imgs) == len(face_imgs_conf)
         is_face_in_track = False
+        face_label = 'None'
         if len(face_imgs) > 0:  # at least 1 face was detected
             is_face_in_track = True
             if args.inference_only:

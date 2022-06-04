@@ -15,7 +15,7 @@ from FaceDetection.faceDetector import FaceDetector, is_img
 
 TRACKING_CONFIG_PATH = "/home/bar_cohen/KinderGuardian/mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py"
 TRACKING_CHECKPOINT = "/home/bar_cohen/KinderGuardian/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth"
-FACE_CHECKPOINT = "/mnt/raid1/home/bar_cohen/FaceData/checkpoints/REAPEAT OLD EXP 19, 1.pth"
+FACE_CHECKPOINT = "/mnt/raid1/home/bar_cohen/FaceData/checkpoints/4.8 Val, 1.pth"
 
 FACE_NET = 'FaceNet'
 class GalleryCreator:
@@ -89,8 +89,9 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
 
 if __name__ == '__main__':
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le_19.pkl",'rb'))
-    gc = GalleryCreator(gallery_path="/home/bar_cohen/KinderGuardian/fast-reid/datasets/same_day_0730_19/bounding_box_test/",
+    gc = GalleryCreator(gallery_path="/home/bar_cohen/KinderGuardian/fast-reid/datasets/same_day_0804_no_skip/bounding_box_test/",
                         label_encoder=le, device='cuda:1')
+    gc.global_video_counter += 1
 
 
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808120339.avi", skip_every=100)
@@ -102,3 +103,8 @@ if __name__ == '__main__':
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730111802.avi", skip_every=100)
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730072959.avi", skip_every=100)
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730085653.avi", skip_every=100)
+
+    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/IPCamera_20210804112702.avi", skip_every=1)
+    gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/IPCamera_20210804151703.avi", skip_every=1)
+    gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/IPCamera_20210804103053.avi", skip_every=1)
+    gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/IPCamera_20210804072959.avi", skip_every=1)
