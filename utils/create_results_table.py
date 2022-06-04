@@ -30,10 +30,10 @@ def create_overleaf_table(results_file_path, output_location):
 
     # create the table:
     with open(output_location, 'w') as tf:
-        tf.write(pd.DataFrame.to_latex(results))
+        tf.write(pd.DataFrame.to_latex(results, index=False, float_format="%.2f"))
 
 
 if __name__ == '__main__':
-    # compute_weighted_average('/Users/darkushin/Downloads/ctl-results.csv')
-    create_overleaf_table('/Users/darkushin/Downloads/baseline-results.csv',
-                          '/Users/darkushin/Downloads/baseline-results.tex')
+    compute_weighted_average('/Users/darkushin/Downloads/ctl-results.csv')
+    # create_overleaf_table('/Users/darkushin/Downloads/baseline-results.csv',
+    #                       '/Users/darkushin/Downloads/baseline-results.tex')
