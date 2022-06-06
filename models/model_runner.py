@@ -121,7 +121,7 @@ def get_query_set():
     for _ , _ , files in os.walk("/mnt/raid1/home/bar_cohen/trimmed_videos/"):
         for file in files:
             is_tagged = len(get_entries(filters={Crop.vid_name == file[9:-4], Crop.reviewed_one == True}).all()) > 0
-            if file[13:17] in ['0808','0730']  and is_tagged:
+            if file[13:17] in ['0808','0730','0804']  and is_tagged:
                 query_set.append(file)
     return query_set
 
@@ -218,10 +218,15 @@ def execute_combined_model():
     inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
     print('Total videos in eval set:', len(get_query_set()))
     for query_vid in get_query_set():
-        if '20210808' not in query_vid:
+        if '20210804' not in query_vid:
             print(f'skipping {query_vid}')
             continue
         print(f'running {query_vid}')
+
+        # if 'IPCamera_20210808101731_s0_e501.mp4' != query_vid and 'IPCamera_20210808082440_s0_e501.mp4' != query_vid:
+        #     continue
+        print(f'running {query_vid}')
+
         args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
                                   query_vid.split('_')[0]+'_'+query_vid.split('_')[1],
                                   query_vid)
