@@ -34,7 +34,7 @@ class Crop(Base):
 
 def create_session(db_location: str = DB_LOCATION):
     engine = create_engine(f'sqlite:///{db_location}', echo=False)  # should include the path to the db file
-    Session = sessionmaker(bind=engine)
+    Session = sessionmaker(bind=engine, autoflush=False)
     return Session()
 
 
