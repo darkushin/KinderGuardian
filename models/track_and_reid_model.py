@@ -35,6 +35,7 @@ from double_id_handler import remove_double_ids, NODES_ORDER
 from CTL_reid_inference import *
 
 CAM_ID = 1
+P_POWER = 5
 FAST_PICKLES = '/home/bar_cohen/raid/OUR_DATASETS/FAST_reid'
 ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/dani-ablation-new.csv'
 ABLATION_COLUMNS = ['description', 'video_name', 'ids_in_video', 'total_ids_in_video', 'total_tracks',
@@ -106,29 +107,17 @@ def get_reid_score(track_im_conf, distmat, g_pids):
     for pid,score in zip(g_pids[best_match_in_gallery], best_match_scores): # an id chosen as the best match
         ids_score[pid] += score / track_im_conf.shape[0]
 
-    # max_score = max(ids_score.values())
-    # for pid in ids_score.keys():
-    #     ids_score[pid] = ids_score[pid] / max_score
-
     return ids_score
 
 def get_reid_score_mult_ids(track_im_conf, simmat, g_pids):
     print(simmat.shape)
     ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
-    aligned_simmat = (track_im_conf[:, np.newaxis] * ((simmat + 1)/2)) ** 5
+    aligned_simmat = (track_im_conf[:, np.newaxis] * ((simmat + 1)/2)) ** P_POWER
     scores = aligned_simmat.sum(axis=0) / len(track_im_conf)
     for pid, score in  zip(g_pids, scores):
         ids_score[pid] += score
     return ids_score
 
-
-def get_reid_score_cosine_sim(track_im_conf, simmat, g_pids):
-    best_match_scores = track_im_conf * (((np.max(simmat, axis=1) + 1)/2) ** 5)
-    ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
-    best_match_in_gallery = np.argmax(simmat, axis=1)
-    for pid, score in zip(g_pids[best_match_in_gallery], best_match_scores):  # an id chosen as the best match
-        ids_score[pid] += score / track_im_conf.shape[0]
-    return ids_score
 
 def find_best_reid_match(q_feat, g_feat, g_pids, track_imgs_conf):
     """
@@ -165,13 +154,7 @@ def get_face_score(faceClassifer, preds,probs, detector_conf):
     face_id_scores = {pid : 0 for pid in ID_TO_NAME.keys()}
     for pid, prob, conf in zip(preds, probs, detector_conf):
         real_pid = int(faceClassifer.le.inverse_transform([int(pid)])[0])
-        # face_id_scores[real_pid] += (float(prob[pid]) + conf) / (2 * len(preds))
-        face_id_scores[real_pid] += ((float(prob[pid]) * conf)**5) / len(preds)
-
-    # # normalize the scores
-    # max_score = max(face_id_scores.values())
-    # for pid in face_id_scores.keys():
-    #     face_id_scores[pid] = face_id_scores[pid] / max_score
+        face_id_scores[real_pid] += ((float(prob[pid]) * conf)**P_POWER) / len(preds)
     return face_id_scores
 
 def get_face_score_all_ids(faceClassifer,track_probs, detector_conf):
@@ -179,8 +162,7 @@ def get_face_score_all_ids(faceClassifer,track_probs, detector_conf):
     for crop_probs, conf in zip(track_probs, detector_conf):
         for pid, prob_i in enumerate(crop_probs):
             real_pid = int(faceClassifer.le.inverse_transform([int(pid)])[0])
-            # face_id_scores[real_pid] += (float(prob[pid]) + conf) / (2 * len(preds))
-            face_id_scores[real_pid] += ((float(prob_i) * conf) ** 5) / len(detector_conf)
+            face_id_scores[real_pid] += ((float(prob_i) * conf) ** P_POWER) / len(detector_conf)
     return face_id_scores
 
 def gen_reid_features(reid_cfg, reid_model, output_path=None):
