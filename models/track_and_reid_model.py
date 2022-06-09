@@ -18,6 +18,7 @@ import mmcv
 import torch.nn.functional as F
 from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
+from FaceDetection.augmentions import normalize_image
 from FaceDetection.faceClassifer import FaceClassifer
 from FaceDetection.faceDetector import FaceDetector, is_img
 from DataProcessing.utils import viz_DB_data_on_video
@@ -309,7 +310,10 @@ def create_tracklets_using_tracking(args):
                         invalid=False,
                         is_vague=False)
             crop.set_im_name()
-            tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob})
+            mmcv.imwrite(crop_im, '/mnt/raid1/home/bar_cohen/CTL_Reid/t.jpg')
+            ctl_img = Image.open('/mnt/raid1/home/bar_cohen/CTL_Reid/t.jpg').convert("RGB")
+            tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
+                                    'ctl_img': ctl_img})
             # todo: need to add ctl_img similar to create_tracklets_from_DB()
     del face_detector
     return tracklets
