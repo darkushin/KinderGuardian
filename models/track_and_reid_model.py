@@ -18,7 +18,6 @@ import mmcv
 import torch.nn.functional as F
 from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
-from FaceDetection.augmentions import normalize_image
 from FaceDetection.faceClassifer import FaceClassifer
 from FaceDetection.faceDetector import FaceDetector, is_img
 from DataProcessing.utils import viz_DB_data_on_video
