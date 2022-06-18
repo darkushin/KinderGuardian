@@ -1,6 +1,8 @@
 import os
 import pickle
 from collections import defaultdict
+
+import cv2
 import mmcv
 import tqdm
 from PIL import Image
@@ -128,14 +130,16 @@ class FaceDetector():
 
 
 def collect_faces_from_video(video_path:str) -> []:
-    fd = FaceDetector(faces_data_path=None,thresholds=[0.97,0.97,0.97],keep_all=True)
+    fd = FaceDetector(faces_data_path=None,thresholds=[0.98,0.98,0.98],keep_all=True)
     imgs = mmcv.VideoReader(video_path)
     ret = []
-    for img in tqdm.tqdm(imgs):
-        face_img, prob = fd.facenet_detecor(img, return_prob=True)
-        if is_img(face_img):
-            if face_img.size()[0] == 1:  # two or more faces detected in the img crop
-                ret.append(face_img[0])
+    for i, img in enumerate(tqdm.tqdm(imgs)):
+        if i % 25 == 0:
+            face_img, prob = fd.facenet_detecor(img, return_prob=True)
+            if is_img(face_img):
+                if len(face_img.shape) == 4 and face_img.size()[0] >= 1:  # two or more faces detected in the img crop
+                    for i in range(face_img.shape[0]):
+                        ret.append(face_img[i])
     return ret
 
 def collect_faces_from_list_of_videos(list_of_videos:list):
@@ -147,19 +151,18 @@ def collect_faces_from_list_of_videos(list_of_videos:list):
 def main():
     """Simple test of FaceDetector"""
     # fd = FaceDetector(faces_data_path='/mnt/raid1/home/bar_cohen/FaceData/',device='cuda:0')
-    # fd.filter_out_non_face_corps(recreate_data=True, save_images=False)
-    # from faceClassifer import load_data
-    # le, dl_train, dl_val, dl_test =  load_data('/mnt/raid1/home/bar_cohen/FaceData/')
-    # fd.build_samples_hist(le, dl_train, title='dataloader train')
-    # fd.build_samples_hist(le, dl_val, title='dataloader val')
-    # fd.build_samples_hist(le, dl_test, title='dataloader test')
-    # X,y, _, _,_,_ = fd.create_X_y_faces() # only taining
-    # print(len(X), len(y))
-    # fd.build_samples_hist(fd.high_conf_face_imgs, 'Face Images Hist')
-    # fd.build_samples_hist(read_labled_croped_images(fd.raw_images_path), title='Raw Images Hist')
-if __name__ == '__main__':
-    main()
+    faces = collect_faces_from_video(video_path="/mnt/raid1/home/bar_cohen/42street/output001.mp4")
+    with open('/mnt/raid1/home/bar_cohen/42street/face.pkl','wb') as f:
+        pickle.dump(faces,f)
+    os.makedirs('/mnt/raid1/home/bar_cohen/42street/faces',exist_ok=True)
+    for i, face in enumerate(faces):
+        img_show = face.permute(1, 2, 0).int().numpy().astype(np.uint8)
+        face = cv2.cvtColor(img_show, cv2.COLOR_RGB2BGR)
+        plt.imsave(f"/mnt/raid1/home/bar_cohen/42street/faces/{i}.jpg", face)
 
 
 def is_img(img):
     return img is not None and img is not img.numel()
+
+if __name__ == '__main__':
+    main()
