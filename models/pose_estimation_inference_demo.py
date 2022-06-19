@@ -36,16 +36,16 @@ if __name__ == '__main__':
     pose_model = init_pose_model(pose_config, pose_checkpoint, device=device.lower())
     dataset_info = pose_model.cfg.data['test'].get('dataset_info', None)
     dataset_info = DatasetInfo(dataset_info)
+    img = Image.open(image_name).convert('RGB')
 
     # init face detection model
     face_detector = FaceDetector(keep_all=True, device=device)
 
     # get pose estimation
-    pose_results, returned_outputs = inference_top_down_pose_model(pose_model, image_name, person_results, bbox_thr=None,
+    pose_results, returned_outputs = inference_top_down_pose_model(pose_model, np.array(img)[:, :, ::-1], person_results, bbox_thr=None,
                                                                    format='xywh',dataset_info=dataset_info)
 
     # detect faces
-    img = Image.open(image_name).convert('RGB')
     face_bboxes, probs = face_detector.facenet_detecor.detect(img=img)
     face_bbox = []
 
@@ -63,7 +63,6 @@ if __name__ == '__main__':
             print('Detected face matches the main person in the crop!')
         else:
             print('Face is not of the main person in the crop!')
-
 
     print('daniel')
 
