@@ -31,19 +31,19 @@ class FaceDetector():
     def detect_single_face(self, img):
         # use face detector to find a single face in an image, rests to entered init of keeping face after change
         self.facenet_detecor.keep_all = False
-        ret, prob = self.facenet_detecor(img, return_prob=True)
+        ret, prob, batch_boxes = self.facenet_detecor(img, return_prob=True)
         self.facenet_detecor.keep_all = self.keep_all
-        return ret , prob
+        return ret , prob, batch_boxes
 
     def get_single_face(self,img, is_PIL_input, norm=True):
         # TODO this is a horrible function and flow. will later be upgrades with instace segmentaion?
-        face_img, prob = self.facenet_detecor(img, return_prob=True)
+        face_img, prob, batch_boxes = self.facenet_detecor(img, return_prob=True)
         if is_img(face_img):
             if face_img.size()[0] > 1:  # two or more faces detected in the img crop
                 # faceClassifer.imshow(face_img[0:2])
                 face_img = crop_top_third_and_sides(img, is_PIL_input)
                 if is_PIL_input:
-                    face_img, prob = self.detect_single_face(face_img)  # this returns a single img of dim 3
+                    face_img, prob, batch_boxes = self.detect_single_face(face_img)  # this returns a single img of dim 3
                     if is_img(face_img) and norm:
                         face_img = normalize_image(face_img)
                 else:
@@ -59,7 +59,7 @@ class FaceDetector():
                 face_img = face_img[0]  # current face_img shape is 1ximage size(dim=3), we only want the img itself
                 face_img = normalize_image(face_img) if norm else face_img
                 prob = prob[0]
-        return face_img , prob
+        return face_img , prob, batch_boxes
 
 
     def filter_out_non_face_corps(self, recreate_data, save_images_path='') -> dict:

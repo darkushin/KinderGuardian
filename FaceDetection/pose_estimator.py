@@ -29,7 +29,6 @@ class PoseEstimator:
         # Since we are using a top-down model, we need to provide a bbox of the different persons in the image. At this
         # point, the image we pass to the model is a crop around the person of interest, therefore, the bbox we pass is
         # simply the size of the image. This way the pose model will focus on the main person in the image.
-
         person_bbox = [{'bbox': [0, 0, np_img.shape[1]-1, np_img.shape[0]-1]}]
 
         # apply pose model:

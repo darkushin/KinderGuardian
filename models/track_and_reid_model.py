@@ -20,6 +20,7 @@ from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 from FaceDetection.faceClassifer import FaceClassifer
 from FaceDetection.faceDetector import FaceDetector, is_img
+from FaceDetection.pose_estimator import PoseEstimator
 from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import ID_NOT_IN_VIDEO
 import warnings
@@ -37,7 +38,7 @@ from CTL_reid_inference import *
 CAM_ID = 1
 P_POWER = 5
 FAST_PICKLES = '/home/bar_cohen/raid/OUR_DATASETS/FAST_reid'
-ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/dani-ablation-new.csv'
+ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/pose-estimation-debugging.csv'
 ABLATION_COLUMNS = ['description', 'video_name', 'ids_in_video', 'total_ids_in_video', 'total_tracks',
                     'tracks_with_face', 'pure_reid_model', 'reid_with_maj_vote', 'face_clf_only',
                     'face_clf_only_tracks_with_face', 'reid_with_face_clf_maj_vote', 'rank-1', 'sorted-rank-1',
@@ -50,10 +51,12 @@ def get_args():
     parser = ArgumentParser()
     parser.add_argument('track_config', help='config file for the tracking model')
     parser.add_argument('reid_config', help='config file for the reID model')
+    parser.add_argument('--pose_config', help='config file for the pose estimation model')
     parser.add_argument('--input', help='input video file or folder')
     parser.add_argument('--output', help='output video file (mp4 format) or folder')
     parser.add_argument('--track_checkpoint', help='checkpoint file for the track model')
     parser.add_argument('--reid_checkpoint', help='checkpoint file for the reID model')
+    parser.add_argument('--pose_checkpoint', help='checkpoint file for the pose estimation model')
     parser.add_argument('--device', default='cuda:0', help='device used for inference')
     parser.add_argument('--show', action='store_true', help='whether show the results on the fly')
     parser.add_argument('--backend', choices=['cv2', 'plt'], default='cv2', help='the backend to visualize the results')
@@ -231,6 +234,11 @@ def create_tracklets_from_db(vid_name, args):
     """
     tracklets = defaultdict(list)
     face_detector = FaceDetector(keep_all=True, device=args.device)
+    if args.pose_config:
+        pose_estimator = PoseEstimator(args.pose_config, args.pose_checkpoint, args.device)
+    else:
+        pose_estimator = None
+        print('Warning! not using pose estimation when building tracks.')
 
     tracks = [track.track_id for track in get_entries(filters=({Crop.vid_name == vid_name}), group=Crop.track_id).all()]
     for track in tracks:
@@ -263,8 +271,34 @@ def create_tracklets_from_db(vid_name, args):
             ctl_img = crop_im
             ctl_img.convert("RGB")
 
+            # face_img = None
+            # face_prob = 0
+            face_bboxes, probs = face_detector.facenet_detecor.detect(img=crop_im)
             face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=True)
             face_prob = face_prob if face_prob else 0
+            if is_img(face_img):  # if a face was detected verify that it is the correct face using the pose estimator
+                # face_img, face_prob, batch_boxes = face_detector.get_single_face(crop_im, is_PIL_input=True)
+                # face_prob = face_prob if face_prob else 0
+
+                if pose_estimator:
+                    pose_estimation = pose_estimator.get_pose(crop_im)
+                    face_bbox = [int(x) for x in face_bboxes[0]]
+                    if not pose_estimator.does_face_match_to_pose(pose_estimation, face_bbox):
+
+                        # todo: remove visualization and print after debugging
+                        print(f'Face and pose do not match! Displaying image: {crop.im_name}')
+                        output_path = os.path.join('/home/bar_cohen/D-KinderGuardian/FaceDetection/pose-estimation-skips-new',
+                                                   crop.im_name)
+                        pose_estimator.visualize_pose(crop_im, pose_estimation, face_bbox, output_path)
+                        import torchvision
+                        if is_img(face_img):
+                            torchvision.utils.save_image(face_img / 255, os.path.join(
+                                '/home/bar_cohen/D-KinderGuardian/FaceDetection/pose-estimation-skips-new',
+                                crop.im_name.split('.')[0] + '-face.jpg'))
+
+                        face_img = None  # set to None, so we don't pass the detected face
+                        face_prob = 0
+
             crop_im = mmcv.imread(im_path)
             tracklets[track].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
                                     'ctl_img': ctl_img})
