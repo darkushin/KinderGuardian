@@ -5,7 +5,7 @@ from mmpose.datasets import DatasetInfo
 from PIL import Image, ImageDraw
 import numpy as np
 from FaceDetection.faceDetector import FaceDetector
-
+import torchvision
 
 KEYPOINTS_TO_CHECK = ['nose', 'left_eye', 'right_eye']
 
@@ -49,14 +49,39 @@ class PoseEstimator:
                 break
         return does_match
 
-    def visualize_pose(self, img, pose_estimation, face_bbox=None, output_path=None):
+    def find_matching_face(self, img, face_bboxes, face_probs, face_imgs, crop):  # todo: remove crop
+        pose_estimation = self.get_pose(img)
+
+        for face_bbox, face_prob, face_img in zip(face_bboxes, face_probs, face_imgs):
+            face_bbox = [int(x) for x in face_bbox]
+            if self.does_face_match_to_pose(pose_estimation, face_bbox):
+                return face_img, face_prob
+
+        # if we reached this section, none of the detected faces in the image matches the pose
+        # todo: remove visualization and print after debugging
+        print(f'Face and pose do not match! Displaying image: {crop.im_name}')
+        output_path = os.path.join(
+            '/home/bar_cohen/D-KinderGuardian/FaceDetection/pose-estimation-skips-new',
+            crop.im_name)
+        self.visualize_pose(img, pose_estimation, face_bboxes, output_path)
+        # torchvision.utils.save_image(face_img / 255, os.path.join(
+        #     '/home/bar_cohen/D-KinderGuardian/FaceDetection/pose-estimation-skips-new',
+        #     crop.im_name.split('.')[0] + '-face.jpg'))
+
+        return None, 0
+
+
+
+
+    def visualize_pose(self, img, pose_estimation, face_bboxes=None, output_path=None):
         if isinstance(img, str):
             img = Image.open(img).convert('RGB')
 
-        if face_bbox:
-            face_bbox = [int(x) for x in face_bbox]
-            img1 = ImageDraw.Draw(img)
-            img1.rectangle(face_bbox, outline="red")
+        if face_bboxes is not None:
+            for face_bbox in face_bboxes:
+                face_bbox = [int(x) for x in face_bbox]
+                img1 = ImageDraw.Draw(img)
+                img1.rectangle(face_bbox, outline="red")
         np_img = np.array(img)[:, :, ::-1]  # for pose estimation model, image should be a np array and need to swap channels
         vis_img = vis_pose_result(self.pose_model, np_img, pose_estimation, dataset_info=self.dataset_info, out_file=output_path)
         return vis_img

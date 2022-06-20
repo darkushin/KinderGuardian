@@ -234,7 +234,7 @@ def create_tracklets_from_db(vid_name, args):
     """
     tracklets = defaultdict(list)
     face_detector = FaceDetector(keep_all=True, device=args.device)
-    if args.pose_config:
+    if args.pose_config:  # todo: after using this by default remove this if and the warning
         pose_estimator = PoseEstimator(args.pose_config, args.pose_checkpoint, args.device)
     else:
         pose_estimator = None
@@ -271,37 +271,16 @@ def create_tracklets_from_db(vid_name, args):
             ctl_img = crop_im
             ctl_img.convert("RGB")
 
-            # face_img = None
-            # face_prob = 0
-            face_bboxes, probs = face_detector.facenet_detecor.detect(img=crop_im)
-            face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=True)
-            face_prob = face_prob if face_prob else 0
-            if is_img(face_img):  # if a face was detected verify that it is the correct face using the pose estimator
-                # face_img, face_prob, batch_boxes = face_detector.get_single_face(crop_im, is_PIL_input=True)
-                # face_prob = face_prob if face_prob else 0
-
+            face_bboxes, face_probs = face_detector.facenet_detecor.detect(img=crop_im)
+            face_imgs = face_detector.facenet_detecor.extract(crop_im, face_bboxes, save_path=None)
+            face_img, face_prob = None, 0
+            if face_imgs is not None and len(face_imgs) > 0:
                 if pose_estimator:
-                    pose_estimation = pose_estimator.get_pose(crop_im)
-                    face_bbox = [int(x) for x in face_bboxes[0]]
-                    if not pose_estimator.does_face_match_to_pose(pose_estimation, face_bbox):
-
-                        # todo: remove visualization and print after debugging
-                        print(f'Face and pose do not match! Displaying image: {crop.im_name}')
-                        output_path = os.path.join('/home/bar_cohen/D-KinderGuardian/FaceDetection/pose-estimation-skips-new',
-                                                   crop.im_name)
-                        pose_estimator.visualize_pose(crop_im, pose_estimation, face_bbox, output_path)
-                        import torchvision
-                        if is_img(face_img):
-                            torchvision.utils.save_image(face_img / 255, os.path.join(
-                                '/home/bar_cohen/D-KinderGuardian/FaceDetection/pose-estimation-skips-new',
-                                crop.im_name.split('.')[0] + '-face.jpg'))
-
-                        face_img = None  # set to None, so we don't pass the detected face
-                        face_prob = 0
+                    face_img, face_prob = pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs, face_imgs, crop)
 
             crop_im = mmcv.imread(im_path)
             tracklets[track].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
-                                    'ctl_img': ctl_img})
+                                     'ctl_img': ctl_img})
     del face_detector
     return tracklets
 
@@ -310,6 +289,11 @@ def create_tracklets_using_tracking(args):
     # initialize tracking model:
     tracking_model = init_model(args.track_config, args.track_checkpoint, device=args.device)
     face_detector = FaceDetector(keep_all=True, device=args.device)
+    if args.pose_config:  # todo: after using this by default remove this if and the warning
+        pose_estimator = PoseEstimator(args.pose_config, args.pose_checkpoint, args.device)
+    else:
+        pose_estimator = None
+        print('Warning! not using pose estimation when building tracks.')
 
     # load images:
     imgs = mmcv.VideoReader(args.input)
@@ -325,10 +309,18 @@ def create_tracklets_using_tracking(args):
         crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
         for i, (id, conf, crop_im) in enumerate(zip(ids, confs, crops_imgs)):
 
-            face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=False)
-            face_prob = face_prob if face_prob else 0
+            # face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=False)
+            # face_prob = face_prob if face_prob else 0
             # for video_name we skip the first 8 chars as to fit the IP_Camera video name convention, if entering
             # a different video name note this.
+            face_bboxes, face_probs = face_detector.facenet_detecor.detect(img=crop_im)
+            face_imgs = face_detector.facenet_detecor.extract(crop_im, face_bboxes, save_path=None)
+            face_img, face_prob = None, 0
+            if face_imgs is not None and len(face_imgs) > 0:
+                if pose_estimator:
+                    face_img, face_prob = pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs, face_imgs,
+                                                                            crop)  # todo: remove the crop
+
             x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to ints
             crop = Crop(vid_name=args.input.split('/')[-1][9:-4],
                         frame_num=image_index,
@@ -346,8 +338,7 @@ def create_tracklets_using_tracking(args):
             mmcv.imwrite(crop_im, '/mnt/raid1/home/bar_cohen/CTL_Reid/t.jpg')
             ctl_img = Image.open('/mnt/raid1/home/bar_cohen/CTL_Reid/t.jpg').convert("RGB")
             tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
-                                    'ctl_img': ctl_img})
-            # todo: need to add ctl_img similar to create_tracklets_from_DB()
+                                  'ctl_img': ctl_img})
     del face_detector
     return tracklets
 
