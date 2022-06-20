@@ -188,23 +188,27 @@ def execute_combined_model():
     --inference_only
     --db_tracklets
     --exp_description
-    "Compare reid models - CTL - same_day_0808"
+    "Pose estimation debugging - ignore this experiment"
     --device
     cuda:0
     --experiment_mode
     --reid_model
     ctl
+    --pose_config
+    /home/bar_cohen/D-KinderGuardian/mmpose/configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/hrnet_w48_coco_256x192.py
+    --pose_checkpoint
+    /home/bar_cohen/D-KinderGuardian/checkpoints/mmpose-hrnet_w48_coco_256x192-b9e0b3ab_20200708.pth
     --reid_opts
     TEST.IMS_PER_BATCH
     128
     TEST.ONLY_TEST
     True
     TEST.WEIGHT
-    /home/bar_cohen/D-KinderGuardian/centroids_reid/checkpoints/dukemtmcreid_resnet50_256_128_epoch_120.ckpt
+    /home/bar_cohen/D-KinderGuardian/centroids_reid/checkpoints/query_0730_0808_dataset_epoch79.ckpt
     DATASETS.NAMES
     dukemtmcreid
     DATASETS.ROOT_DIR
-    /home/bar_cohen/KinderGuardian/fast-reid/datasets/same_day_0808/bounding_box_test
+    /home/bar_cohen/KinderGuardian/fast-reid/datasets/same_day_0808_verified/bounding_box_test
     MODEL.USE_CENTROIDS
     True
     GPU_IDS
