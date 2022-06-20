@@ -339,6 +339,14 @@ def create_or_load_tracklets(args, create_tracklets:bool):
     return tracklets
 
 
+def plot_score_according_to_time(track_id, chosen_ids, title):
+    import seaborn as sns
+    sns.scatterplot(x=range(len(chosen_ids)),y=list(chosen_ids.cpu()))
+    plt.title(f'chosen ids according to {title} score across time of track {track_id}')
+    plt.xlabel('time')
+    plt.ylabel('id')
+    plt.show()
+
 def create_data_by_re_id_and_track():
     """
     This function takes a video and runs both tracking, face-id and re-id models to create and label tracklets
@@ -448,6 +456,7 @@ def create_data_by_re_id_and_track():
             q_feats = ctl_track_inference(model=reid_model, cfg=reid_cfg, track_imgs=track_imgs, device=args.device)
             q_feats = torch.from_numpy(q_feats)
             reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
+            plot_score_according_to_time(track_id=track_id, chosen_ids=reid_ids, title="reid")
 
         bincount = np.bincount(reid_ids)
         reid_maj_vote = np.argmax(bincount)
@@ -470,11 +479,12 @@ def create_data_by_re_id_and_track():
                 columns_dict['tracks_with_face'] += 1
 
             face_clf_preds, face_clf_outputs = faceClassifer.predict(torch.stack(face_imgs))
-
+            plot_score_according_to_time(track_id=track_id, chosen_ids=face_clf_preds, title="face")
             bincount_face = torch.bincount(face_clf_preds.cpu())
             face_label = ID_TO_NAME[faceClassifer.le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
             # face_scores = get_face_score(faceClassifer, face_clf_preds, face_clf_outputs, face_imgs_conf)
             face_scores = get_face_score_all_ids(faceClassifer, face_clf_outputs, face_imgs_conf)
+
             alpha = 0.49 # TODO enter as an arg
             final_scores = {pid : alpha*reid_score + (1-alpha) * face_score for pid, reid_score, face_score in zip(reid_scores.keys() , reid_scores.values(), face_scores.values())}
             all_tracks_final_scores[track_id] = final_scores
