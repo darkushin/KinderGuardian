@@ -69,7 +69,7 @@ class GalleryCreator:
                     face_imgs = self.faceDetector.facenet_detecor.extract(crop_im, face_bboxes, save_path=None)
                     if face_imgs is not None and len(face_imgs) > 0:
                         face_img, face_prob = self.pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs,
-                                                                                    face_imgs, crop_im)
+                                                                                    face_imgs)
                         if is_img(face_img):
                             face_img = normalize_image(face_img)
                             crop_candidates_faces.append(face_img)

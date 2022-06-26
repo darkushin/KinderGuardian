@@ -49,7 +49,7 @@ class PoseEstimator:
                 break
         return does_match
 
-    def find_matching_face(self, img, face_bboxes, face_probs, face_imgs, crop):  # todo: remove crop
+    def find_matching_face(self, img, face_bboxes, face_probs, face_imgs):
         pose_estimation = self.get_pose(img)
 
         for face_bbox, face_prob, face_img in zip(face_bboxes, face_probs, face_imgs):
@@ -58,20 +58,7 @@ class PoseEstimator:
                 return face_img, face_prob
 
         # if we reached this section, none of the detected faces in the image matches the pose
-        # todo: remove visualization and print after debugging
-        print(f'Face and pose do not match! Displaying image: {crop.im_name}')
-        output_path = os.path.join(
-            '/home/bar_cohen/D-KinderGuardian/FaceDetection/pose-estimation-skips-new',
-            crop.im_name)
-        self.visualize_pose(img, pose_estimation, face_bboxes, output_path)
-        # torchvision.utils.save_image(face_img / 255, os.path.join(
-        #     '/home/bar_cohen/D-KinderGuardian/FaceDetection/pose-estimation-skips-new',
-        #     crop.im_name.split('.')[0] + '-face.jpg'))
-
         return None, 0
-
-
-
 
     def visualize_pose(self, img, pose_estimation, face_bboxes=None, output_path=None):
         if isinstance(img, str):

@@ -18,6 +18,7 @@ import mmcv
 import torch.nn.functional as F
 from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
+from FaceDetection.augmentions import normalize_image
 from FaceDetection.faceClassifer import FaceClassifer
 from FaceDetection.faceDetector import FaceDetector, is_img
 from FaceDetection.pose_estimator import PoseEstimator
@@ -261,12 +262,8 @@ def create_tracklets_from_db(vid_name, args):
             im_path = f'/home/bar_cohen/raid/{vid_name}/{crop.im_name}'
             if not os.path.isfile(im_path):
                 im_location = 'v' + crop.im_name[2:]
-                im_path =  f'/home/bar_cohen/raid/{vid_name}/{im_location}'
+                im_path = f'/home/bar_cohen/raid/{vid_name}/{im_location}'
             crop_im = Image.open(im_path)
-            # im_location = crop.im_name
-            # if not crop_im:
-            #     im_location = 'v' + crop.im_name[2:]
-            #     crop_im = Image.open(f'/home/bar_cohen/raid/{vid_name}/{im_location}')
             # added for CTL inference
             ctl_img = crop_im
             ctl_img.convert("RGB")
@@ -276,8 +273,9 @@ def create_tracklets_from_db(vid_name, args):
             face_img, face_prob = None, 0
             if face_imgs is not None and len(face_imgs) > 0:
                 if pose_estimator:
-                    face_img, face_prob = pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs, face_imgs, crop)
-
+                    face_img, face_prob = pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs, face_imgs)
+                    if is_img(face_img):
+                        face_img = normalize_image(face_img)
             crop_im = mmcv.imread(im_path)
             tracklets[track].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
                                      'ctl_img': ctl_img})
@@ -318,8 +316,9 @@ def create_tracklets_using_tracking(args):
             face_img, face_prob = None, 0
             if face_imgs is not None and len(face_imgs) > 0:
                 if pose_estimator:
-                    face_img, face_prob = pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs, face_imgs,
-                                                                            crop)  # todo: remove the crop
+                    face_img, face_prob = pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs, face_imgs)
+                    if is_img(face_img):
+                        face_img = normalize_image(face_img)
 
             x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to ints
             crop = Crop(vid_name=args.input.split('/')[-1][9:-4],
