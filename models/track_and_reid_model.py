@@ -37,7 +37,7 @@ from double_id_handler import remove_double_ids, NODES_ORDER
 from CTL_reid_inference import *
 
 CAM_ID = 1
-P_POWER = 5
+P_POWER = 2
 FAST_PICKLES = '/home/bar_cohen/raid/OUR_DATASETS/FAST_reid'
 ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/pose-estimation-debugging.csv'
 ABLATION_COLUMNS = ['description', 'video_name', 'ids_in_video', 'total_ids_in_video', 'total_tracks',
@@ -104,7 +104,7 @@ def apply_reid_model(reid_model, data):
 
 
 def get_reid_score(track_im_conf, distmat, g_pids):
-    min_dist_squared = (np.min(distmat, axis=1) ** 2 + 1)
+    min_dist_squared = (np.min(distmat, axis=1) ** P_POWER + 1)
     best_match_scores = track_im_conf / min_dist_squared
     best_match_in_gallery = np.argmin(distmat, axis=1)
     ids_score = {pid : 0 for pid in ID_TO_NAME.keys()}
@@ -113,10 +113,17 @@ def get_reid_score(track_im_conf, distmat, g_pids):
 
     return ids_score
 
+def get_reid_score_all_ids_full_gallery(track_im_conf, simmat, g_pids):
+    ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
+    aligned_simmat = (track_im_conf[:, np.newaxis] * simmat) ** P_POWER
+    for pid in set(g_pids):
+        ids_score[pid] += aligned_simmat[:, g_pids[g_pids==pid]].max()
+    return ids_score
+
 def get_reid_score_mult_ids(track_im_conf, simmat, g_pids):
     print(simmat.shape)
     ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
-    aligned_simmat = (track_im_conf[:, np.newaxis] * ((simmat + 1)/2)) ** P_POWER
+    aligned_simmat = (track_im_conf[:, np.newaxis] * simmat) ** P_POWER
     scores = aligned_simmat.sum(axis=0) / len(track_im_conf)
     for pid, score in  zip(g_pids, scores):
         ids_score[pid] += score
@@ -133,6 +140,7 @@ def find_best_reid_match(q_feat, g_feat, g_pids, track_imgs_conf):
     distmat = 1 - simmat
     # distmat = distmat.numpy()
     # ids_score = get_reid_score(track_imgs_conf, distmat, g_pids)
+    # ids_score = get_reid_score_all_ids_full_gallery(track_imgs_conf, simmat, g_pids)
     ids_score = get_reid_score_mult_ids(track_imgs_conf, simmat, g_pids)
     # ids_score = get_reid_score_cosine_sim(track_imgs_conf, simmat, g_pids)
     best_match_in_gallery = np.argmin(distmat, axis=1)
@@ -221,7 +229,7 @@ def write_ablation_results(args, columns_dict, total_crops, total_crops_of_track
                 columns_dict[name] = value[1] / value[0]
         ablation_df.append(columns_dict, ignore_index=True).to_csv(ABLATION_OUTPUT)
         # print('Making visualization using temp DB')
-        viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
+        # viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
         print('removing temp DB')
         os.remove(db_location)
@@ -262,7 +270,7 @@ def create_tracklets_from_db(vid_name, args):
             im_path = f'/home/bar_cohen/raid/{vid_name}/{crop.im_name}'
             if not os.path.isfile(im_path):
                 im_location = 'v' + crop.im_name[2:]
-                im_path = f'/home/bar_cohen/raid/{vid_name}/{im_location}'
+                im_path =  f'/home/bar_cohen/raid/{vid_name}/{im_location}'
             crop_im = Image.open(im_path)
             # added for CTL inference
             ctl_img = crop_im
@@ -320,7 +328,7 @@ def create_tracklets_using_tracking(args):
                     if is_img(face_img):
                         face_img = normalize_image(face_img)
 
-            x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to ints
+            x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to intsP
             crop = Crop(vid_name=args.input.split('/')[-1][9:-4],
                         frame_num=image_index,
                         track_id=id,
