@@ -1,9 +1,14 @@
+import glob
 import os
 import pickle
 from collections import defaultdict
+
+import cv2
 import mmcv
 import tqdm
 from PIL import Image
+from torchvision import transforms
+
 from DataProcessing.DB.dal import get_entries, Crop
 from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 from FaceDetection.augmentions import normalize_image, crop_top_third_and_sides
@@ -125,29 +130,73 @@ class FaceDetector():
             pickle.dump(high_conf_face_imgs, open(os.path.join('/mnt/raid1/home/bar_cohen/FaceData/', 'images_with_crop_skip_5.pkl'),'wb'))
         return high_conf_face_imgs
 
+def is_img(img):
+    return img is not None and img is not img.numel()
 
 
-def collect_faces_from_video(video_path:str) -> []:
-    fd = FaceDetector(faces_data_path=None,thresholds=[0.97,0.97,0.97],keep_all=True)
+def collect_faces_from_video(video_path:str, face_dir:str, skip_every=25):
+    fd = FaceDetector(faces_data_path=None,thresholds=[0.97,0.97,0.97],keep_all=True, min_face_size=45)
+    vid_name = video_path.split('/')[-1]
     imgs = mmcv.VideoReader(video_path)
-    ret = []
-    for img in tqdm.tqdm(imgs):
-        face_img, prob = fd.facenet_detecor(img, return_prob=True)
-        if is_img(face_img):
-            if face_img.size()[0] == 1:  # two or more faces detected in the img crop
-                ret.append(face_img[0])
-    return ret
+    trans = transforms.ToPILImage()
+    for i ,img in enumerate(tqdm.tqdm(imgs)):
+        if i % skip_every == 0:
+            face_imgs = fd.facenet_detecor(img, return_prob=False)
+            if is_img(face_imgs):
+                for face in face_imgs:
+                    numpy_img = face.permute(1, 2, 0).int().numpy().astype(np.uint8)
+                    numpy_img = numpy_img[:, :, ::-1]
+                    PIL_img = Image.fromarray(numpy_img).convert('RGB')
+                    PIL_img.save(os.path.join(face_dir, f'{vid_name}_{i}.png'))
+                    # img_show = face.permute(1, 2, 0).int().numpy().astype(np.uint8)
+                    # img_show = img_show[:,:,::-1]
+                    # plt.clf()
+                    # # # plt.title(f'Detected Face, label:  {ID_TO_NAME[id]}, counter : {counter}')
+                    # plt.imsave(os.path.join(face_dir, f'{vid_name}_{i}.png'), img_show)
 
-def collect_faces_from_list_of_videos(list_of_videos:list):
-    face_imgs = []
+def collect_faces_from_list_of_videos(list_of_videos:list,face_dir:str):
     for video_path in list_of_videos:
-        face_imgs.extend(collect_faces_from_video(video_path=video_path))
-    return face_imgs
+        collect_faces_from_video(video_path=video_path, face_dir=face_dir)
+
+def create_clusters(k,face_crops_path, cluster_path):
+    """
+    Based on crops saved on the output path folder, run clustering to unsupervised-ly label the Ids
+    @param k: K clusters to create
+    @return: None
+    """
+    # we can extend this later to receive input from args
+    # if generating the crops in the same run, the input for the clustering should be the output arg
+    import tensorflow as tf
+    import shutil
+
+    os.makedirs(cluster_path, exist_ok=True)
+    joined_path_to_files = os.path.join(face_crops_path, '*.*')
+    images = [cv2.resize(cv2.imread(file), (224, 224)) for file in glob.glob(joined_path_to_files)]
+    paths = [file for file in glob.glob(joined_path_to_files)]
+    assert images and paths, "crops folder must be non-empty"
+    images = np.array(np.float32(images).reshape(len(images), -1) / 255)
+    model = tf.keras.applications.MobileNetV2(include_top=False, weights="imagenet", input_shape=(224, 224, 3))
+    predictions = model.predict(images.reshape(-1, 224, 224, 3))
+    pred_images = predictions.reshape(images.shape[0], -1)
+    from sklearn.cluster import KMeans
+    kmodel = KMeans(n_clusters=k, random_state=728)
+    kmodel.fit(pred_images)
+    kpredictions = kmodel.predict(pred_images)
+    for i in range(k):
+        os.makedirs(f'{cluster_path}/cluster{str(i)}', exist_ok=True)
+    for i in range(len(paths)):
+        shutil.copy2(paths[i], f'{cluster_path}/cluster{str(kpredictions[i])}')
 
 def main():
     """Simple test of FaceDetector"""
-    # fd = FaceDetector(faces_data_path='/mnt/raid1/home/bar_cohen/FaceData/',device='cuda:0')
-    # fd.filter_out_non_face_corps(recreate_data=True, save_images=False)
+    videos_path = '/mnt/raid1/home/bar_cohen/42street/training_videos_part2'
+    clusters = "/mnt/raid1/home/bar_cohen/42street/face_part2/clusters/"
+    faces = '/mnt/raid1/home/bar_cohen/42street/face_part2/'
+
+    vids_list = [os.path.join(videos_path, f) for f in os.listdir(videos_path)]
+    collect_faces_from_list_of_videos(vids_list,'/mnt/raid1/home/bar_cohen/42street/face_part2/')
+    # create_clusters(k=10,cluster_path=clusters,face_crops_path=faces)
+    # fd.filter_out_non_face_corps(recreate_data=True, save_images=False),
     # from faceClassifer import load_data
     # le, dl_train, dl_val, dl_test =  load_data('/mnt/raid1/home/bar_cohen/FaceData/')
     # fd.build_samples_hist(le, dl_train, title='dataloader train')
@@ -160,6 +209,3 @@ def main():
 if __name__ == '__main__':
     main()
 
-
-def is_img(img):
-    return img is not None and img is not img.numel()
