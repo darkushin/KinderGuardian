@@ -4,6 +4,9 @@ import sys
 import mmcv
 
 import os
+
+from FaceDetection.arcface import ArcFace, SillyIDMap
+
 sys.path.append('mmpose')
 
 import torch
@@ -23,6 +26,8 @@ FACE_CHECKPOINT = "/mnt/raid1/home/bar_cohen/FaceData/checkpoints/4.8 Val, 1.pth
 POSE_CONFIG = "/home/bar_cohen/D-KinderGuardian/mmpose/configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/hrnet_w48_coco_256x192.py"
 POSE_CHECKPOINT =  "/home/bar_cohen/D-KinderGuardian/checkpoints/mmpose-hrnet_w48_coco_256x192-b9e0b3ab_20200708.pth"
 FACE_NET = 'FaceNet'
+ARC_FACE = 'ArcFace'
+GPATH = "/mnt/raid1/home/bar_cohen/42street/clusters/"
 
 
 class GalleryCreator:
@@ -38,16 +43,20 @@ class GalleryCreator:
         self.gallery_path = gallery_path
         self.global_video_counter = 0 # counts the unique videos entered for the gallery
 
-        # if face_model == FACE_NET:
         self.faceDetector = FaceDetector(faces_data_path=None,thresholds=[0.8,0.8,0.8],
                                     keep_all=True,min_face_size=min_face_size,
                                     device=device)
         self.faceClassifer = FaceClassifer(num_classes=19, label_encoder=label_encoder, device=device)
         self.faceClassifer.model_ft.load_state_dict(torch.load(FACE_CHECKPOINT))
         self.faceClassifer.model_ft.eval()
+
+        self.arc = ArcFace(gallery_path=GPATH)
+        self.arc.read_gallery()
+
         self.pose_estimator = PoseEstimator(pose_config=POSE_CONFIG, pose_checkpoint=POSE_CHECKPOINT, device='cuda:0') # TODO hard code configs here
 
-    def add_video_to_gallery_using_FaceNet(self, video_path:str, skip_every=500):
+
+    def add_video_to_gallery(self, video_path:str, face_clf, skip_every=500, ):
         imgs = mmcv.VideoReader(video_path)
         high_tresh_face_detector = FaceDetector(faces_data_path=None, thresholds=[0.98, 0.98, 0.98],
                      keep_all=True, min_face_size=50,
@@ -79,27 +88,47 @@ class GalleryCreator:
                         face_img, face_prob = self.pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs,
                                                                                     face_imgs)
                         if is_img(face_img):
-                            face_img = normalize_image(face_img)
+                            if face_clf == FACE_NET:
+                                face_img = normalize_image(face_img)
                             crop_candidates_faces.append(face_img)
                             crop_candidates_inds.append(i)
                 except Exception as e:
                     # print(e)
                     # print('err')
                     continue
-            if len(crop_candidates_faces) > 0: # some faces where detected
-                preds, outs = self.faceClassifer.predict(torch.stack(crop_candidates_faces))
-                labels = [self.faceClassifer.le.inverse_transform([int(pred)])[0] for pred in preds]
-                confidences = [out.argmax() for out in outs]
-                crop_cands = [crop_im for i, crop_im in enumerate(crops_imgs) if i in crop_candidates_inds]
-                for i , (crop_im, label, confidence) in enumerate(zip(crop_cands, labels, confidences)):
-                    if confidence > 0.98:
-                        # print(label, confidence)
-                        crop_name = f'{label:04d}_c{self.global_video_counter}_f{global_i:07d}.jpg'
-                        # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
-                        dir_path = self.gallery_path
-                        os.makedirs(dir_path, exist_ok=True)
-                        global_i += 1
-                        mmcv.imwrite(np.array(crop_im), os.path.join(dir_path, crop_name))
+            crop_cands = [crop_im for i, crop_im in enumerate(crops_imgs) if i in crop_candidates_inds]
+            if face_clf == FACE_NET:
+                if len(crop_candidates_faces) > 0: # some faces where detected
+                    preds, outs = self.faceClassifer.predict(torch.stack(crop_candidates_faces))
+                    labels = [self.faceClassifer.le.inverse_transform([int(pred)])[0] for pred in preds]
+                    confidences = [out.argmax() for out in outs]
+                    for i , (crop_im, label, confidence) in enumerate(zip(crop_cands, labels, confidences)):
+                        if confidence > 0.98:
+                            # print(label, confidence)
+                            crop_name = f'{label:04d}_c{self.global_video_counter}_f{global_i:07d}.jpg'
+                            # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
+                            dir_path = self.gallery_path
+                            os.makedirs(dir_path, exist_ok=True)
+                            global_i += 1
+                            mmcv.imwrite(np.array(crop_im), os.path.join(dir_path, crop_name))
+
+            elif face_clf == ARC_FACE:
+                if len(crop_candidates_faces) > 0: # some faces where detected
+                    for i, (face,crop_im) in enumerate(zip(crop_candidates_faces, crop_cands)):
+                        numpy_img = face.permute(1, 2, 0).int().numpy().astype(np.uint8)
+                        face = numpy_img[:, :, ::-1]
+                        cur_score = self.arc.predict_img(face)
+                        label = max(cur_score, key=cur_score.get)
+                        # silly threshold
+                        if cur_score[label] >= 0.25:
+                            crop_name = f'{SillyIDMap[label]:04d}_c{self.global_video_counter}_f{global_i:07d}.jpg'
+                            # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
+                            dir_path = self.gallery_path
+                            os.makedirs(dir_path, exist_ok=True)
+                            global_i += 1
+                            mmcv.imwrite(np.array(crop_im), os.path.join(dir_path, crop_name))
+
+    # Too lazy to refactor the code for several methods
 
 def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
     result = inference_mot(tracking_model, img, frame_id=frame_id)
@@ -110,22 +139,27 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
 
 if __name__ == '__main__':
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le_19.pkl",'rb'))
-    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/OUR_DATASETS/same_day_0730_double_skip_50/bounding_box_test/",
+    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part2_gallery/",
                         label_encoder=le, device='cuda:1')
     gc.global_video_counter += 1
+    vid_path = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/"
 
 
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808120339.avi", skip_every=50)
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808073000.avi", skip_every=50)
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808082440.avi", skip_every=50)
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808092457.avi", skip_every=50)
-
-    gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730101432.avi", skip_every=50)
-    gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730111802.avi", skip_every=50)
-    gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730072959.avi", skip_every=50)
-    gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730085653.avi", skip_every=50)
+    #
+    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730101432.avi", skip_every=50)
+    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730111802.avi", skip_every=50)
+    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730072959.avi", skip_every=50)
+    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730085653.avi", skip_every=50)
 
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/IPCamera_20210804112702.avi", skip_every=1)
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/IPCamera_20210804151703.avi", skip_every=1)
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/IPCamera_20210804103053.avi", skip_every=1)
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/IPCamera_20210804072959.avi", skip_every=1)
+    vids = [os.path.join(vid_path, vid) for vid in os.listdir(vid_path)]
+
+    for vid in vids:
+        gc.add_video_to_gallery(vid,face_clf=ARC_FACE, skip_every=50)
