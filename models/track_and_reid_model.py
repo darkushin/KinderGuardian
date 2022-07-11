@@ -18,8 +18,10 @@ import mmcv
 import torch.nn.functional as F
 from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
+from FaceDetection.augmentions import normalize_image
 from FaceDetection.faceClassifer import FaceClassifer
 from FaceDetection.faceDetector import FaceDetector, is_img
+from FaceDetection.pose_estimator import PoseEstimator
 from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import ID_NOT_IN_VIDEO
 import warnings
@@ -35,9 +37,9 @@ from double_id_handler import remove_double_ids, NODES_ORDER
 from CTL_reid_inference import *
 
 CAM_ID = 1
-P_POWER = 5
+P_POWER = 2
 FAST_PICKLES = '/home/bar_cohen/raid/OUR_DATASETS/FAST_reid'
-ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/dani-ablation-new.csv'
+ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/pose-estimation-debugging.csv'
 ABLATION_COLUMNS = ['description', 'video_name', 'ids_in_video', 'total_ids_in_video', 'total_tracks',
                     'tracks_with_face', 'pure_reid_model', 'reid_with_maj_vote', 'face_clf_only',
                     'face_clf_only_tracks_with_face', 'reid_with_face_clf_maj_vote', 'rank-1', 'sorted-rank-1',
@@ -50,10 +52,12 @@ def get_args():
     parser = ArgumentParser()
     parser.add_argument('track_config', help='config file for the tracking model')
     parser.add_argument('reid_config', help='config file for the reID model')
+    parser.add_argument('--pose_config', help='config file for the pose estimation model')
     parser.add_argument('--input', help='input video file or folder')
     parser.add_argument('--output', help='output video file (mp4 format) or folder')
     parser.add_argument('--track_checkpoint', help='checkpoint file for the track model')
     parser.add_argument('--reid_checkpoint', help='checkpoint file for the reID model')
+    parser.add_argument('--pose_checkpoint', help='checkpoint file for the pose estimation model')
     parser.add_argument('--device', default='cuda:0', help='device used for inference')
     parser.add_argument('--show', action='store_true', help='whether show the results on the fly')
     parser.add_argument('--backend', choices=['cv2', 'plt'], default='cv2', help='the backend to visualize the results')
@@ -100,7 +104,7 @@ def apply_reid_model(reid_model, data):
 
 
 def get_reid_score(track_im_conf, distmat, g_pids):
-    min_dist_squared = (np.min(distmat, axis=1) ** 2 + 1)
+    min_dist_squared = (np.min(distmat, axis=1) ** P_POWER + 1)
     best_match_scores = track_im_conf / min_dist_squared
     best_match_in_gallery = np.argmin(distmat, axis=1)
     ids_score = {pid : 0 for pid in ID_TO_NAME.keys()}
@@ -109,10 +113,17 @@ def get_reid_score(track_im_conf, distmat, g_pids):
 
     return ids_score
 
+def get_reid_score_all_ids_full_gallery(track_im_conf, simmat, g_pids):
+    ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
+    aligned_simmat = (track_im_conf[:, np.newaxis] * simmat) ** P_POWER
+    for pid in set(g_pids):
+        ids_score[pid] += aligned_simmat[:, g_pids[g_pids==pid]].max()
+    return ids_score
+
 def get_reid_score_mult_ids(track_im_conf, simmat, g_pids):
     print(simmat.shape)
     ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
-    aligned_simmat = (track_im_conf[:, np.newaxis] * ((simmat + 1)/2)) ** P_POWER
+    aligned_simmat = (track_im_conf[:, np.newaxis] * simmat) ** P_POWER
     scores = aligned_simmat.sum(axis=0) / len(track_im_conf)
     for pid, score in  zip(g_pids, scores):
         ids_score[pid] += score
@@ -129,6 +140,7 @@ def find_best_reid_match(q_feat, g_feat, g_pids, track_imgs_conf):
     distmat = 1 - simmat
     # distmat = distmat.numpy()
     # ids_score = get_reid_score(track_imgs_conf, distmat, g_pids)
+    # ids_score = get_reid_score_all_ids_full_gallery(track_imgs_conf, simmat, g_pids)
     ids_score = get_reid_score_mult_ids(track_imgs_conf, simmat, g_pids)
     # ids_score = get_reid_score_cosine_sim(track_imgs_conf, simmat, g_pids)
     best_match_in_gallery = np.argmin(distmat, axis=1)
@@ -217,7 +229,7 @@ def write_ablation_results(args, columns_dict, total_crops, total_crops_of_track
                 columns_dict[name] = value[1] / value[0]
         ablation_df.append(columns_dict, ignore_index=True).to_csv(ABLATION_OUTPUT)
         # print('Making visualization using temp DB')
-        viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
+        # viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
         print('removing temp DB')
         os.remove(db_location)
@@ -231,6 +243,11 @@ def create_tracklets_from_db(vid_name, args):
     """
     tracklets = defaultdict(list)
     face_detector = FaceDetector(keep_all=True, device=args.device)
+    if args.pose_config:  # todo: after using this by default remove this if and the warning
+        pose_estimator = PoseEstimator(args.pose_config, args.pose_checkpoint, args.device)
+    else:
+        pose_estimator = None
+        print('Warning! not using pose estimation when building tracks.')
 
     tracks = [track.track_id for track in get_entries(filters=({Crop.vid_name == vid_name}), group=Crop.track_id).all()]
     for track in tracks:
@@ -255,19 +272,21 @@ def create_tracklets_from_db(vid_name, args):
                 im_location = 'v' + crop.im_name[2:]
                 im_path =  f'/home/bar_cohen/raid/{vid_name}/{im_location}'
             crop_im = Image.open(im_path)
-            # im_location = crop.im_name
-            # if not crop_im:
-            #     im_location = 'v' + crop.im_name[2:]
-            #     crop_im = Image.open(f'/home/bar_cohen/raid/{vid_name}/{im_location}')
             # added for CTL inference
             ctl_img = crop_im
             ctl_img.convert("RGB")
 
-            face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=True)
-            face_prob = face_prob if face_prob else 0
+            face_bboxes, face_probs = face_detector.facenet_detecor.detect(img=crop_im)
+            face_imgs = face_detector.facenet_detecor.extract(crop_im, face_bboxes, save_path=None)
+            face_img, face_prob = None, 0
+            if face_imgs is not None and len(face_imgs) > 0:
+                if pose_estimator:
+                    face_img, face_prob = pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs, face_imgs)
+                    if is_img(face_img):
+                        face_img = normalize_image(face_img)
             crop_im = mmcv.imread(im_path)
             tracklets[track].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
-                                    'ctl_img': ctl_img})
+                                     'ctl_img': ctl_img})
     del face_detector
     return tracklets
 
@@ -276,6 +295,11 @@ def create_tracklets_using_tracking(args):
     # initialize tracking model:
     tracking_model = init_model(args.track_config, args.track_checkpoint, device=args.device)
     face_detector = FaceDetector(keep_all=True, device=args.device)
+    if args.pose_config:  # todo: after using this by default remove this if and the warning
+        pose_estimator = PoseEstimator(args.pose_config, args.pose_checkpoint, args.device)
+    else:
+        pose_estimator = None
+        print('Warning! not using pose estimation when building tracks.')
 
     # load images:
     imgs = mmcv.VideoReader(args.input)
@@ -291,11 +315,20 @@ def create_tracklets_using_tracking(args):
         crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
         for i, (id, conf, crop_im) in enumerate(zip(ids, confs, crops_imgs)):
 
-            face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=False)
-            face_prob = face_prob if face_prob else 0
+            # face_img, face_prob = face_detector.get_single_face(crop_im, is_PIL_input=False)
+            # face_prob = face_prob if face_prob else 0
             # for video_name we skip the first 8 chars as to fit the IP_Camera video name convention, if entering
             # a different video name note this.
-            x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to ints
+            face_bboxes, face_probs = face_detector.facenet_detecor.detect(img=crop_im)
+            face_imgs = face_detector.facenet_detecor.extract(crop_im, face_bboxes, save_path=None)
+            face_img, face_prob = None, 0
+            if face_imgs is not None and len(face_imgs) > 0:
+                if pose_estimator:
+                    face_img, face_prob = pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs, face_imgs)
+                    if is_img(face_img):
+                        face_img = normalize_image(face_img)
+
+            x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to intsP
             crop = Crop(vid_name=args.input.split('/')[-1][9:-4],
                         frame_num=image_index,
                         track_id=id,
@@ -312,8 +345,7 @@ def create_tracklets_using_tracking(args):
             mmcv.imwrite(crop_im, '/mnt/raid1/home/bar_cohen/CTL_Reid/t.jpg')
             ctl_img = Image.open('/mnt/raid1/home/bar_cohen/CTL_Reid/t.jpg').convert("RGB")
             tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
-                                    'ctl_img': ctl_img})
-            # todo: need to add ctl_img similar to create_tracklets_from_DB()
+                                  'ctl_img': ctl_img})
     del face_detector
     return tracklets
 

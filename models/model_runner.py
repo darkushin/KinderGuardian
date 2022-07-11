@@ -17,9 +17,11 @@ def get_args():
     parser.add_argument('action', help='what action would you like to run?', choices=CHOICES)
     parser.add_argument('--track_config', help='config file for mmtracking model')
     parser.add_argument('--reid_config', help='config file for reid model')
+    parser.add_argument('--pose_config', help='config file for pose estimation model')
     parser.add_argument('--input', help='input video file or folder')
     parser.add_argument('--output', help='output video file (mp4 format) or folder')
     parser.add_argument('--mmtrack_checkpoint', help='checkpoint file for mmtrack model')
+    parser.add_argument('--pose_checkpoint', help='checkpoint file for pose estimation model')
     parser.add_argument('--device', default='cuda:0', help='device to run on')
     parser.add_argument('--k_cluster', help='If running clustering on Data Processing')
     parser.add_argument('--capture_index', help='If running track and crop on Data Processing')
@@ -56,6 +58,10 @@ def create_optional_args() -> List:
     optional_args: List = []
     if args.mmtrack_checkpoint:
         optional_args.extend(['--track_checkpoint', args.mmtrack_checkpoint])
+    if args.pose_config:
+        optional_args.extend(['--pose_config', args.pose_config])
+    if args.pose_checkpoint:
+        optional_args.extend(['--pose_checkpoint', args.pose_checkpoint])
     if args.device:
         optional_args.extend(['--device', args.device])
     if args.acc_threshold:
@@ -182,23 +188,27 @@ def execute_combined_model():
     --inference_only
     --db_tracklets
     --exp_description
-    "Compare reid models - CTL - same_day_0808"
+    "Pose estimation debugging - ignore this experiment"
     --device
     cuda:0
     --experiment_mode
     --reid_model
     ctl
+    --pose_config
+    /home/bar_cohen/D-KinderGuardian/mmpose/configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/hrnet_w48_coco_256x192.py
+    --pose_checkpoint
+    /home/bar_cohen/D-KinderGuardian/checkpoints/mmpose-hrnet_w48_coco_256x192-b9e0b3ab_20200708.pth
     --reid_opts
     TEST.IMS_PER_BATCH
     128
     TEST.ONLY_TEST
     True
     TEST.WEIGHT
-    /home/bar_cohen/D-KinderGuardian/centroids_reid/checkpoints/dukemtmcreid_resnet50_256_128_epoch_120.ckpt
+    /home/bar_cohen/D-KinderGuardian/centroids_reid/checkpoints/query_0730_0808_dataset_epoch79.ckpt
     DATASETS.NAMES
     dukemtmcreid
     DATASETS.ROOT_DIR
-    /home/bar_cohen/KinderGuardian/fast-reid/datasets/same_day_0808/bounding_box_test
+    /home/bar_cohen/KinderGuardian/fast-reid/datasets/same_day_0808_verified/bounding_box_test
     MODEL.USE_CENTROIDS
     True
     GPU_IDS
@@ -218,14 +228,14 @@ def execute_combined_model():
     inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
     print('Total videos in eval set:', len(get_query_set()))
     for query_vid in get_query_set():
-        if '20210804' not in query_vid:
+        if '20210808' not in query_vid:
             print(f'skipping {query_vid}')
             continue
         print(f'running {query_vid}')
 
         # if 'IPCamera_20210808101731_s0_e501.mp4' != query_vid and 'IPCamera_20210808082440_s0_e501.mp4' != query_vid:
         #     continue
-        print(f'running {query_vid}')
+        # print(f'running {query_vid}')
 
         args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
                                   query_vid.split('_')[0]+'_'+query_vid.split('_')[1],
