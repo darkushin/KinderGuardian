@@ -46,12 +46,12 @@ def labelencode(label_encoder_output,X_train ,y_train, X_val ,y_val, X_test, y_t
     X_train ,y_train = drop_from_cur_set(X_train,y_train, le)
     X_val ,y_val = drop_from_cur_set(X_val,y_val, le)
     X_test ,y_test = drop_from_cur_set(X_test,y_test , le)
-    pickle.dump(le, open(os.path.join(label_encoder_output, 'le.pkl'), 'wb'))
+    pickle.dump(le, open(label_encoder_output, 'wb'))
     return X_train,y_train,X_val,y_val,X_test,y_test, le
 
 
 def load_data(data_path):
-    le = pickle.load(open(os.path.join(data_path, 'le.pkl'), 'rb'))
+    le = pickle.load(open(os.path.join(data_path, 'le_42street.pkl'), 'rb'))
     dl_train = pickle.load(open(os.path.join(data_path, 'dl_train_1.pkl'), 'rb'))
     dl_val = pickle.load(open(os.path.join(data_path, 'df_val_1.pkl'), 'rb'))
     dl_test = pickle.load(open(os.path.join(data_path, 'df_test_1.pkl'), 'rb'))

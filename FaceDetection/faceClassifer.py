@@ -1,6 +1,8 @@
 import os
 import sys
 
+from FaceDetection.augmentions import augment_training_set, normalize_image
+
 sys.path.append('DataProcessing')
 
 
@@ -132,6 +134,54 @@ class FaceClassifer():
             preds = torch.argmax(outputs, dim=1)
             return preds, outputs
 
+
+
+
+
+
+def train_faceclf_from_folder(run_name, data_path, image_path, label_encoder_path, lr=0.0001):
+    def image_transform(file):
+        img = Image.open(file)
+        # print(img.format)
+        # print(img.mode)
+        # print(img.size)
+        img = transforms.PILToTensor()(img)
+        img = normalize_image(img)
+        return img
+
+    import cv2
+    import glob
+    from PIL import Image
+    X = []
+    y = []
+    for i, person in enumerate(os.listdir(image_path)):
+        images_of_person = glob.glob(os.path.join(image_path, person, '*.*'))
+        from torchvision import transforms
+        X.extend([image_transform(file) for file in images_of_person])
+        y.extend([i] * len(images_of_person)) #TODO create a dict mapping between ids and i
+    # X = torch.tensor(X)
+    y = torch.tensor(y)
+    # TODO create a val and test sets later
+    X_train = X_val = X_test = X
+    y_train = y_val = y_test = y
+
+    from FaceDetection.data_handler import labelencode
+
+    X_train, y_train, X_val, y_val, X_test, y_test, le = labelencode(label_encoder_path, X_train, y_train, X_val, y_val, X_test,
+                                                                     y_test, [])
+    num_classes = len(set(y_train))
+
+    fc = FaceClassifer(num_classes, le, device='cuda:1', lr=lr, exp_name=run_name)
+    dl_train, dl_val, dl_test = fc.create_data_loaders(X_train, y_train, X_val, y_val, X_test, y_test, data_path)
+    # X_train, y_train = augment_training_set(X_train, y_train)
+
+    print(len(dl_train) * dl_train.batch_size, len(dl_val) * dl_val.batch_size, len(dl_test) * dl_test.batch_size)
+    print('Begin Training')
+    fc.run_training(checkpoint_path=data_path, dl_train=dl_train, dl_val=dl_val,dl_test=dl_test,
+                        model_name=run_name,num_epochs=1) # train the model
+    print('done')
+
+
 def main_train(data_path:str,run_name:str, reload_images_from_db:bool, recreate_data:bool,
                checkpoint_path:str, load_checkpoint:str, epochs=3, lr=0.001,
                save_images_path='', max_sample_threshold=0):
@@ -160,7 +210,7 @@ def main_train(data_path:str,run_name:str, reload_images_from_db:bool, recreate_
         X_train.extend(x_train_add)
         y_train.extend(y_train_add)
         print(f"Creates a label encoder and removes entered classes {num_classes} from dataset")
-        X_train,y_train,X_val,y_val,X_test,y_test, le = labelencode(data_path, X_train, y_train, X_val, y_val, X_test, y_test, [])
+        X_train,y_train,X_val,y_val,X_test,y_test, le = labelencode(os.path.join(data_path,'le_new.pkl'), X_train, y_train, X_val, y_val, X_test, y_test, [])
         build_samples_hist(le, y_train, run_name, 'Train')
         build_samples_hist(le, y_val, run_name, 'Val')
         build_samples_hist(le, y_test, run_name, 'Test')
@@ -198,14 +248,15 @@ def main_train(data_path:str,run_name:str, reload_images_from_db:bool, recreate_
     # eval_faceClassifier(run_name,os.path.join(checkpoint_path, f"{run_name}, {epochs-1}.pth"))
 
 if __name__ == '__main__':
-    pass
+    train_faceclf_from_folder('exp1', '/mnt/raid1/home/bar_cohen/42street/',image_path='/mnt/raid1/home/bar_cohen/42street/attempt/', label_encoder_path='/mnt/raid1/home/bar_cohen/42street/le_42street.pkl')
+    #
     from FaceDetection.evaluation import eval_faceClassifier
     # from FaceDetection.faceDetector import FaceDetector
     # data_path = '/mnt/raid1/home/bar_cohen/FaceData'
     # fd = FaceDetector(faces_data_path=data_path, thresholds=[0.97,0.97,0.97])
     # # checkpoint = ""
     # checkpoint_path = os.path.join("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/")
-    # # for max_sample_threshold in [50, 100, 150,200,300,400,500, 0]:
+    # for max_sample_threshold in [50, 100, 150,200,300,400,500, 0]:
     # for max_sample_threshold in [500]:
     #     main_train(data_path='/mnt/raid1/home/bar_cohen/FaceData/',
     #                run_name=f"max sample threshold {max_sample_threshold}",
