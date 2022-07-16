@@ -131,6 +131,7 @@ def trim_video(input_path, output_path, limit, create_every=40000):
     temp_path = temp_dir.name
     fps = int(imgs.fps)
     print(" Starting trim iter")
+    os.makedirs(output_path, exist_ok=True)
     for batch in range(0, len(imgs), create_every):
         cur_imgs = imgs[batch:min(batch + limit + 1, len(imgs))]
         for i, img in enumerate(cur_imgs):
@@ -413,9 +414,10 @@ def build_samples_hist(title:str=None):
 
 
 if __name__ == '__main__':
-    build_samples_hist()
-    # trim_videos_from_dir(dir='/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/', output_path='/mnt/raid1/home/bar_cohen/trimmed_videos/',
-    #                      limit=500, create_every=33000)
+    # build_samples_hist()
+    trim_video("/mnt/raid1/home/bar_cohen/42street/output002.mp4", "/mnt/raid1/home/bar_cohen/42street/train_videos_2/",limit=500,create_every=500)
+    # trim_videos_from_dir(dir="/mnt/raid1/home/bar_cohen/42street/val_videos_3/", output_path='/mnt/raid1/home/bar_cohen/42street/val_videos_3/',
+    #                      limit=500, create_every=1000)
     # viz_data_on_video_using_pickle(input_vid='/home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4',
     #                   output_path="/home/bar_cohen/KinderGuardian/Results/trimmed_1.8.21-095724_labled1.mp4",
     #                   pre_labeled_pkl_path='/mnt/raid1/home/bar_cohen/DB_Crops/_crop_db.pkl')
