@@ -56,8 +56,9 @@ class ArcFace():
         scores = {i:0 for i in ID_TO_NAME.keys()}
         for i in scores.keys():
             gallery_of_i = self.gallery[self.gpids == ID_TO_NAME[i]]
-            cur_sims = [self.model.compute_sim(input_feat, cand) for cand in gallery_of_i]
-            scores[i] = np.max(cur_sims)
+            if gallery_of_i is not None and len(gallery_of_i) > 0:
+                cur_sims = [self.model.compute_sim(input_feat, cand) for cand in gallery_of_i]
+                scores[i] = np.max(cur_sims)
         return scores
 
     def predict_track(self, imgs:np.array):

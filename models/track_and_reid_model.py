@@ -20,7 +20,7 @@ from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 from FaceDetection.arcface import ArcFace
 from FaceDetection.augmentions import normalize_image
-from FaceDetection.faceClassifer import FaceClassifer
+# from FaceDetection.faceClassifer import FaceClassifer # uncomment to use FaceNet classifier
 from FaceDetection.faceDetector import FaceDetector, is_img
 from FaceDetection.pose_estimator import PoseEstimator
 from DataProcessing.utils import viz_DB_data_on_video
@@ -284,8 +284,9 @@ def create_tracklets_from_db(vid_name, args):
             if face_imgs is not None and len(face_imgs) > 0:
                 if pose_estimator:
                     face_img, face_prob = pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs, face_imgs)
-                    if is_img(face_img):
-                        face_img = normalize_image(face_img)
+                    # uncomment this if using FaceNet classifier as you need FaceNet
+                    # if is_img(face_img):
+                    #     face_img = normalize_image(face_img)
             crop_im = mmcv.imread(im_path)
             tracklets[track].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
                                      'ctl_img': ctl_img})
@@ -463,6 +464,7 @@ def create_data_by_re_id_and_track():
 
     all_tracks_final_scores = dict()
 
+    # UnComment to use FaceNet FaceClassifier
     # faceClassifer = FaceClassifer(num_classes=19, label_encoder=le, device='cuda:0')
     # faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/4.8 Val, 1.pth"))
     # faceClassifer.model_ft.eval()
@@ -510,13 +512,13 @@ def create_data_by_re_id_and_track():
             if args.inference_only:
                 columns_dict['tracks_with_face'] += 1
 
-            # FACENET
+            # FACENET --- uncomment this to use FaceNet classifier. Important Note, make sure to normilaze face images when using FaceNet
             # face_clf_preds, face_clf_outputs = faceClassifer.predict(torch.stack(face_imgs))
             # bincount_face = torch.bincount(face_clf_preds.cpu())
             # face_label = ID_TO_NAME[faceClassifer.le.inverse_transform([int(torch.argmax(bincount_face))])[0]]
             # face_scores = get_face_score_all_ids(faceClassifer, face_clf_outputs, face_imgs_conf)
 
-            # ARCFACE
+            # ARCFACE --- the below model uses ArcFace as the Face Classifier
             face_scores = arc.predict_track(face_imgs)
             # print(face_scores)
             alpha = 0.49 # TODO enter as an arg
