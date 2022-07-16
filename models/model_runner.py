@@ -227,12 +227,17 @@ def execute_combined_model():
     optional_args: List = create_optional_args()
     inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
     print('Total videos in eval set:', len(get_query_set()))
-    for query_vid in get_query_set():
-        if '20210808' not in query_vid:
-            print(f'skipping {query_vid}')
-            continue
-        print(f'running {query_vid}')
+    street42 = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/"
+    query_set = [os.path.join(street42, vid) for vid in os.listdir(street42)]
+    for query_vid in query_set[1:]:
+        # if '20210808' not in query_vid:
+        #     print(f'skipping {query_vid}')
+        #     continue
+        # print(f'running {query_vid}')
 
+        # query_vid = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/_s28000_e28501.mp4"
+        # query_vid = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/_s2000_e2501.mp4"
+        # query_vid = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/extra_short/_s0_e101.mp4"
         # if 'IPCamera_20210808101731_s0_e501.mp4' != query_vid and 'IPCamera_20210808082440_s0_e501.mp4' != query_vid:
         #     continue
         # print(f'running {query_vid}')
@@ -250,7 +255,7 @@ def execute_combined_model():
         script_args.extend(reid_opts)
 
         call(script_args)
-
+        break
 
 def runner():
     if args.action == TRACKING:

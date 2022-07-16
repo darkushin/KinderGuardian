@@ -3,11 +3,15 @@ import numpy as np
 import cv2
 import os
 
+import torch
+from DataProcessing.dataProcessingConstants import ID_TO_NAME
 import tqdm
 
 model_path = '/home/bar_cohen/D-KinderGuardian/insightface_test/checkpoints/w600k_r50.onnx'
 IMG_SIZE = ((112,112))
-SillyIDMap = {'main':1, 'blond':2, 'guy1':3, 'guy2': 4, 'w1':5, 'w2':6,'young_guy':7,'mustache':8, 'young_w3':9}
+# CHAR_2_ID = {'main':1, 'blond':2, 'guy2': 4, 'w1':5, 'w2':6, 'young_guy':7, 'mustache':8, 'young_w3':9}
+# ID_2_NAME = {v:k for k, v in CHAR_2_ID.items()}
+
 
 class ArcFace():
 
@@ -38,19 +42,27 @@ class ArcFace():
         self.gallery = np.array(embeddings)
         self.gpids = np.array(gpids)
 
-    def predict_img(self, img:np.array):
+    def img_tensor_to_cv2(self, face):
+        numpy_img = face.permute(1, 2, 0).int().numpy().astype(np.uint8)
+        face = numpy_img[:, :, ::-1]
+        return face
+
+    def predict_img(self, img):
+        if type(img) == torch.Tensor:
+            img = self.img_tensor_to_cv2(img)
         if img.shape != IMG_SIZE:
             img = cv2.resize(img, IMG_SIZE)
         input_feat = self.model.get_feat(img)
-        scores = {i:0 for i in set(self.gpids)}
+        scores = {i:0 for i in ID_TO_NAME.keys()}
         for i in scores.keys():
-            gallery_of_i = self.gallery[self.gpids == i]
-            cur_sims = [self.model.compute_sim(input_feat, cand) for cand in gallery_of_i]
-            scores[i] = np.max(cur_sims)
+            gallery_of_i = self.gallery[self.gpids == ID_TO_NAME[i]]
+            if gallery_of_i is not None and len(gallery_of_i) > 0:
+                cur_sims = [self.model.compute_sim(input_feat, cand) for cand in gallery_of_i]
+                scores[i] = np.max(cur_sims)
         return scores
 
     def predict_track(self, imgs:np.array):
-        scores = {i:0 for i in set(self.gpids)}
+        scores = {i:0 for i in ID_TO_NAME.keys()}
         for img in imgs:
             cur_img_scores = self.predict_img(img)
             for k in scores.keys():
