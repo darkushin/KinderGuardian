@@ -294,6 +294,14 @@ def create_tracklets_from_db(vid_name, args):
     return tracklets
 
 
+def get_vid_name(args):
+    # for Kinderguardian use the following uncommented:
+    # KG_vid_name = args.input.split('/')[-1][9:-4]
+    vid_name =  args.input.split('/')[-1][:-4]
+    return vid_name
+
+
+
 def create_tracklets_using_tracking(args):
     # initialize tracking model:
     tracking_model = init_model(args.track_config, args.track_checkpoint, device=args.device)
@@ -332,7 +340,7 @@ def create_tracklets_using_tracking(args):
                         # face_img = normalize_image(face_img)
 
             x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to intsP
-            crop = Crop(vid_name=args.input.split('/')[-1][9:-4],
+            crop = Crop(vid_name=get_vid_name(args),
                         frame_num=image_index,
                         track_id=id,
                         x1=x1, y1=y1, x2=x2, y2=y2,
@@ -361,7 +369,7 @@ def create_or_load_tracklets(args, create_tracklets:bool):
 
     elif create_tracklets and args.db_tracklets:  # create tracklets using the tagged DB
         print('***** Creating tracklets using DB *****')
-        tracklets = create_tracklets_from_db(vid_name=args.input.split('/')[-1][9:-4], args=args)
+        tracklets = create_tracklets_from_db(vid_name=get_vid_name(args), args=args)
         pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/db-tracklets.pkl', 'wb'))
 
     else:
@@ -403,7 +411,7 @@ def create_data_by_re_id_and_track():
         create_table(db_location)
         print(f'Created temp DB in: {db_location}')
     else:
-        print(f'Saving the output crops to: {args.crops_folder}')
+        print(f'Saving the output crops to: {os.path.join(args.crops_folder, get_vid_name(args))}')
         assert args.crops_folder, "You must insert crop_folder param in order to create data"
 
     with open("/mnt/raid1/home/bar_cohen/FaceData/le_19.pkl", 'rb') as f:
@@ -448,9 +456,9 @@ def create_data_by_re_id_and_track():
         if not args.db_tracklets:  # create tracklets from video using tracking
             tracklets = create_tracklets_using_tracking(args=args)
         else:  # create tracklets from DB
-            tracklets = create_tracklets_from_db(vid_name=args.input.split('/')[-1][9:-4], args=args)
+            tracklets = create_tracklets_from_db(vid_name=get_vid_name(args), args=args)
     tl_end = time.time()
-    print(f'Total time for loading tracklets from db for video {args.input.split("/")[-1]}: {int(tl_end-tl_start)}')
+    print(f'Total time for loading tracklets for video {args.input.split("/")[-1]}: {int(tl_end-tl_start)}')
     print('******* Making predictions and saving crops to DB *******')
     db_entries = []
     # id dict value at index 0 - number of times appeared in video
@@ -460,7 +468,7 @@ def create_data_by_re_id_and_track():
     total_crops = 0
     total_crops_of_tracks_with_face = 0
     if not args.inference_only:
-        os.makedirs(args.crops_folder, exist_ok=True)
+        os.makedirs(os.path.join(args.crops_folder,get_vid_name(args)), exist_ok=True)
 
     all_tracks_final_scores = dict()
 
@@ -546,7 +554,7 @@ def create_data_by_re_id_and_track():
                                                                                        total_crops_of_tracks_with_face)
 
             if not args.inference_only:
-                mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder, crop.im_name))
+                mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder,get_vid_name(args), crop.im_name))
 
     add_entries(db_entries, db_location)
 

@@ -181,14 +181,15 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
 
     session.commit()
 
-def tag_and_create_vid():
+def tag_and_create_vid(vid_name:str):
     session = create_session()
-    label_tracks_DB(vid_name='20210808101731_s0_e501',
-                    crops_folder="/mnt/raid1/home/bar_cohen/20210808101731_s0_e501/",
+    label_tracks_DB(vid_name=vid_name,
+                    crops_folder=f"/mnt/raid1/home/bar_cohen/42street/42StreetCrops/{vid_name}/",
                     session=session)
+    part = vid_name.split('_')[0]
     viz_DB_data_on_video(
-        '/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210808101731/IPCamera_20210808101731_s0_e501.mp4',
-        output_path='/mnt/raid1/home/bar_cohen/labled_videos/20210808101731_s0_e501_reviewed_1.mp4')
+        f"/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/{part}/{vid_name}.mp4",
+        output_path=f'/mnt/raid1/home/bar_cohen/42street/GT_output_videos/{vid_name}.mp4')
 
 def rewrite_face_tagging(correct_face_img_path:str):
 
@@ -210,5 +211,5 @@ def rewrite_face_tagging(correct_face_img_path:str):
     print('done!')
 
 if __name__ == '__main__':
+    tag_and_create_vid(vid_name='part1_s24000_e24501')
     # rewrite_face_tagging("/mnt/raid1/home/bar_cohen/FaceData/reviewed_one_images/")
-    pass
