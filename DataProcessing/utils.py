@@ -347,7 +347,7 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION,eval=False)
         - DB_path: the path to the DB that holds the labeled crops of the video.
         - eval: use this for inference only. if data is tagged by DB bboxes color will be adapted
     """
-    vid_name = input_vid.split('/')[-1][9:-4]
+    vid_name = input_vid.split('/')[-1][:-4]
 
     imgs = mmcv.VideoReader(input_vid)
     temp_dir = tempfile.TemporaryDirectory()
