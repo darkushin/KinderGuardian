@@ -40,7 +40,7 @@ from CTL_reid_inference import *
 CAM_ID = 1
 P_POWER = 2
 FAST_PICKLES = '/home/bar_cohen/raid/OUR_DATASETS/FAST_reid'
-ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/42Street/Results/42Street_inference_results.csv'
+ABLATION_OUTPUT = "/mnt/raid1/home/bar_cohen/42street/Results/42Street_inference_results.csv"
 ABLATION_COLUMNS = ['description', 'video_name', 'ids_in_video', 'total_ids_in_video', 'total_tracks',
                     'tracks_with_face', 'pure_reid_model', 'reid_with_maj_vote', 'face_clf_only',
                     'face_clf_only_tracks_with_face', 'reid_with_face_clf_maj_vote', 'rank-1', 'sorted-rank-1',
@@ -231,7 +231,7 @@ def write_ablation_results(args, columns_dict, total_crops, total_crops_of_track
                 columns_dict[name] = value[1] / value[0]
         ablation_df.append(columns_dict, ignore_index=True).to_csv(ABLATION_OUTPUT)
         # print('Making visualization using temp DB')
-        # viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
+        viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
         print('removing temp DB')
         os.remove(db_location)
@@ -577,7 +577,7 @@ def create_data_by_re_id_and_track():
     #                     columns_dict[nodes_order] += 1
 
     # calculate new precision after IDs update and add to ablation study
-    viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=False)
+    # viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
 
     # session.commit()
     end = time.time()
