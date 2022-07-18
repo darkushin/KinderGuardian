@@ -17,7 +17,7 @@ import numpy as np
 import mmcv
 import torch.nn.functional as F
 from DataProcessing.DB.dal import *
-from DataProcessing.dataProcessingConstants import ID_TO_NAME
+from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 from FaceDetection.arcface import ArcFace
 from FaceDetection.augmentions import normalize_image
 # from FaceDetection.faceClassifer import FaceClassifer # uncomment to use FaceNet classifier
@@ -40,14 +40,14 @@ from CTL_reid_inference import *
 CAM_ID = 1
 P_POWER = 2
 FAST_PICKLES = '/home/bar_cohen/raid/OUR_DATASETS/FAST_reid'
-ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/labled_videos/inference_videos/pose-estimation-debugging.csv'
+ABLATION_OUTPUT = '/mnt/raid1/home/bar_cohen/42Street/Results/42Street_inference_results.csv'
 ABLATION_COLUMNS = ['description', 'video_name', 'ids_in_video', 'total_ids_in_video', 'total_tracks',
                     'tracks_with_face', 'pure_reid_model', 'reid_with_maj_vote', 'face_clf_only',
                     'face_clf_only_tracks_with_face', 'reid_with_face_clf_maj_vote', 'rank-1', 'sorted-rank-1',
-                    'appearance-order', 'max-difference', 'model_name', 'running_time', 'total_crops',
-                    'Adam', 'Avigail', 'Ayelet', 'Bar', 'Batel', 'Big-Gali', 'Eitan', 'Gali', 'Guy', 'Halel', 'Lea',
-                    'Noga', 'Ofir', 'Omer', 'Roni', 'Sofi', 'Sofi-Daughter', 'Yahel', 'Hagai', 'Ella', 'Daniel']
-
+                    'appearance-order', 'max-difference', 'model_name', 'running_time', 'total_crops']#,
+                    # 'Adam', 'Avigail', 'Ayelet', 'Bar', 'Batel', 'Big-Gali', 'Eitan', 'Gali', 'Guy', 'Halel', 'Lea',
+                    # 'Noga', 'Ofir', 'Omer', 'Roni', 'Sofi', 'Sofi-Daughter', 'Yahel', 'Hagai', 'Ella', 'Daniel']
+ABLATION_COLUMNS.extend(list(NAME_TO_ID.keys()))
 
 def get_args():
     parser = ArgumentParser()
@@ -582,8 +582,8 @@ def create_data_by_re_id_and_track():
     # session.commit()
     end = time.time()
     # columns_dict['running_time'] = int(end-start)
-    # if args.inference_only and total_crops > 0:
-    #     write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, ablation_df, db_location)
+    if args.inference_only and total_crops > 0:
+        write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, ablation_df, db_location)
 
     print(f"Done within {int(end-start)} seconds.")
 
