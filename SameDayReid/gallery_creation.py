@@ -120,7 +120,7 @@ class GalleryCreator:
                         cur_score = self.arc.predict_img(face)
                         label = max(cur_score, key=cur_score.get)
                         # silly threshold
-                        if cur_score[label] >= 0.25:
+                        if cur_score[label] >= 0.5:
                             crop_name = f'{label:04d}_c{self.global_video_counter}_f{global_i:07d}.jpg'
                             # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
                             dir_path = self.gallery_path
@@ -139,10 +139,10 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
 
 if __name__ == '__main__':
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le_19.pkl",'rb'))
-    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part3_gallery/",
+    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part2_gallery_high_conf/",
                         label_encoder=le, device='cuda:1')
     gc.global_video_counter += 1
-    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_3/"
+    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_2/"
 
 
     # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808120339.avi", skip_every=50)
@@ -162,4 +162,4 @@ if __name__ == '__main__':
     vids = [os.path.join(vid_path, vid) for vid in os.listdir(vid_path)]
 
     for vid in vids:
-        gc.add_video_to_gallery(vid,face_clf=ARC_FACE, skip_every=2)
+        gc.add_video_to_gallery(vid,face_clf=ARC_FACE, skip_every=1)

@@ -135,6 +135,7 @@ def is_img(img):
 
 
 def collect_faces_from_video(video_path:str, face_dir:str, skip_every=25):
+    os.makedirs(face_dir, exist_ok=True)
     fd = FaceDetector(faces_data_path=None,thresholds=[0.97,0.97,0.97],keep_all=True, min_face_size=45)
     vid_name = video_path.split('/')[-1]
     imgs = mmcv.VideoReader(video_path)
@@ -156,7 +157,8 @@ def collect_faces_from_video(video_path:str, face_dir:str, skip_every=25):
 
 def collect_faces_from_list_of_videos(list_of_videos:list,face_dir:str):
     for video_path in list_of_videos:
-        collect_faces_from_video(video_path=video_path, face_dir=face_dir)
+        print(video_path)
+        collect_faces_from_video(video_path=video_path, face_dir=face_dir, skip_every=1)
 
 def create_clusters(k,face_crops_path, cluster_path):
     """
@@ -189,13 +191,13 @@ def create_clusters(k,face_crops_path, cluster_path):
 
 def main():
     """Simple test of FaceDetector"""
-    videos_path = '/mnt/raid1/home/bar_cohen/42street/training_videos_part2'
-    clusters = "/mnt/raid1/home/bar_cohen/42street/face_part2/clusters/"
-    faces = '/mnt/raid1/home/bar_cohen/42street/face_part2/'
+    videos_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_1/"
+    clusters = "/mnt/raid1/home/bar_cohen/42street/face_part1/clusters/"
+    faces = '/mnt/raid1/home/bar_cohen/42street/face_part1/'
 
-    vids_list = [os.path.join(videos_path, f) for f in os.listdir(videos_path)]
-    collect_faces_from_list_of_videos(vids_list,'/mnt/raid1/home/bar_cohen/42street/face_part2/')
-    # create_clusters(k=10,cluster_path=clusters,face_crops_path=faces)
+    # vids_list = [os.path.join(videos_path, f) for f in os.listdir(videos_path)]
+    # collect_faces_from_list_of_videos(vids_list,face_dir=faces)
+    create_clusters(k=20,cluster_path=clusters,face_crops_path=faces)
     # fd.filter_out_non_face_corps(recreate_data=True, save_images=False),
     # from faceClassifer import load_data
     # le, dl_train, dl_val, dl_test =  load_data('/mnt/raid1/home/bar_cohen/FaceData/')

@@ -42,6 +42,9 @@ NAME_TO_ID = {
     "Phyllis" : 10,
     "Friend": 11,
     "Unknown" : 12,
+    "blond1": 13,
+    "dark_hair_1" : 14,
+
     }
 ID_TO_NAME = {v:k for k,v in NAME_TO_ID.items()}
 
