@@ -15,6 +15,7 @@ from FaceDetection.augmentions import normalize_image, crop_top_third_and_sides
 from FaceDetection.facenet_pytorch import MTCNN
 import numpy as np
 from matplotlib import pyplot as plt
+from FaceDetection.arcface import ArcFace
 
 
 class FaceDetector():
@@ -160,7 +161,7 @@ def collect_faces_from_list_of_videos(list_of_videos:list,face_dir:str):
         print(video_path)
         collect_faces_from_video(video_path=video_path, face_dir=face_dir, skip_every=1)
 
-def create_clusters(k,face_crops_path, cluster_path):
+def create_clusters(k,face_crops_path, cluster_path, method='raw_images'):
     """
     Based on crops saved on the output path folder, run clustering to unsupervised-ly label the Ids
     @param k: K clusters to create
@@ -176,10 +177,18 @@ def create_clusters(k,face_crops_path, cluster_path):
     images = [cv2.resize(cv2.imread(file), (224, 224)) for file in glob.glob(joined_path_to_files)]
     paths = [file for file in glob.glob(joined_path_to_files)]
     assert images and paths, "crops folder must be non-empty"
-    images = np.array(np.float32(images).reshape(len(images), -1) / 255)
-    model = tf.keras.applications.MobileNetV2(include_top=False, weights="imagenet", input_shape=(224, 224, 3))
-    predictions = model.predict(images.reshape(-1, 224, 224, 3))
-    pred_images = predictions.reshape(images.shape[0], -1)
+    if method == 'raw_images':
+        print('Creating clusters from raw images.')
+        images = np.array(np.float32(images).reshape(len(images), -1) / 255)
+        model = tf.keras.applications.MobileNetV2(include_top=False, weights="imagenet", input_shape=(224, 224, 3))
+        pred_images = model.predict(images.reshape(-1, 224, 224, 3))
+    elif method == 'arcface_feats':
+        print('Creating clusters from arcface feature vectors.')
+        arc = ArcFace()
+        pred_images = arc.create_feats(face_crops_path)
+    else:
+        raise Exception('Please specify a method for clustering. Options: [raw_images, arcface_feats]')
+    pred_images = pred_images.reshape(pred_images.shape[0], -1)
     from sklearn.cluster import KMeans
     kmodel = KMeans(n_clusters=k, random_state=728)
     kmodel.fit(pred_images)
@@ -192,12 +201,12 @@ def create_clusters(k,face_crops_path, cluster_path):
 def main():
     """Simple test of FaceDetector"""
     videos_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_1/"
-    clusters = "/mnt/raid1/home/bar_cohen/42street/face_part1/clusters/"
+    clusters = "/mnt/raid1/home/bar_cohen/42street/face_part1_face_clusters/"
     faces = '/mnt/raid1/home/bar_cohen/42street/face_part1/'
 
     # vids_list = [os.path.join(videos_path, f) for f in os.listdir(videos_path)]
     # collect_faces_from_list_of_videos(vids_list,face_dir=faces)
-    create_clusters(k=20,cluster_path=clusters,face_crops_path=faces)
+    create_clusters(k=50,cluster_path=clusters,face_crops_path=faces)
     # fd.filter_out_non_face_corps(recreate_data=True, save_images=False),
     # from faceClassifer import load_data
     # le, dl_train, dl_val, dl_test =  load_data('/mnt/raid1/home/bar_cohen/FaceData/')

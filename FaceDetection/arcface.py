@@ -15,7 +15,7 @@ IMG_SIZE = ((112,112))
 
 class ArcFace():
 
-    def __init__(self,gallery_path):
+    def __init__(self,gallery_path=None):
         self.model = insightface.model_zoo.get_model(model_path, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
         self.model.prepare(ctx_id=0)  # given gpu id, if negative, then use cpu
         self.gallery_path = gallery_path
@@ -41,6 +41,15 @@ class ArcFace():
 
         self.gallery = np.array(embeddings)
         self.gpids = np.array(gpids)
+
+    def create_feats(self, path):
+        """
+        Create feature vectors for all images in the given path.
+        """
+        embeddings = []
+        files = [os.path.join(path, file) for file in os.listdir(path) if '.png' in file]
+        embeddings.extend([self.get_img_embedding_from_file(file) for file in files])
+        return np.array(embeddings)
 
     def img_tensor_to_cv2(self, face):
         numpy_img = face.permute(1, 2, 0).int().numpy().astype(np.uint8)
