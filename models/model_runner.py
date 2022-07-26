@@ -227,14 +227,13 @@ def execute_combined_model():
     optional_args: List = create_optional_args()
     inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
     # print('Total videos in eval set:', len(get_query_set()))
-    street42 = "/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part2/"
+    street42 = "/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part3/"
     query_set = [os.path.join(street42, vid) for vid in os.listdir(street42)]
     for query_vid in query_set:
         # if '20210808' not in query_vid:
         #     print(f'skipping {query_vid}')
         #     continue
-        # print(f'running {query_vid}')
-
+        print(f'running {query_vid}')
         # query_vid = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/_s28000_e28501.mp4"
         # query_vid = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/_s2000_e2501.mp4"
         # query_vid = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/extra_short/_s0_e101.mp4"
@@ -250,10 +249,21 @@ def execute_combined_model():
         # script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
         script_args = ['/home/bar_cohen/miniconda3/envs/CTL/bin/python3.7', './models/track_and_reid_model.py',
                        args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
+
         script_args.extend(optional_args)
         script_args.append('--reid_opts')
         script_args.extend(reid_opts)
-
+        next_arg = None
+        for arg in script_args:
+            print(arg)
+            if next_arg:
+                name = query_vid.split('/')[-1][5:]
+                script_args[script_args.index(arg)] = f"/mnt/raid1/home/bar_cohen/42street/part3_all/bounding_box_test/"
+                # script_args[script_args.index(arg)] = ""
+                # print(f"/mnt/raid1/home/bar_cohen/42street/part3_galleries/{name}")
+                next_arg = False
+            if arg == "DATASETS.DATASET":
+                next_arg = True
         call(script_args)
 
 def runner():

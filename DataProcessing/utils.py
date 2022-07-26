@@ -254,14 +254,17 @@ def create_bbox_color(crop_props: list) -> list:
 def create_bbox_color_for_eval(crops):
     bbox_colors = []
     for inference_crop in crops:
-        db_crop = get_entries(filters={Crop.im_name == inference_crop.im_name}).all()[0] # using the tagged DB!
-        if db_crop.invalid:
-            bbox_color = 'blue'
-        elif db_crop.label == inference_crop.label: # compare between db crop and inference crop
-            bbox_color = 'green'
-        else:
-            bbox_color = 'red'
-        bbox_colors.append(bbox_color)
+        try:
+            db_crop = get_entries(filters={Crop.im_name == inference_crop.im_name}).all()[0] # using the tagged DB!
+            if db_crop.invalid:
+                bbox_color = 'blue'
+            elif db_crop.label == inference_crop.label: # compare between db crop and inference crop
+                bbox_color = 'green'
+            else:
+                bbox_color = 'red'
+            bbox_colors.append(bbox_color)
+        except:
+            bbox_colors.append('blue')
     return bbox_colors
 
 
@@ -372,6 +375,7 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION,eval=False)
             mmcv.imwrite(cur_img, f'{temp_path}/{i:03d}.png')
         else:
             # no crops detected, write the original frame
+            print('O NOO')
             mmcv.imwrite(frame, f'{temp_path}/{i:03d}.png')
 
     print(f'Saving video into: {output_path}')

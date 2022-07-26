@@ -18,7 +18,8 @@ import mmcv
 import torch.nn.functional as F
 from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
-from FaceDetection.arcface import ArcFace
+from FaceDetection.arcface import ArcFace, GALLERY_PKL_PATH, GPIDS_PKL_PATH, GALLERY_PKL_PATH_MIN_FACE_MARGIN, \
+    GPIDS_PKL_PATH_MIN_FACE_MARGIN
 from FaceDetection.augmentions import normalize_image
 # from FaceDetection.faceClassifer import FaceClassifer # uncomment to use FaceNet classifier
 from FaceDetection.faceDetector import FaceDetector, is_img
@@ -79,6 +80,7 @@ def get_args():
 
 def set_reid_cfgs(args):
     cfg = get_cfg()
+    cfg.MODEL.DEVICE = args.device
     cfg.merge_from_file(args.reid_config)
     cfg.merge_from_list(args.reid_opts)
     cfg.freeze()
@@ -116,10 +118,12 @@ def get_reid_score(track_im_conf, distmat, g_pids):
 
 def get_reid_score_all_ids_full_gallery(track_im_conf, simmat, g_pids):
     ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
-    aligned_simmat = (track_im_conf[:, np.newaxis] * simmat) ** P_POWER
-    aligned_simmat = simmat ** P_POWER
+    # aligned_simmat = (track_im_conf[:, np.newaxis] * simmat) ** P_POWER
+    aligned_simmat = simmat
     for pid in set(g_pids):
-        ids_score[pid] += aligned_simmat[:, g_pids[g_pids==pid]].max()
+        # maybe take the top-K?
+        ids_score[pid] +=  aligned_simmat[:,np.where(g_pids==pid)].max(axis=1).mean()
+        # np.argpartition(aligned_simmat[:,np.where(g_pids==pid)], 5)[-5:].mean()
     return ids_score
 
 def get_reid_score_mult_ids(track_im_conf, simmat, g_pids):
@@ -244,7 +248,7 @@ def create_tracklets_from_db(vid_name, args):
     that every dictionary contains the 'crop_img', 'face_img', 'Crop' and 'face_img_conf' of a single crop in the track.
     """
     tracklets = defaultdict(list)
-    face_detector = FaceDetector(keep_all=True, device=args.device)
+    face_detector = FaceDetector(keep_all=True, device=args.device, thresholds=[0.67,0.67,0.7], min_face_size=20)
     if args.pose_config:  # todo: after using this by default remove this if and the warning
         pose_estimator = PoseEstimator(args.pose_config, args.pose_checkpoint, args.device)
     else:
@@ -269,9 +273,10 @@ def create_tracklets_from_db(vid_name, args):
                         invalid=temp_crop.invalid,
                         is_vague=temp_crop.is_vague)
             crop.set_im_name()
-            im_path = f'/home/bar_cohen/raid/{vid_name}/{crop.im_name}'
+            # im_path = f'{args.crops_folder}/{vid_name}/{crop.im_name}'
+            im_path = os.path.join(args.crops_folder, vid_name, crop.im_name)
             if not os.path.isfile(im_path):
-                im_location = 'v' + crop.im_name[2:]
+                im_location = 'v_' + crop.im_name[2:]
                 im_path =  f'/home/bar_cohen/raid/{vid_name}/{im_location}'
             crop_im = Image.open(im_path)
             # added for CTL inference
@@ -305,7 +310,7 @@ def get_vid_name(args):
 def create_tracklets_using_tracking(args):
     # initialize tracking model:
     tracking_model = init_model(args.track_config, args.track_checkpoint, device=args.device)
-    face_detector = FaceDetector(keep_all=True, device=args.device)
+    face_detector = FaceDetector(keep_all=True, device=args.device, thresholds=[0.67,0.67,0.7], min_face_size=20) # same configs as gallery creation
     if args.pose_config:  # todo: after using this by default remove this if and the warning
         pose_estimator = PoseEstimator(args.pose_config, args.pose_checkpoint, args.device)
     else:
@@ -353,8 +358,8 @@ def create_tracklets_using_tracking(args):
                         invalid=False,
                         is_vague=False)
             crop.set_im_name()
-            mmcv.imwrite(crop_im, '/mnt/raid1/home/bar_cohen/CTL_Reid/t.jpg')
-            ctl_img = Image.open('/mnt/raid1/home/bar_cohen/CTL_Reid/t.jpg').convert("RGB")
+            mmcv.imwrite(crop_im, '/mnt/raid1/home/bar_cohen/CTL_Reid/t10.jpg')
+            ctl_img = Image.open('/mnt/raid1/home/bar_cohen/CTL_Reid/t10.jpg').convert("RGB")
             tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
                                   'ctl_img': ctl_img})
     del face_detector
@@ -395,6 +400,7 @@ def create_data_by_re_id_and_track():
     db_location = DB_LOCATION
     columns_dict = {}
     start = time.time()
+    ablation_df = None
     if args.inference_only:
         if os.path.isfile(ABLATION_OUTPUT):
             ablation_df = pd.read_csv(ABLATION_OUTPUT, index_col=[0])
@@ -427,7 +433,7 @@ def create_data_by_re_id_and_track():
         # build re-id test set. NOTE: query dir of the dataset should be empty!
         if not os.path.isdir(FAST_PICKLES):
             os.makedirs(FAST_PICKLES, exist_ok=True)
-            gen_reid_features(reid_cfg, reid_model, output_path=FAST_PICKLES)  # UNCOMMENT TO Recreate reid features
+        gen_reid_features(reid_cfg, reid_model, output_path=FAST_PICKLES)  # UNCOMMENT TO Recreate reid features
         feats, g_feats, g_pids, g_camids = load_reid_features(output_path=FAST_PICKLES)
     else:
         # args.reid_config = "./centroids_reid/configs/256_resnet50.yml"
@@ -451,7 +457,7 @@ def create_data_by_re_id_and_track():
     tl_start = time.time()
     print('Starting to create tracklets')
     if args.experiment_mode:
-        tracklets = create_or_load_tracklets(args,create_tracklets=True)
+        tracklets = create_or_load_tracklets(args,create_tracklets=True) # TODO huge issue here, requires manual adpation every run
     else:
         if not args.db_tracklets:  # create tracklets from video using tracking
             tracklets = create_tracklets_using_tracking(args=args)
@@ -477,8 +483,9 @@ def create_data_by_re_id_and_track():
     # faceClassifer.model_ft.load_state_dict(torch.load("/mnt/raid1/home/bar_cohen/FaceData/checkpoints/4.8 Val, 1.pth"))
     # faceClassifer.model_ft.eval()
 
-    arc = ArcFace(gallery_path="/mnt/raid1/home/bar_cohen/42street/clusters/")
-    arc.read_gallery()
+    arc_device = 1 if args.device == 'cuda:0' else 0
+    arc = ArcFace(gallery_path=None, device=arc_device)
+    arc.read_gallery_from_pkl(gallery_path=GALLERY_PKL_PATH_MIN_FACE_MARGIN, gpid_path=GPIDS_PKL_PATH_MIN_FACE_MARGIN)
 
 
 
@@ -528,14 +535,23 @@ def create_data_by_re_id_and_track():
 
             # ARCFACE --- the below model uses ArcFace as the Face Classifier
             face_scores = arc.predict_track(face_imgs)
+            face_label = ID_TO_NAME[max(face_scores, key=face_scores.get)]
+
             # print(face_scores)
-            alpha = 0.49 # TODO enter as an arg
-            final_scores = {pid : alpha*reid_score + (1-alpha) * face_score for pid, reid_score, face_score in zip(reid_scores.keys() , reid_scores.values(), face_scores.values())}
+            alpha = 0.5 # TODO enter as an arg
+            final_scores = {pid: 0 for pid in ID_TO_NAME.keys()}
+            for key in final_scores.keys():
+                final_scores[key] = reid_scores[key] * alpha + (1-alpha) * face_scores[key]
+
+            # final_scores = {pid : alpha*reid_score + (1-alpha) * face_score for pid, reid_score, face_score in zip(reid_scores.keys() , reid_scores.values(), face_scores.values())}
+            print(face_scores)
+            print(reid_scores)
             print(final_scores)
             all_tracks_final_scores[track_id] = final_scores
             final_label = ID_TO_NAME[max(final_scores, key=final_scores.get)]
             print(final_label)
-            # print(final_label)
+        else:
+            print(f"No face found, using Reid as Final Label: {final_label}")
         # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
 
         for crop_id, crop_dict in enumerate(crop_dicts):
@@ -561,7 +577,7 @@ def create_data_by_re_id_and_track():
     # handle double-id and update it in the DB
     # Remove double ids according to different heuristics and record it in the ablation study results
     # for nodes_order in NODES_ORDER:  # NOTE: the last order in this list will be used for the visualization
-    #     new_id_dict = remove_double_ids(vid_name=args.input.split('/')[-1][9:-4], tracks_scores=all_tracks_final_scores,
+    #     new_id_dict = remove_double_ids(vid_name=get_vid_name(args), tracks_scores=all_tracks_final_scores,
     #                                     db_location=db_location, nodes_order=nodes_order)
     #     session = create_session(db_location)
     #     if args.inference_only:
@@ -570,15 +586,14 @@ def create_data_by_re_id_and_track():
     #     for track in tracks:
     #         crops = get_entries(filters=({Crop.track_id==track}), db_path=db_location, session=session).all()
     #         for crop in crops:
-    #             crop.label = ID_2_CHAR[new_id_dict[track]]
+    #             crop.label = ID_TO_NAME[new_id_dict[track]]
     #             if args.inference_only:
     #                 tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
-    #                 if tagged_label_crop and tagged_label_crop[0].label == crop.label:
+    #                 if tagged_label_crop and tagged_label_crop[0].label == ID_TO_NAME[new_id_dict[track]]:
     #                     columns_dict[nodes_order] += 1
 
     # calculate new precision after IDs update and add to ablation study
     # viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
-
     # session.commit()
     end = time.time()
     # columns_dict['running_time'] = int(end-start)
@@ -592,7 +607,7 @@ def update_ablation_results(columns_dict, crop, crop_label, face_label, final_la
                             maj_vote_label, total_crops, total_crops_of_tracks_with_face):
     tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
     # print(f'DB label is: {tagged_label}, Inference label is: {reid_ids[crop_id]}')
-    if tagged_label_crop:  # there is a tagging for this crop which is not invalid, count it
+    if tagged_label_crop and tagged_label_crop != "Unknown":  # there is a tagging for this crop which is not invalid, count it
         total_crops += 1
         if is_face_in_track:
             total_crops_of_tracks_with_face += 1

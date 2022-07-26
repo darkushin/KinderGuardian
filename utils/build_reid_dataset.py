@@ -80,14 +80,30 @@ def copy_imgs():
 
 
 if __name__ == '__main__':
-    args = get_args()
-    with open("utils/dataset_configs.yml", "r") as stream:
-        dataset_conf = yaml.safe_load(stream)
+    import os
+    # os.makedirs("/mnt/raid1/home/bar_cohen/42street/part3_all/", exist_ok=False)
+    # os.makedirs("/mnt/raid1/home/bar_cohen/42street/part3_all/bounding_box_test", exist_ok=False)
+    # os.makedirs("/mnt/raid1/home/bar_cohen/42street/part3_all/bounding_box_train", exist_ok=False)
+    # os.makedirs("/mnt/raid1/home/bar_cohen/42street/part3_all/query", exist_ok=False)
+    global_i = 0
+    for i, folder in enumerate(os.listdir("/mnt/raid1/home/bar_cohen/42street/part3_galleries/")):
+        full_path = os.path.join("/mnt/raid1/home/bar_cohen/42street/part3_galleries/", folder)
+        for root, _, files in os.walk(full_path):
+            for file in files:
+                label = file[0:4]
+                new_pic_name = f'{label}_c{i}_f{global_i:07d}.jpg'
+                cur_file  = os.path.join(root,file)
+                shutil.copy(cur_file, os.path.join(file, f"/mnt/raid1/home/bar_cohen/42street/part3_all/bounding_box_test/{new_pic_name}"))
+                global_i += 1
 
-    create_dataset_folder()
-    copy_imgs()
-    create_readme()
-
-    print(f'Dataset Created Successfully! Checkout {os.path.join(dataset_conf.get("LOCATION"), dataset_conf.get("NAME"))}'
-          f' and verify that the README file describes correctly the dataset.')
+    # args = get_args()
+    # with open("utils/dataset_configs.yml", "r") as stream:
+    #     dataset_conf = yaml.safe_load(stream)
+    #
+    # create_dataset_folder()
+    # copy_imgs()
+    # create_readme()
+    #
+    # print(f'Dataset Created Successfully! Checkout {os.path.join(dataset_conf.get("LOCATION"), dataset_conf.get("NAME"))}'
+    #       f' and verify that the README file describes correctly the dataset.')
 

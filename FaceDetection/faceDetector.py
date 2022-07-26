@@ -31,7 +31,7 @@ class FaceDetector():
         self.device = device
         self.faces_data_path = faces_data_path
         self.keep_all = keep_all
-        self.facenet_detecor = MTCNN(margin=40, select_largest=True, post_process=False, device=device,
+        self.facenet_detecor = MTCNN(margin=0, select_largest=True, post_process=False, device=device,
                                      keep_all=self.keep_all, thresholds=thresholds, min_face_size=min_face_size)
 
     def detect_single_face(self, img):
@@ -137,7 +137,7 @@ def is_img(img):
 
 def collect_faces_from_video(video_path:str, face_dir:str, skip_every=25):
     os.makedirs(face_dir, exist_ok=True)
-    fd = FaceDetector(faces_data_path=None,thresholds=[0.97,0.97,0.97],keep_all=True, min_face_size=45)
+    fd = FaceDetector(faces_data_path=None,thresholds=[0.67,0.67,0.7],keep_all=True, min_face_size=20, device='cuda:0')
     vid_name = video_path.split('/')[-1]
     imgs = mmcv.VideoReader(video_path)
     trans = transforms.ToPILImage()
@@ -156,12 +156,12 @@ def collect_faces_from_video(video_path:str, face_dir:str, skip_every=25):
                     # # # plt.title(f'Detected Face, label:  {ID_TO_NAME[id]}, counter : {counter}')
                     # plt.imsave(os.path.join(face_dir, f'{vid_name}_{i}.png'), img_show)
 
-def collect_faces_from_list_of_videos(list_of_videos:list,face_dir:str):
+def collect_faces_from_list_of_videos(list_of_videos:list,face_dir:str,skip_every=1):
     for video_path in list_of_videos:
         print(video_path)
-        collect_faces_from_video(video_path=video_path, face_dir=face_dir, skip_every=1)
+        collect_faces_from_video(video_path=video_path, face_dir=face_dir, skip_every=skip_every)
 
-def create_clusters(k,face_crops_path, cluster_path, method='raw_images'):
+def create_clusters(k,face_crops_path, cluster_path, method='arcface_feats'):
     """
     Based on crops saved on the output path folder, run clustering to unsupervised-ly label the Ids
     @param k: K clusters to create
@@ -201,12 +201,12 @@ def create_clusters(k,face_crops_path, cluster_path, method='raw_images'):
 def main():
     """Simple test of FaceDetector"""
     videos_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_1/"
-    clusters = "/mnt/raid1/home/bar_cohen/42street/face_part1_face_clusters/"
-    faces = '/mnt/raid1/home/bar_cohen/42street/face_part1/'
+    clusters = "/mnt/raid1/home/bar_cohen/42street/face_part1_face_clusters_min_margin_no_skip_low_thresh/"
+    faces = '/mnt/raid1/home/bar_cohen/42street/face_part1_no_skip_low_thresh/'
 
-    # vids_list = [os.path.join(videos_path, f) for f in os.listdir(videos_path)]
-    # collect_faces_from_list_of_videos(vids_list,face_dir=faces)
-    create_clusters(k=50,cluster_path=clusters,face_crops_path=faces)
+    vids_list = [os.path.join(videos_path, f) for f in os.listdir(videos_path)]
+    collect_faces_from_list_of_videos(vids_list,face_dir=faces, skip_every=1)
+    create_clusters(k=100,cluster_path=clusters,face_crops_path=faces)
     # fd.filter_out_non_face_corps(recreate_data=True, save_images=False),
     # from faceClassifer import load_data
     # le, dl_train, dl_val, dl_test =  load_data('/mnt/raid1/home/bar_cohen/FaceData/')
