@@ -56,6 +56,14 @@ def add_entries(crops: list, db_location: str = DB_LOCATION):
     session.commit()
 
 
+def delete_entries(delete_filter, db_location: str = DB_LOCATION):
+    """ Usage example: delete_entries(delete_filter=Crop.vid_name == 'part1_s16000_e16501') """
+    session = create_session(db_location)
+    delete_q = Crop.__table__.delete().where(delete_filter)
+    session.execute(delete_q)
+    session.commit()
+
+
 def get_entries(session=None, filters: tuple = None, op: str = 'AND', order=None, group=None, distinct_by=None,
                 db_path=DB_LOCATION):
     """
