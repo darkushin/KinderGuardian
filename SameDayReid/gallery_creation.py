@@ -175,6 +175,7 @@ if __name__ == '__main__':
     vids = [os.path.join(vid_path, vid) for vid in os.listdir(vid_path)]
     # vids = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part3/part3_s22000_e22501.mp4"]
     for vid in vids:
+        # uncomment if you want a gallery per video
         # vid_name = vid.split('/')[-1]
         # gc = GalleryCreator(
         #     gallery_path=f"/mnt/raid1/home/bar_cohen/42street/part1_galleries/{vid_name[5:]}/",

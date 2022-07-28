@@ -234,36 +234,17 @@ def execute_combined_model():
         #     print(f'skipping {query_vid}')
         #     continue
         print(f'running {query_vid}')
-        # query_vid = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/_s28000_e28501.mp4"
-        # query_vid = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/_s2000_e2501.mp4"
-        # query_vid = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/extra_short/_s0_e101.mp4"
-        # if 'IPCamera_20210808101731_s0_e501.mp4' != query_vid and 'IPCamera_20210808082440_s0_e501.mp4' != query_vid:
-        #     continue
-        # print(f'running {query_vid}')
-
         args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
                                   query_vid.split('_')[0]+'_'+query_vid.split('_')[1],
                                   query_vid)
 
         args.output = os.path.join(inference_output, 'inference_' + query_vid.split('/')[-1])
-        # script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
         script_args = ['/home/bar_cohen/miniconda3/envs/CTL/bin/python3.7', './models/track_and_reid_model.py',
                        args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
 
         script_args.extend(optional_args)
         script_args.append('--reid_opts')
         script_args.extend(reid_opts)
-        next_arg = None
-        for arg in script_args:
-            print(arg)
-            if next_arg:
-                name = query_vid.split('/')[-1][5:]
-                # script_args[script_args.index(arg)] = "/mnt/raid1/home/bar_cohen/42street/all_parts_gallery/bounding_box_test/"
-                # script_args[script_args.index(arg)] = ""
-                # print(f"/mnt/raid1/home/bar_cohen/42street/part3_galleries/{name}")
-                next_arg = False
-            if arg == "DATASETS.DATASET":
-                next_arg = True
         call(script_args)
 
 def runner():
