@@ -124,8 +124,8 @@ def create_dataset(gallery_part: list, query_part: list, crops_location: str, da
     videos = [vid.vid_name for vid in get_entries(filters=({Crop.reviewed_one == True}), group=Crop.vid_name).all()]
     for video in videos:
 
-        # iterate over all not invalid images in the video:
-        images = [(image.im_name, image.label) for image in get_entries(filters=(Crop.vid_name == video, Crop.invalid == False)).all()]
+        # iterate over all non-invalid images in the video:
+        images = [(image.im_name, image.label) for image in get_entries(filters=(Crop.vid_name == video, Crop.invalid == False), db_path=db_location).all()]
 
         # copy the images to the corresponding gallery/query folder according to the part of the video
         if is_gallery_video(gallery_part, video):
