@@ -97,13 +97,13 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
 
         while True:
             try:
-                user_input = input(f"{APPROVE_TRACK} to approve,"
-                                   f"{SPLIT_TRACK} to split, "
-                                   f"{DISCARD} to discard,"
-                                   f"{VAGUE} to mark vague,"
-                                   f"{RELABEL} for relabel,"
-                                   f"{SKIP_TRACK} to skip review")
-
+                # user_input = input(f"{APPROVE_TRACK} to approve,"
+                #                    f"{SPLIT_TRACK} to split, "
+                #                    f"{DISCARD} to discard,"
+                #                    f"{VAGUE} to mark vague,"
+                #                    f"{RELABEL} for relabel,"
+                #                    f"{SKIP_TRACK} to skip review")
+                user_input = SPLIT_TRACK
                 if user_input == APPROVE_TRACK:
                     print('The following actions were taken : ')
                     print(actions_taken)
@@ -118,10 +118,10 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
                     # discards = [int(x) for x in input('Enter crop_ids to Discard').split()]
                     discard_input = input('Enter crop_ids to Discard')
                     parsed_input = parse_input(discard_input)
-                    discard_crops(track, parsed_input)
                     if max(parsed_input) > len(track):
                         print('Some values are not valid crop ids, try again')
                         continue
+                    discard_crops(track, parsed_input)
                     actions_taken.append((DISCARD, discard_input))
 
                 elif user_input == VAGUE:
@@ -136,12 +136,15 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
 
                 elif user_input == SPLIT_TRACK:
                     split_range = parse_input(input('Enter range for split'))
+                    if max(split_range) > len(track):
+                        print('Some values are not valid crop ids, try again')
+                        continue
                     new_label = insert_new_label()
                     if not new_label:
                         continue
                     new_track_id = cur_max_track + 1
                     cur_max_track += 1
-                    split_track(track, split_range[0], split_range[-1], new_label, new_track_id)
+                    split_track(track, split_range[0], split_range[-1]+1, new_label, new_track_id)
                     actions_taken.append((SPLIT_TRACK, split_range[0], split_range[-1], new_label, new_track_id))
 
                 elif user_input == RELABEL:
@@ -172,7 +175,7 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
         print(f'cur track {i+1}/{len(track_ids)}')
         track_query = get_entries(filters=(Crop.vid_name == vid_name,
                                            Crop.track_id == track_id,
-                                           Crop.reviewed_one == False,
+                                           # Crop.reviewed_one == False,
                                            ),
                                   order=Crop.crop_id,
                                   session=session)
@@ -214,5 +217,5 @@ def rewrite_face_tagging(correct_face_img_path:str):
     print('done!')
 
 if __name__ == '__main__':
-    tag_and_create_vid(vid_name='part1_s9500_e10001')
+    tag_and_create_vid(vid_name='part2_s35500_e36001')
     # rewrite_face_tagging("/mnt/raid1/home/bar_cohen/FaceData/reviewed_one_images/")
