@@ -103,7 +103,6 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
                                    f"{VAGUE} to mark vague,"
                                    f"{RELABEL} for relabel,"
                                    f"{SKIP_TRACK} to skip review")
-
                 if user_input == APPROVE_TRACK:
                     print('The following actions were taken : ')
                     print(actions_taken)
@@ -118,10 +117,10 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
                     # discards = [int(x) for x in input('Enter crop_ids to Discard').split()]
                     discard_input = input('Enter crop_ids to Discard')
                     parsed_input = parse_input(discard_input)
-                    discard_crops(track, parsed_input)
                     if max(parsed_input) > len(track):
                         print('Some values are not valid crop ids, try again')
                         continue
+                    discard_crops(track, parsed_input)
                     actions_taken.append((DISCARD, discard_input))
 
                 elif user_input == VAGUE:
@@ -136,12 +135,15 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
 
                 elif user_input == SPLIT_TRACK:
                     split_range = parse_input(input('Enter range for split'))
+                    if max(split_range) > len(track):
+                        print('Some values are not valid crop ids, try again')
+                        continue
                     new_label = insert_new_label()
                     if not new_label:
                         continue
                     new_track_id = cur_max_track + 1
                     cur_max_track += 1
-                    split_track(track, split_range[0], split_range[-1], new_label, new_track_id)
+                    split_track(track, split_range[0], split_range[-1]+1, new_label, new_track_id)
                     actions_taken.append((SPLIT_TRACK, split_range[0], split_range[-1], new_label, new_track_id))
 
                 elif user_input == RELABEL:
