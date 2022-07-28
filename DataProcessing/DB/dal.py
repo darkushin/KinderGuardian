@@ -87,8 +87,8 @@ def get_entries(session=None, filters: tuple = None, op: str = 'AND', order=None
     return sql_query
 
 
-if __name__ == '__main__':
-    create_table()
+# if __name__ == '__main__':
+#     create_table()
     # vid_name = '1.8.21-095724'
     # crops = get_entries(filters=({Crop.vid_name == vid_name}), db_path=DB_LOCATION_ORIG)
 #     crop = '0001_c1_f0307006.jpg'
