@@ -64,7 +64,7 @@ class DukeMTMC(ImageDataset):
         data = []
         for img_path in img_paths:
             pid, camid = map(int, pattern.search(img_path).groups())
-            assert 1 <= camid <= 8
+            # assert 1 <= camid <= 8
             camid -= 1  # index starts from 0
             if is_train:
                 pid = self.dataset_name + "_" + str(pid)

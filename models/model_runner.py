@@ -226,36 +226,26 @@ def execute_combined_model():
     reid_opts: List = create_reid_opts()
     optional_args: List = create_optional_args()
     inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
-    print('Total videos in eval set:', len(get_query_set()))
-    street42 = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/"
-    query_set = [os.path.join(street42, vid) for vid in os.listdir(street42)]
-    for query_vid in query_set[1:]:
+    # print('Total videos in eval set:', len(get_query_set()))
+    street42 = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part3/" , "/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part2/", "/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part1/"]
+    query_set = [os.path.join(part, vid) for part in street42 for vid in os.listdir(part)]
+    for query_vid in query_set:
         # if '20210808' not in query_vid:
         #     print(f'skipping {query_vid}')
         #     continue
-        # print(f'running {query_vid}')
-
-        # query_vid = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/_s28000_e28501.mp4"
-        # query_vid = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/_s2000_e2501.mp4"
-        # query_vid = "/mnt/raid1/home/bar_cohen/42street/training_videos_part2/extra_short/_s0_e101.mp4"
-        # if 'IPCamera_20210808101731_s0_e501.mp4' != query_vid and 'IPCamera_20210808082440_s0_e501.mp4' != query_vid:
-        #     continue
-        # print(f'running {query_vid}')
-
+        print(f'running {query_vid}')
         args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
                                   query_vid.split('_')[0]+'_'+query_vid.split('_')[1],
                                   query_vid)
 
         args.output = os.path.join(inference_output, 'inference_' + query_vid.split('/')[-1])
-        # script_args = ['/home/bar_cohen/miniconda3/envs/mmtrack/bin/python', './models/track_and_reid_model.py',
         script_args = ['/home/bar_cohen/miniconda3/envs/CTL/bin/python3.7', './models/track_and_reid_model.py',
                        args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
+
         script_args.extend(optional_args)
         script_args.append('--reid_opts')
         script_args.extend(reid_opts)
-
         call(script_args)
-        break
 
 def runner():
     if args.action == TRACKING:

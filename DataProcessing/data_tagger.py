@@ -65,7 +65,7 @@ def parse_input(inp: str):
 
 
 def label_tracks_DB(vid_name: str, crops_folder: str, session):
-    def _label_track_DB(session, track_query):
+    def _label_track_DB(session, track_query, cur_max_track):
         """
         Args:
             track: A list of Crop objects representing the track
@@ -139,7 +139,8 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
                     new_label = insert_new_label()
                     if not new_label:
                         continue
-                    new_track_id = session.query(func.max(Crop.track_id)).scalar() + 1
+                    new_track_id = cur_max_track + 1
+                    cur_max_track += 1
                     split_track(track, split_range[0], split_range[-1], new_label, new_track_id)
                     actions_taken.append((SPLIT_TRACK, split_range[0], split_range[-1], new_label, new_track_id))
 
@@ -162,9 +163,11 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
                     warnings.warn('Please Insert one of the supported actions')
             except Exception as e:
                 warnings.warn(f'Error! {e}')
+        return cur_max_track
 
     track_ids = [track.track_id for track in get_entries(filters=({Crop.vid_name == vid_name}),
                                                          group=Crop.track_id, session=session)]
+    cur_max_track = session.query(func.max(Crop.track_id)).scalar()
     for i, track_id in enumerate(track_ids):
         print(f'cur track {i+1}/{len(track_ids)}')
         track_query = get_entries(filters=(Crop.vid_name == vid_name,
@@ -175,20 +178,21 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
                                   session=session)
         if track_query.count() > 0:
             print('Begin Tagging...')
-            _label_track_DB(session=session, track_query=track_query)
+            cur_max_track =_label_track_DB(session=session, track_query=track_query, cur_max_track=cur_max_track)
         else:
             print('Already Reviewed')
 
     session.commit()
 
-def tag_and_create_vid():
+def tag_and_create_vid(vid_name:str):
     session = create_session()
-    label_tracks_DB(vid_name='20210808101731_s0_e501',
-                    crops_folder="/mnt/raid1/home/bar_cohen/20210808101731_s0_e501/",
+    label_tracks_DB(vid_name=vid_name,
+                    crops_folder=f"/mnt/raid1/home/bar_cohen/42street/42StreetCrops/{vid_name}/",
                     session=session)
+    part = vid_name.split('_')[0]
     viz_DB_data_on_video(
-        '/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210808101731/IPCamera_20210808101731_s0_e501.mp4',
-        output_path='/mnt/raid1/home/bar_cohen/labled_videos/20210808101731_s0_e501_reviewed_1.mp4')
+        f"/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/{part}/{vid_name}.mp4",
+        output_path=f'/mnt/raid1/home/bar_cohen/42street/GT_output_videos/{vid_name}_GT.mp4')
 
 def rewrite_face_tagging(correct_face_img_path:str):
 
@@ -202,7 +206,7 @@ def rewrite_face_tagging(correct_face_img_path:str):
             if file != '.DS_Store':
                 counter += 1
                 print(file)
-                cur_crop = get_entries(filters=({Crop.im_name == file}),session=session).all()[0]
+                cur_crop = get_entries(filters=({Crop.im_name == file}), session=session).all()[0]
                 cur_crop.is_face = True
     print('commiting...')
     print(f' Total of {counter} face images found')
@@ -210,5 +214,5 @@ def rewrite_face_tagging(correct_face_img_path:str):
     print('done!')
 
 if __name__ == '__main__':
+    tag_and_create_vid(vid_name='part1_s9500_e10001')
     # rewrite_face_tagging("/mnt/raid1/home/bar_cohen/FaceData/reviewed_one_images/")
-    pass

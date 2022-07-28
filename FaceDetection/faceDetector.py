@@ -15,6 +15,7 @@ from FaceDetection.augmentions import normalize_image, crop_top_third_and_sides
 from FaceDetection.facenet_pytorch import MTCNN
 import numpy as np
 from matplotlib import pyplot as plt
+from FaceDetection.arcface import ArcFace
 
 
 class FaceDetector():
@@ -30,7 +31,7 @@ class FaceDetector():
         self.device = device
         self.faces_data_path = faces_data_path
         self.keep_all = keep_all
-        self.facenet_detecor = MTCNN(margin=40, select_largest=True, post_process=False, device=device,
+        self.facenet_detecor = MTCNN(margin=0, select_largest=True, post_process=False, device=device,
                                      keep_all=self.keep_all, thresholds=thresholds, min_face_size=min_face_size)
 
     def detect_single_face(self, img):
@@ -135,7 +136,8 @@ def is_img(img):
 
 
 def collect_faces_from_video(video_path:str, face_dir:str, skip_every=25):
-    fd = FaceDetector(faces_data_path=None,thresholds=[0.97,0.97,0.97],keep_all=True, min_face_size=45)
+    os.makedirs(face_dir, exist_ok=True)
+    fd = FaceDetector(faces_data_path=None,thresholds=[0.67,0.67,0.7],keep_all=True, min_face_size=20, device='cuda:0')
     vid_name = video_path.split('/')[-1]
     imgs = mmcv.VideoReader(video_path)
     trans = transforms.ToPILImage()
@@ -154,11 +156,12 @@ def collect_faces_from_video(video_path:str, face_dir:str, skip_every=25):
                     # # # plt.title(f'Detected Face, label:  {ID_TO_NAME[id]}, counter : {counter}')
                     # plt.imsave(os.path.join(face_dir, f'{vid_name}_{i}.png'), img_show)
 
-def collect_faces_from_list_of_videos(list_of_videos:list,face_dir:str):
+def collect_faces_from_list_of_videos(list_of_videos:list,face_dir:str,skip_every=1):
     for video_path in list_of_videos:
-        collect_faces_from_video(video_path=video_path, face_dir=face_dir)
+        print(video_path)
+        collect_faces_from_video(video_path=video_path, face_dir=face_dir, skip_every=skip_every)
 
-def create_clusters(k,face_crops_path, cluster_path):
+def create_clusters(k,face_crops_path, cluster_path, method='arcface_feats'):
     """
     Based on crops saved on the output path folder, run clustering to unsupervised-ly label the Ids
     @param k: K clusters to create
@@ -174,10 +177,18 @@ def create_clusters(k,face_crops_path, cluster_path):
     images = [cv2.resize(cv2.imread(file), (224, 224)) for file in glob.glob(joined_path_to_files)]
     paths = [file for file in glob.glob(joined_path_to_files)]
     assert images and paths, "crops folder must be non-empty"
-    images = np.array(np.float32(images).reshape(len(images), -1) / 255)
-    model = tf.keras.applications.MobileNetV2(include_top=False, weights="imagenet", input_shape=(224, 224, 3))
-    predictions = model.predict(images.reshape(-1, 224, 224, 3))
-    pred_images = predictions.reshape(images.shape[0], -1)
+    if method == 'raw_images':
+        print('Creating clusters from raw images.')
+        images = np.array(np.float32(images).reshape(len(images), -1) / 255)
+        model = tf.keras.applications.MobileNetV2(include_top=False, weights="imagenet", input_shape=(224, 224, 3))
+        pred_images = model.predict(images.reshape(-1, 224, 224, 3))
+    elif method == 'arcface_feats':
+        print('Creating clusters from arcface feature vectors.')
+        arc = ArcFace()
+        pred_images = arc.create_feats(face_crops_path)
+    else:
+        raise Exception('Please specify a method for clustering. Options: [raw_images, arcface_feats]')
+    pred_images = pred_images.reshape(pred_images.shape[0], -1)
     from sklearn.cluster import KMeans
     kmodel = KMeans(n_clusters=k, random_state=728)
     kmodel.fit(pred_images)
@@ -189,13 +200,13 @@ def create_clusters(k,face_crops_path, cluster_path):
 
 def main():
     """Simple test of FaceDetector"""
-    videos_path = '/mnt/raid1/home/bar_cohen/42street/training_videos_part2'
-    clusters = "/mnt/raid1/home/bar_cohen/42street/face_part2/clusters/"
-    faces = '/mnt/raid1/home/bar_cohen/42street/face_part2/'
+    videos_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_1/"
+    clusters = "/mnt/raid1/home/bar_cohen/42street/face_part1_face_clusters_min_margin_no_skip_low_thresh/"
+    faces = '/mnt/raid1/home/bar_cohen/42street/face_part1_no_skip_low_thresh/'
 
     vids_list = [os.path.join(videos_path, f) for f in os.listdir(videos_path)]
-    collect_faces_from_list_of_videos(vids_list,'/mnt/raid1/home/bar_cohen/42street/face_part2/')
-    # create_clusters(k=10,cluster_path=clusters,face_crops_path=faces)
+    collect_faces_from_list_of_videos(vids_list,face_dir=faces, skip_every=1)
+    create_clusters(k=100,cluster_path=clusters,face_crops_path=faces)
     # fd.filter_out_non_face_corps(recreate_data=True, save_images=False),
     # from faceClassifer import load_data
     # le, dl_train, dl_val, dl_test =  load_data('/mnt/raid1/home/bar_cohen/FaceData/')

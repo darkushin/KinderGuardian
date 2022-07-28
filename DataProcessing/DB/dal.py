@@ -4,12 +4,13 @@ from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float, M
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
-DB_LOCATION = '/mnt/raid1/home/bar_cohen/Shoham_KG.db' ## NEVER CHANGE THIS !!!
+# DB_LOCATION = '/mnt/raid1/home/bar_cohen/Shoham_KG.db' ## NEVER CHANGE THIS !!!
+DB_LOCATION = '/mnt/raid1/home/bar_cohen/42Street.db' ## NEVER CHANGE THIS !!!
 Base = declarative_base()
 
 
 class Crop(Base):
-    __tablename__ = 'shoham_kg'
+    __tablename__ = '42Street'
     label = Column(String)
     im_name = Column(String, primary_key=True)  # unique name for every crop
     frame_num = Column(Integer)
