@@ -36,12 +36,14 @@ class GalleryCreator:
                  min_face_size=20,
                  tracker_conf_threshold = 0.99,
                  device='cuda:0',
+                 cam_id = '1',
                  track_config=TRACKING_CONFIG_PATH,
                  track_checkpoint=TRACKING_CHECKPOINT,
                  create_in_fastreid_format=False,
                  ):
         self.tracking_model = init_model(track_config, track_checkpoint, device=device)
         self.tracker_conf_threshold = tracker_conf_threshold
+        self.cam_id = cam_id
         if create_in_fastreid_format:
             os.makedirs(gallery_path)
             os.makedirs(os.path.join(gallery_path,'bounding_box_test'))
@@ -51,7 +53,6 @@ class GalleryCreator:
         else:
             os.makedirs(gallery_path, exist_ok=True)
             self.gallery_path = gallery_path
-        self.global_video_counter = 0 # counts the unique videos entered for the gallery
 
         self.faceDetector = FaceDetector(faces_data_path=None,thresholds=[0.6, 0.7, 0.7],
                                     keep_all=True,min_face_size=min_face_size,
@@ -66,6 +67,7 @@ class GalleryCreator:
         self.arc.read_gallery_from_pkl(gallery_path=GALLERY_PKL_PATH_MIN_FACE_MARGIN, gpid_path=GPIDS_PKL_PATH_MIN_FACE_MARGIN)
 
         self.pose_estimator = PoseEstimator(pose_config=POSE_CONFIG, pose_checkpoint=POSE_CHECKPOINT, device=device) # TODO hard code configs here
+        self.global_i = 0
 
 
     def add_video_to_gallery(self, video_path:str, face_clf, skip_every=500):
@@ -75,7 +77,6 @@ class GalleryCreator:
                      device='cuda:0')
         self.global_video_counter += 1
         vid_name = video_path.split('/')[-1][9:-4]
-        global_i = 0
         for image_index, img in tqdm.tqdm(enumerate(imgs), total=len(imgs)):
             if image_index % skip_every != 0:
                 continue
@@ -117,11 +118,11 @@ class GalleryCreator:
                     for i , (crop_im, label, confidence) in enumerate(zip(crop_cands, labels, confidences)):
                         if confidence > 0.98:
                             # print(label, confidence)
-                            crop_name = f'{label:04d}_c{self.global_video_counter}_f{global_i:07d}.jpg'
+                            crop_name = f'{label:04d}_c{self.global_video_counter}_f{self.global_i:07d}.jpg'
                             # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
                             dir_path = self.gallery_path
                             os.makedirs(dir_path, exist_ok=True)
-                            global_i += 1
+                            self.global_i += 1
                             mmcv.imwrite(np.array(crop_im), os.path.join(dir_path, crop_name))
 
             elif face_clf == ARC_FACE:
@@ -134,11 +135,11 @@ class GalleryCreator:
                         # silly threshold
                         print(cur_score[label])
                         if cur_score[label] >= 0.25:
-                            crop_name = f'{label:04d}_c{self.global_video_counter}_f{global_i:07d}.jpg'
+                            crop_name = f'{label:04d}_c{self.global_video_counter}_f{self.global_i:07d}.jpg'
                             # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
                             dir_path = self.gallery_path
                             os.makedirs(dir_path, exist_ok=True)
-                            global_i += 1
+                            self.global_i += 1
                             mmcv.imwrite(np.array(crop_im), os.path.join(dir_path, crop_name))
 
     # Too lazy to refactor the code for several methods
@@ -152,26 +153,9 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
 
 if __name__ == '__main__':
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le_19.pkl",'rb'))
-    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part2_all/",
+    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part2_all/", cam_id="1",
                         label_encoder=le, device='cuda:0', create_in_fastreid_format=True)
-    gc.global_video_counter += 1
     vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_2/"
-
-
-    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808120339.avi", skip_every=50)
-    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808073000.avi", skip_every=50)
-    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808082440.avi", skip_every=50)
-    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/8.8.21_cam1/videos/IPCamera_20210808092457.avi", skip_every=50)
-    #
-    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730101432.avi", skip_every=50)
-    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730111802.avi", skip_every=50)
-    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730072959.avi", skip_every=50)
-    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/30.7.21_cam1/videos/IPCamera_20210730085653.avi", skip_every=50)
-
-    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/IPCamera_20210804112702.avi", skip_every=1)
-    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/IPCamera_20210804151703.avi", skip_every=1)
-    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/IPCamera_20210804103053.avi", skip_every=1)
-    # gc.add_video_to_gallery_using_FaceNet("/mnt/raid1/home/bar_cohen/Data-Shoham/4.8.21_cam1/videos/IPCamera_20210804072959.avi", skip_every=1)
     vids = [os.path.join(vid_path, vid) for vid in os.listdir(vid_path)]
     # vids = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part3/part3_s22000_e22501.mp4"]
     for vid in vids:
@@ -180,5 +164,4 @@ if __name__ == '__main__':
         # gc = GalleryCreator(
         #     gallery_path=f"/mnt/raid1/home/bar_cohen/42street/part1_galleries/{vid_name[5:]}/",
         #     label_encoder=le, device='cuda:0', create_in_fastreid_format=True)
-        gc.global_video_counter += 1
         gc.add_video_to_gallery(vid,face_clf=ARC_FACE, skip_every=1)
