@@ -97,13 +97,12 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
 
         while True:
             try:
-                # user_input = input(f"{APPROVE_TRACK} to approve,"
-                #                    f"{SPLIT_TRACK} to split, "
-                #                    f"{DISCARD} to discard,"
-                #                    f"{VAGUE} to mark vague,"
-                #                    f"{RELABEL} for relabel,"
-                #                    f"{SKIP_TRACK} to skip review")
-                user_input = SPLIT_TRACK
+                user_input = input(f"{APPROVE_TRACK} to approve,"
+                                   f"{SPLIT_TRACK} to split, "
+                                   f"{DISCARD} to discard,"
+                                   f"{VAGUE} to mark vague,"
+                                   f"{RELABEL} for relabel,"
+                                   f"{SKIP_TRACK} to skip review")
                 if user_input == APPROVE_TRACK:
                     print('The following actions were taken : ')
                     print(actions_taken)
@@ -175,7 +174,7 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
         print(f'cur track {i+1}/{len(track_ids)}')
         track_query = get_entries(filters=(Crop.vid_name == vid_name,
                                            Crop.track_id == track_id,
-                                           # Crop.reviewed_one == False,
+                                           Crop.reviewed_one == False,
                                            ),
                                   order=Crop.crop_id,
                                   session=session)
@@ -217,5 +216,5 @@ def rewrite_face_tagging(correct_face_img_path:str):
     print('done!')
 
 if __name__ == '__main__':
-    tag_and_create_vid(vid_name='part2_s35500_e36001')
+    tag_and_create_vid(vid_name='part1_s9500_e10001')
     # rewrite_face_tagging("/mnt/raid1/home/bar_cohen/FaceData/reviewed_one_images/")
