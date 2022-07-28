@@ -65,7 +65,6 @@ class GalleryCreator:
         # self.arc.read_gallery_from_scratch()
         # self.arc.save_gallery_to_pkl(GALLERY_PKL_PATH_MIN_FACE_MARGIN, GPIDS_PKL_PATH_MIN_FACE_MARGIN)
         self.arc.read_gallery_from_pkl(gallery_path=GALLERY_PKL_PATH_MIN_FACE_MARGIN, gpid_path=GPIDS_PKL_PATH_MIN_FACE_MARGIN)
-
         self.pose_estimator = PoseEstimator(pose_config=POSE_CONFIG, pose_checkpoint=POSE_CHECKPOINT, device=device) # TODO hard code configs here
         self.global_i = 0
 
@@ -75,7 +74,6 @@ class GalleryCreator:
         high_tresh_face_detector = FaceDetector(faces_data_path=None, thresholds=[0.8, 0.8, 0.8],
                      keep_all=True, min_face_size=30,
                      device='cuda:0')
-        self.global_video_counter += 1
         vid_name = video_path.split('/')[-1][9:-4]
         for image_index, img in tqdm.tqdm(enumerate(imgs), total=len(imgs)):
             if image_index % skip_every != 0:
@@ -118,7 +116,7 @@ class GalleryCreator:
                     for i , (crop_im, label, confidence) in enumerate(zip(crop_cands, labels, confidences)):
                         if confidence > 0.98:
                             # print(label, confidence)
-                            crop_name = f'{label:04d}_c{self.global_video_counter}_f{self.global_i:07d}.jpg'
+                            crop_name = f'{label:04d}_c{self.cam_id}_f{self.global_i:07d}.jpg'
                             # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
                             dir_path = self.gallery_path
                             os.makedirs(dir_path, exist_ok=True)
@@ -135,7 +133,7 @@ class GalleryCreator:
                         # silly threshold
                         print(cur_score[label])
                         if cur_score[label] >= 0.25:
-                            crop_name = f'{label:04d}_c{self.global_video_counter}_f{self.global_i:07d}.jpg'
+                            crop_name = f'{label:04d}_c{self.cam_id}_f{self.global_i:07d}.jpg'
                             # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
                             dir_path = self.gallery_path
                             os.makedirs(dir_path, exist_ok=True)
