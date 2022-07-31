@@ -43,19 +43,19 @@ from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import NAME_TO_ID
 import shutil
 
-DATASET_PATH = '/home/bar_cohen/raid/42street/CCVID-Datasets/our-data-PRCC-format'
+DATASET_PATH = '/home/bar_cohen/raid/42street/CCVID-Datasets/'
 DUKE_DATASET_PATH = '/home/bar_cohen/raid/42street/fast_reid_tests/query_part1_s9500_e10001'
-
+STREET_CROPS_PATH = '/home/bar_cohen/raid/42street/42StreetCrops'
 
 def create_dataset_dir_tree(dataset_path):
     """
     Create all empty directories under the dataset_path according to the structure of the PRCC dataset.
     """
-    os.makedirs(os.path.join(dataset_path, 'prcc/rgb/test/A'))
-    os.makedirs(os.path.join(dataset_path, 'prcc/rgb/test/B'))
-    os.makedirs(os.path.join(dataset_path, 'prcc/rgb/test/C'))
-    os.makedirs(os.path.join(dataset_path, 'prcc/rgb/train'))
-    os.makedirs(os.path.join(dataset_path, 'prcc/rgb/val'))
+    os.makedirs(os.path.join(dataset_path, 'prcc/rgb/test/A'), exist_ok=True)
+    os.makedirs(os.path.join(dataset_path, 'prcc/rgb/test/B'), exist_ok=True)
+    os.makedirs(os.path.join(dataset_path, 'prcc/rgb/test/C'), exist_ok=True)
+    os.makedirs(os.path.join(dataset_path, 'prcc/rgb/train'), exist_ok=True)
+    os.makedirs(os.path.join(dataset_path, 'prcc/rgb/val'), exist_ok=True)
 
 
 def copy_images(origin_images, dest, crops_location):
@@ -168,7 +168,73 @@ def create_duke_dataset(gallery_part: list, query_part: list, crops_location: st
                   f'{video}')
 
 
-os.makedirs(DUKE_DATASET_PATH, exist_ok=True)
+def get_images_from_DB(video_name: str, db_location: str = DB_LOCATION):
+    """ Given a video that was reviewed and exists in the DB, retrieve all images from this video that are not invalid"""
+    reviewed_videos = [vid.vid_name for vid in get_entries(filters=({Crop.reviewed_one == True}), group=Crop.vid_name).all()]
+    assert video_name in reviewed_videos, f'Video {video_name} was not reviewed yet, labels might be wrong. Double check if this is intended.'
+    vid_images = [(image.im_name, image.label) for image in get_entries(filters=(Crop.vid_name == video_name, Crop.invalid == False), db_path=db_location).all()]
+    return vid_images
+
+
+def add_gallery_images(gallery_paths, output_path):
+    """
+    Copy all images from every gallery in the gallery_paths list to the output_path.
+    Assumes each gallery under `gallery_paths` has a bounding_box_test folder with all images and there labels in the XXXX_cY_fZZZZZZZ.jpg format.
+    Copies all images to the output path under folders for each id to match the PRCC format.
+    """
+    for gallery in gallery_paths:
+        gallery_path = os.path.join(gallery, 'bounding_box_test')
+        for im_name in os.listdir(gallery_path):
+            im_id = int(im_name.split('_')[0])
+            im_dir = os.path.join(output_path, f'{im_id:03d}')
+            os.makedirs(im_dir, exist_ok=True)
+            shutil.copyfile(src=os.path.join(gallery_path, im_name), dst=os.path.join(im_dir, im_name))
+
+
+def create_readme_file(query_videos, gallery_paths, new_dataset_path, query_videos_C):
+    """
+    Creates a README file in the dataset folder which explains the configurations of this dataset
+    """
+    readme = open(os.path.join(new_dataset_path, "README.md"), "w+")
+    readme.write(f'The dataset contains the following images: \n'
+                 f'- **A (gallery) **: {gallery_paths}\n'
+                 f'- **B (query) **: {query_videos}\n')
+    if query_videos_C:
+        readme.write(f'- **C (additional query) **: {query_videos_C}\n')
+    readme.close()
+
+
+def create_PRCC_dataset(query_videos: list, gallery_paths: list, dataset_name: str, query_videos_C: list = None):
+    """
+    This function assumes the query videos should be taken from the DB and the gallery is a gallery created by our
+    unsupervised flow. The gallery should hold all images under gallery_path/bounding_box_test
+    """
+    # Create all directories for the dataset:
+    new_dataset_path = os.path.join(DATASET_PATH, dataset_name)
+    create_dataset_dir_tree(new_dataset_path)
+
+    # Add all query images to the B folder in the dataset
+    for video in query_videos:
+        vid_images = get_images_from_DB(video)
+        copy_images(origin_images=vid_images, dest=os.path.join(new_dataset_path, 'prcc/rgb/test/B'),
+                    crops_location=os.path.join(STREET_CROPS_PATH, video))
+
+    # If given query videos for C folder, add them to the C folder
+    if query_videos_C:
+        for video in query_videos_C:
+            vid_images = get_images_from_DB(video)
+            copy_images(origin_images=vid_images, dest=os.path.join(new_dataset_path, 'prcc/rgb/test/C'),
+                        crops_location=os.path.join(STREET_CROPS_PATH, video))
+
+    add_gallery_images(gallery_paths, os.path.join(new_dataset_path, 'prcc/rgb/test/A'))
+
+    create_readme_file(query_videos, gallery_paths, new_dataset_path, query_videos_C)
+
+
+create_PRCC_dataset(query_videos=['part3_s22000_e22501'], gallery_paths=['/home/bar_cohen/raid/42street/part3_all'],
+                    dataset_name="query_part3_gallery_part3", query_videos_C=['part3_s28500_e29001'])
+
+# os.makedirs(DUKE_DATASET_PATH, exist_ok=True)
 # create_dataset(['part1'], ['part2'], '/home/bar_cohen/raid/42street/42StreetCrops')
-create_duke_dataset(['part2'], ['part1'], '/home/bar_cohen/raid/42street/42StreetCrops')
+# create_duke_dataset(['part2'], ['part1'], '/home/bar_cohen/raid/42street/42StreetCrops')
 
