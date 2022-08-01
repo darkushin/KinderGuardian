@@ -10,8 +10,10 @@ from DataProcessing.dataProcessingConstants import ID_TO_NAME
 import tqdm
 GALLERY_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gallery.pkl"
 GPIDS_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids.pkl"
-GALLERY_PKL_PATH_MIN_FACE_MARGIN = "/mnt/raid1/home/bar_cohen/42street/pkls/gallery_mmargin.pkl"
-GPIDS_PKL_PATH_MIN_FACE_MARGIN = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_mmargin.pkl"
+# GALLERY_PKL_PATH_MIN_FACE_MARGIN = "/mnt/raid1/home/bar_cohen/42street/pkls/gallery_mmargin.pkl"
+# GPIDS_PKL_PATH_MIN_FACE_MARGIN = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_mmargin.pkl"
+GPIDS_NO_UNKNOWNS = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_no_unknowns.pkl"
+GALLERY_NO_UNKNOWNS = "/mnt/raid1/home/bar_cohen/42street/pkls/gallery_no_unknowns.pkl"
 
 model_path = '/home/bar_cohen/D-KinderGuardian/insightface_test/checkpoints/w600k_r50.onnx'
 IMG_SIZE = ((112,112))
@@ -104,7 +106,9 @@ class ArcFace():
                 # print(ID_TO_NAME[i], "mean score:", mean_scores, "max score", max_scores)
                 # scores[i] = mean_scores if mean_scores > self.score_threshold else 0
                 # scores[i] = top_5_mean_score
-                scores[i] = mean_scores
+                scores[i] = mean_scores if mean_scores > 0.25 else 0
+                # if scores[i] > 0:
+                    # print(f"Gotcha, {i}")
         return scores
 
     def predict_track(self, imgs:np.array):
@@ -113,27 +117,38 @@ class ArcFace():
             cur_img_scores = self.predict_img(img)
             for k in scores.keys():
                 # taking the max score across the track
-                scores[k] += cur_img_scores[k] / len(imgs)
+                scores[k] += cur_img_scores[k] / len(imgs) #TODO this was with a single image diviastion OMG
                 # if cur_img_scores[k] > scores[k]:
                 #     scores[k] = cur_img_scores[k]
+
+        # normalize scores
+        # np_ids_score = np.array(list(scores.values()))
+        # mean_score = np.mean(np_ids_score)
+        # std_score = np.std(np_ids_score)
+        #
+        # # max_score = max(scores.values())
+        # # if max_score > 0:
+        # for k, v in scores.items():
+        #     scores[k] = (v - mean_score) / (std_score + 0.000001)
+
         return scores
 
 if __name__ == '__main__':
     gpath = "/mnt/raid1/home/bar_cohen/42street/corrected_face_clusters/"
 
-    arc = ArcFace(gpath)
-    img1_filepath = "/mnt/raid1/home/bar_cohen/42street/clusters/mustache/_s31000_e31501.mp4_75.png"
-    img2_filepath = "/mnt/raid1/home/bar_cohen/42street/_s11000_e11501.mp4_200.png"
-
-    img1 = cv2.imread(img1_filepath)
-    img2 = cv2.imread(img2_filepath)
-    both = np.array([img1,img2])
-    # arc.read_gallery_from_pkl(gallery_path=GALLERY_PKL_PATH_MIN_FACE_MARGIN, gpid_path=GPIDS_PKL_PATH_MIN_FACE_MARGIN)
-    # arc.model.forward(both)
-    # arc.predict(both)
-
-    arc.read_gallery_from_scratch()
-    arc.save_gallery_to_pkl(GALLERY_PKL_PATH_MIN_FACE_MARGIN, GPIDS_PKL_PATH_MIN_FACE_MARGIN)
+    # arc = ArcFace(gpath)
+    # img1_filepath = "/mnt/raid1/home/bar_cohen/42street/clusters/mustache/_s31000_e31501.mp4_75.png"
+    # img2_filepath = "/mnt/raid1/home/bar_cohen/42street/_s11000_e11501.mp4_200.png"
+    #
+    # img1 = cv2.imread(img1_filepath)
+    # img2 = cv2.imread(img2_filepath)
+    # both = np.array([img1,img2])
+    # # arc.read_gallery_from_pkl(gallery_path=GALLERY_PKL_PATH_MIN_FACE_MARGIN, gpid_path=GPIDS_PKL_PATH_MIN_FACE_MARGIN)
+    # # arc.model.forward(both)
+    # # arc.predict(both)
+    #
+    # arc.read_gallery_from_scratch()
+    # arc.save_gallery_to_pkl(GALLERY_PKL_PATH_MIN_FACE_MARGIN, GPIDS_PKL_PATH_MIN_FACE_MARGIN)
     # print(arc.gallery)
     # arc.read_gallery_from_pkl(gallery_path=GALLERY_PKL_PATH, gpid_path=GPIDS_PKL_PATH)
 

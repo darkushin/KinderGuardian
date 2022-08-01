@@ -18,8 +18,7 @@ import mmcv
 import torch.nn.functional as F
 from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
-from FaceDetection.arcface import ArcFace, GALLERY_PKL_PATH, GPIDS_PKL_PATH, GALLERY_PKL_PATH_MIN_FACE_MARGIN, \
-    GPIDS_PKL_PATH_MIN_FACE_MARGIN
+from FaceDetection.arcface import ArcFace, GALLERY_NO_UNKNOWNS, GPIDS_NO_UNKNOWNS
 from FaceDetection.augmentions import normalize_image
 # from FaceDetection.faceClassifer import FaceClassifer # uncomment to use FaceNet classifier
 from FaceDetection.faceDetector import FaceDetector, is_img
@@ -124,10 +123,18 @@ def get_reid_score_all_ids_full_gallery(track_im_conf, simmat, g_pids):
         # maybe take the top-K?
         ids_score[pid] +=  aligned_simmat[:,np.where(g_pids==pid)].max(axis=1).mean()
         # np.argpartition(aligned_simmat[:,np.where(g_pids==pid)], 5)[-5:].mean()
+
+
+    # normalize scores
+    # np_ids_score = np.array(list(ids_score.values()))
+    # mean_score = np.mean(np_ids_score)
+    # std_score = np.std(np_ids_score)
+    # for k, v in ids_score.items():
+    #     ids_score[k] = (ids_score[k] - mean_score) / (std_score + 0.000001)
+
     return ids_score
 
 def get_reid_score_mult_ids(track_im_conf, simmat, g_pids):
-    print(simmat.shape)
     ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
     aligned_simmat = (track_im_conf[:, np.newaxis] * simmat) ** P_POWER
     scores = aligned_simmat.sum(axis=0) / len(track_im_conf)
@@ -248,7 +255,7 @@ def create_tracklets_from_db(vid_name, args):
     that every dictionary contains the 'crop_img', 'face_img', 'Crop' and 'face_img_conf' of a single crop in the track.
     """
     tracklets = defaultdict(list)
-    face_detector = FaceDetector(keep_all=True, device=args.device, thresholds=[0.67,0.67,0.7], min_face_size=20)
+    face_detector = FaceDetector(thresholds=[0.8, 0.8, 0.8], keep_all=True, min_face_size=30, device=args.device)
     if args.pose_config:  # todo: after using this by default remove this if and the warning
         pose_estimator = PoseEstimator(args.pose_config, args.pose_checkpoint, args.device)
     else:
@@ -310,7 +317,7 @@ def get_vid_name(args):
 def create_tracklets_using_tracking(args):
     # initialize tracking model:
     tracking_model = init_model(args.track_config, args.track_checkpoint, device=args.device)
-    face_detector = FaceDetector(keep_all=True, device=args.device, thresholds=[0.67,0.67,0.7], min_face_size=20) # same configs as gallery creation
+    face_detector = FaceDetector(thresholds=[0.8, 0.8, 0.8], keep_all=True, min_face_size=30, device=args.device) # same configs as gallery creation
     if args.pose_config:  # todo: after using this by default remove this if and the warning
         pose_estimator = PoseEstimator(args.pose_config, args.pose_checkpoint, args.device)
     else:
@@ -358,8 +365,8 @@ def create_tracklets_using_tracking(args):
                         invalid=False,
                         is_vague=False)
             crop.set_im_name()
-            mmcv.imwrite(crop_im, '/mnt/raid1/home/bar_cohen/CTL_Reid/t10.jpg')
-            ctl_img = Image.open('/mnt/raid1/home/bar_cohen/CTL_Reid/t10.jpg').convert("RGB")
+            mmcv.imwrite(crop_im, f'/mnt/raid1/home/bar_cohen/CTL_Reid/{get_vid_name(args)}.jpg')
+            ctl_img = Image.open(f'/mnt/raid1/home/bar_cohen/CTL_Reid/{get_vid_name(args)}.jpg').convert("RGB")
             tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
                                   'ctl_img': ctl_img})
     del face_detector
@@ -386,6 +393,13 @@ def create_or_load_tracklets(args, create_tracklets:bool):
             tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl', 'rb'))
     return tracklets
 
+
+def is_unknown_id(final_scores:dict, threshold:float=0.5):
+    known_id = True
+    max_score = max(final_scores.values())
+    if max_score <= threshold:
+        known_id = False
+    return known_id
 
 def create_data_by_re_id_and_track():
     """
@@ -450,7 +464,7 @@ def create_data_by_re_id_and_track():
         g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
 
         # OR load gallery feature:
-        # g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
+        g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
         g_pids = g_paths.astype(int)
         g_feats = torch.from_numpy(g_feats)
 
@@ -485,7 +499,7 @@ def create_data_by_re_id_and_track():
 
     arc_device = 1 if args.device == 'cuda:0' else 0
     arc = ArcFace(gallery_path=None, device=arc_device)
-    arc.read_gallery_from_pkl(gallery_path=GALLERY_PKL_PATH_MIN_FACE_MARGIN, gpid_path=GPIDS_PKL_PATH_MIN_FACE_MARGIN)
+    arc.read_gallery_from_pkl(gallery_path=GALLERY_NO_UNKNOWNS, gpid_path=GPIDS_NO_UNKNOWNS)
 
 
 
@@ -522,6 +536,8 @@ def create_data_by_re_id_and_track():
         assert len(face_imgs) == len(face_imgs_conf)
         is_face_in_track = False
         face_label = 'None'
+        face_scores = {pid: 0 for pid in ID_TO_NAME.keys()}
+
         if len(face_imgs) > 0:  # at least 1 face was detected
             is_face_in_track = True
             if args.inference_only:
@@ -537,21 +553,28 @@ def create_data_by_re_id_and_track():
             face_scores = arc.predict_track(face_imgs)
             face_label = ID_TO_NAME[max(face_scores, key=face_scores.get)]
 
-            # print(face_scores)
-            alpha = 0.5 # TODO enter as an arg
-            final_scores = {pid: 0 for pid in ID_TO_NAME.keys()}
-            for key in final_scores.keys():
-                final_scores[key] = reid_scores[key] * alpha + (1-alpha) * face_scores[key]
 
-            # final_scores = {pid : alpha*reid_score + (1-alpha) * face_score for pid, reid_score, face_score in zip(reid_scores.keys() , reid_scores.values(), face_scores.values())}
-            print(face_scores)
-            print(reid_scores)
-            print(final_scores)
-            all_tracks_final_scores[track_id] = final_scores
-            final_label = ID_TO_NAME[max(final_scores, key=final_scores.get)]
-            print(final_label)
         else:
             print(f"No face found, using Reid as Final Label: {final_label}")
+            print(f"Reid scores: {reid_scores}")
+
+        alpha = 0.5  # TODO enter as an arg
+        final_scores = {pid: 0 for pid in ID_TO_NAME.keys()}
+        for key in final_scores.keys():
+            final_scores[key] = reid_scores[key] * alpha + (1 - alpha) * face_scores[key]
+
+        # final_scores = {pid : alpha*reid_score + (1-alpha) * face_score for pid, reid_score, face_score in zip(reid_scores.keys() , reid_scores.values(), face_scores.values())}
+        print(f"Face Scores :{face_scores} \n")
+        print(f"Reid Scores: {reid_scores} \n")
+        print(f"Final combo scores: {final_scores} \n")
+        all_tracks_final_scores[track_id] = final_scores
+        final_label = ID_TO_NAME[max(final_scores, key=final_scores.get)]
+        print(final_label)
+
+        if is_unknown_id(final_scores, threshold=0.40):
+            print('Unknown Set')
+            final_label = 'Unknown'
+
         # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
 
         for crop_id, crop_dict in enumerate(crop_dicts):
@@ -576,21 +599,21 @@ def create_data_by_re_id_and_track():
 
     # handle double-id and update it in the DB
     # Remove double ids according to different heuristics and record it in the ablation study results
-    # for nodes_order in NODES_ORDER:  # NOTE: the last order in this list will be used for the visualization
-    #     new_id_dict = remove_double_ids(vid_name=get_vid_name(args), tracks_scores=all_tracks_final_scores,
-    #                                     db_location=db_location, nodes_order=nodes_order)
-    #     session = create_session(db_location)
-    #     if args.inference_only:
-    #         assert db_location != DB_LOCATION, 'You fool!'
-    #     tracks = [track.track_id for track in get_entries(filters=(), group=Crop.track_id, db_path=db_location, session=session)]
-    #     for track in tracks:
-    #         crops = get_entries(filters=({Crop.track_id==track}), db_path=db_location, session=session).all()
-    #         for crop in crops:
-    #             crop.label = ID_TO_NAME[new_id_dict[track]]
-    #             if args.inference_only:
-    #                 tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
-    #                 if tagged_label_crop and tagged_label_crop[0].label == ID_TO_NAME[new_id_dict[track]]:
-    #                     columns_dict[nodes_order] += 1
+    for nodes_order in NODES_ORDER:  # NOTE: the last order in this list will be used for the visualization
+        new_id_dict = remove_double_ids(vid_name=get_vid_name(args), tracks_scores=all_tracks_final_scores,
+                                        db_location=db_location, nodes_order=nodes_order)
+        session = create_session(db_location)
+        if args.inference_only:
+            assert db_location != DB_LOCATION, 'You fool!'
+        tracks = [track.track_id for track in get_entries(filters=(), group=Crop.track_id, db_path=db_location, session=session)]
+        for track in tracks:
+            crops = get_entries(filters=({Crop.track_id==track}), db_path=db_location, session=session).all()
+            for crop in crops:
+                crop.label = ID_TO_NAME[new_id_dict[track]]
+                if args.inference_only:
+                    tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
+                    if tagged_label_crop and tagged_label_crop[0].label == ID_TO_NAME[new_id_dict[track]]:
+                        columns_dict[nodes_order] += 1
 
     # calculate new precision after IDs update and add to ablation study
     # viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
@@ -607,7 +630,8 @@ def update_ablation_results(columns_dict, crop, crop_label, face_label, final_la
                             maj_vote_label, total_crops, total_crops_of_tracks_with_face):
     tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
     # print(f'DB label is: {tagged_label}, Inference label is: {reid_ids[crop_id]}')
-    if tagged_label_crop and tagged_label_crop != "Unknown":  # there is a tagging for this crop which is not invalid, count it
+    # if tagged_label_crop and tagged_label_crop != "Unknown":  # there is a tagging for this crop which is not invalid, count it
+    if tagged_label_crop:  # there is a tagging for this crop which is not invalid, count it
         total_crops += 1
         if is_face_in_track:
             total_crops_of_tracks_with_face += 1

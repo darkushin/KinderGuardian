@@ -5,8 +5,10 @@ import mmcv
 
 import os
 
+sys.path.append('FaceDetection')
+
 from FaceDetection.arcface import ArcFace, GALLERY_PKL_PATH, GPIDS_PKL_PATH, GALLERY_PKL_PATH_MIN_FACE_MARGIN, \
-    GPIDS_PKL_PATH_MIN_FACE_MARGIN
+    GPIDS_PKL_PATH_MIN_FACE_MARGIN, GALLERY_NO_UNKNOWNS, GPIDS_NO_UNKNOWNS
 
 sys.path.append('mmpose')
 
@@ -28,7 +30,7 @@ POSE_CONFIG = "/home/bar_cohen/D-KinderGuardian/mmpose/configs/body/2d_kpt_sview
 POSE_CHECKPOINT =  "/home/bar_cohen/D-KinderGuardian/checkpoints/mmpose-hrnet_w48_coco_256x192-b9e0b3ab_20200708.pth"
 FACE_NET = 'FaceNet'
 ARC_FACE = 'ArcFace'
-GPATH = "/mnt/raid1/home/bar_cohen/42street/clusters/"
+GPATH = "/mnt/raid1/home/bar_cohen/42street/corrected_face_clusters/"
 
 
 class GalleryCreator:
@@ -62,9 +64,9 @@ class GalleryCreator:
         # self.faceClassifer.model_ft.eval()
 
         self.arc = ArcFace(gallery_path=GPATH)
-        # self.arc.read_gallery_from_scratch()
-        # self.arc.save_gallery_to_pkl(GALLERY_PKL_PATH_MIN_FACE_MARGIN, GPIDS_PKL_PATH_MIN_FACE_MARGIN)
-        self.arc.read_gallery_from_pkl(gallery_path=GALLERY_PKL_PATH_MIN_FACE_MARGIN, gpid_path=GPIDS_PKL_PATH_MIN_FACE_MARGIN)
+        self.arc.read_gallery_from_scratch()
+        self.arc.save_gallery_to_pkl(GALLERY_NO_UNKNOWNS, GPIDS_NO_UNKNOWNS)
+        self.arc.read_gallery_from_pkl(gallery_path=GALLERY_NO_UNKNOWNS, gpid_path=GPIDS_NO_UNKNOWNS)
         self.pose_estimator = PoseEstimator(pose_config=POSE_CONFIG, pose_checkpoint=POSE_CHECKPOINT, device=device) # TODO hard code configs here
         self.global_i = 0
 
@@ -150,10 +152,11 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
 
 
 if __name__ == '__main__':
+    print("Thats right yall")
     le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le_19.pkl",'rb'))
-    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part2_all/", cam_id="1",
-                        label_encoder=le, device='cuda:0', create_in_fastreid_format=True)
-    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_2/"
+    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part3_all_no_unknowns/", cam_id="3",
+                        label_encoder=le, device='cuda:1', create_in_fastreid_format=True)
+    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_3/"
     vids = [os.path.join(vid_path, vid) for vid in os.listdir(vid_path)]
     # vids = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part3/part3_s22000_e22501.mp4"]
     for vid in vids:
