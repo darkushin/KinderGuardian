@@ -30,6 +30,7 @@ import warnings
 warnings.filterwarnings('ignore')
 sys.path.append('fast-reid')
 sys.path.append('centroids_reid')
+from scenedetect import detect, ContentDetector
 
 from fastreid.config import get_cfg
 from fastreid.data import build_reid_test_loader
@@ -158,6 +159,15 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
     result['track_results'] = result['track_bboxes']
     result['bbox_results'] = result['det_bboxes']
     return result
+
+
+def find_scene_cuts(vid_name):
+    """
+    Find all the scene cuts in the given video and return a list with the frame numbers of the first frame in every new scene.
+    """
+    scene_list = detect(vid_name, ContentDetector(threshold=24.0))
+    frame_nums = [scene[1].get_frames() for scene in scene_list]
+    return frame_nums
 
 
 def reid_track_inference(reid_model, track_imgs: list):
@@ -321,11 +331,20 @@ def create_tracklets_using_tracking(args):
     imgs = mmcv.VideoReader(args.input)
 
     tracklets = defaultdict(list)
+    cur_scene_max = 0
+    total_scene_max = 0
+    scene_cuts = find_scene_cuts(args.input)
     for image_index, img in tqdm.tqdm(enumerate(imgs), total=len(imgs)):
+        if image_index in scene_cuts:
+            tracking_model.tracker.reset()
+            total_scene_max += cur_scene_max + 1
+            cur_scene_max = 0
         if isinstance(img, str):
             img = os.path.join(args.input, img)
         result = tracking_inference(tracking_model, img, image_index, acc_threshold=float(args.acc_th))
         ids = list(map(int, result['track_results'][0][:, 0]))
+        cur_scene_max = max(cur_scene_max, max(ids))
+        ids = [ids[i]+total_scene_max for i in range(len(ids))]
         confs = result['track_results'][0][:, -1]
         crops_bboxes = result['track_results'][0][:, 1:-1]
         crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
