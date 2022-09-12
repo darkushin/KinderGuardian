@@ -117,7 +117,7 @@ class ArcFace():
             cur_img_scores = self.predict_img(img)
             for k in scores.keys():
                 # taking the max score across the track
-                scores[k] += cur_img_scores[k] / len(imgs) #TODO this was with a single image diviastion OMG
+                scores[k] += cur_img_scores[k]  #These are unbalanced scores
                 # if cur_img_scores[k] > scores[k]:
                 #     scores[k] = cur_img_scores[k]
 
