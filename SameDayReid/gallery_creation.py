@@ -7,7 +7,8 @@ import os
 
 sys.path.append('FaceDetection')
 
-from FaceDetection.arcface import ArcFace, GALLERY_PKL_PATH, GPIDS_PKL_PATH, GALLERY_NO_UNKNOWNS, GPIDS_NO_UNKNOWNS
+from FaceDetection.arcface import ArcFace, GALLERY_PKL_PATH, GPIDS_PKL_PATH, GALLERY_NO_UNKNOWNS, GPIDS_NO_UNKNOWNS, \
+    is_img
 
 sys.path.append('mmpose')
 
@@ -20,7 +21,7 @@ from mmtracking.mmtrack.apis import init_model, inference_mot
 from mmtrack.apis import inference_mot, init_model
 from FaceDetection.augmentions import normalize_image
 from FaceDetection.faceClassifer import FaceClassifer
-from FaceDetection.faceDetector import FaceDetector, is_img
+# from FaceDetection.faceDetector import FaceDetector, is_img
 
 TRACKING_CONFIG_PATH = "/home/bar_cohen/KinderGuardian/mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py"
 TRACKING_CHECKPOINT = "/home/bar_cohen/KinderGuardian/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth"
@@ -55,10 +56,6 @@ class GalleryCreator:
             os.makedirs(gallery_path, exist_ok=True)
             self.gallery_path = gallery_path
 
-        self.faceDetector = FaceDetector(faces_data_path=None,thresholds=[0.6, 0.7, 0.7],
-                                    keep_all=True,min_face_size=min_face_size,
-                                    device=device)
-
         self.arc = ArcFace(gallery_path=GPATH)
         self.arc.read_gallery_from_scratch()
         self.arc.save_gallery_to_pkl(GALLERY_PKL_PATH, GPIDS_PKL_PATH)
@@ -69,9 +66,6 @@ class GalleryCreator:
 
     def add_video_to_gallery(self, video_path:str, face_clf, skip_every=500):
         imgs = mmcv.VideoReader(video_path)
-        high_tresh_face_detector = FaceDetector(faces_data_path=None, thresholds=[0.67, 0.67, 0.7],
-                     keep_all=True, min_face_size=20,
-                     device='cuda:0')
         vid_name = video_path.split('/')[-1][9:-4]
         for image_index, img in tqdm.tqdm(enumerate(imgs), total=len(imgs)):
             if image_index % skip_every != 0:
@@ -87,18 +81,12 @@ class GalleryCreator:
             for i, (id, conf, crop_im) in enumerate(zip(ids, confs, crops_imgs)):
                 try:
                     ## first detection run --- detect all faces in image
-                    face_bboxes, face_probs = self.faceDetector.facenet_detecor.detect(img=crop_im)
-                    face_imgs = self.faceDetector.facenet_detecor.extract(crop_im, face_bboxes, save_path=None)
-
+                    face_imgs, face_bboxes, face_probs = self.arc.detect_face_from_img(crop_img=crop_im)
                     # if only a single face exists, apply a high threshold to get a high resolution face image and body
-                    if face_imgs is not None and len(face_imgs)  == 1:
-                        face_bboxes, face_probs = high_tresh_face_detector.facenet_detecor.detect(img=crop_im)
-                        face_imgs = high_tresh_face_detector.facenet_detecor.extract(crop_im, face_bboxes, save_path=None)
+                    if face_imgs is not None and len(face_imgs) == 1:
                         face_img, face_prob = self.pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs,
                                                                                     face_imgs)
                         if is_img(face_img):
-                            if face_clf == FACE_NET:
-                                face_img = normalize_image(face_img)
                             crop_candidates_faces.append(face_img)
                             crop_candidates_inds.append(i)
                         # else: TODO write when pose estimation discards image

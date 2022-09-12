@@ -6,6 +6,8 @@ import cv2
 import os
 
 import torch
+from insightface.app import FaceAnalysis
+
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 import tqdm
 GALLERY_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gallery.pkl"
@@ -24,17 +26,17 @@ IMG_SIZE = ((112,112))
 class ArcFace():
 
     def __init__(self,gallery_path=None, device=1):
-        self.model = insightface.model_zoo.get_model(model_path, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
+        self.model = FaceAnalysis(providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
         self.model.prepare(ctx_id=device)  # given gpu id, if negative, then use cpu
+        self.face_recognition = self.model.models['recognition']
         self.gallery_path = gallery_path
         self.gallery = None # call read_gallery to set
         self.gpids = None
-        self.score_threshold = 0.3
 
     def get_img_embedding_from_file(self,file):
         img = cv2.imread(file)
         img = cv2.resize(img, IMG_SIZE)
-        embedding = self.model.get_feat(img)
+        embedding = self.face_recognition.get_feat(img)
         return embedding
 
     def read_gallery_from_pkl(self, gallery_path:str, gpid_path:str):
@@ -94,12 +96,12 @@ class ArcFace():
             img = self.img_tensor_to_cv2(img)
         if img.shape != IMG_SIZE:
             img = cv2.resize(img, IMG_SIZE)
-        input_feat = self.model.get_feat(img)
+        input_feat = self.face_recognition.get_feat(img)
         scores = {i:0 for i in ID_TO_NAME.keys()}
         for i in scores.keys():
             gallery_of_i = self.gallery[self.gpids == ID_TO_NAME[i]]
             if gallery_of_i is not None and len(gallery_of_i) > 0:
-                cur_sims = [self.model.compute_sim(input_feat, cand) for cand in gallery_of_i]
+                cur_sims = [self.face_recognition.compute_sim(input_feat, cand) for cand in gallery_of_i]
                 mean_scores = np.mean(cur_sims)
                 max_scores = np.max(cur_sims)
                 top_5_mean_score = np.argpartition(cur_sims, 5)[-5:].mean()
@@ -132,6 +134,48 @@ class ArcFace():
         #     scores[k] = (v - mean_score) / (std_score + 0.000001)
 
         return scores
+
+
+
+    def detect_face_from_img(self, crop_img, threshold=0):
+        """
+        Given an img file, detect the face in the image and return it. Returns None if no face image was
+        detected.
+        :param img_path: the img file to detect.
+        """
+
+        # ToDo deal with multiface in a single crop, currently only a single face will be detected
+        face_imgs = []
+        face_bboxs = []
+        face_probs = []
+
+        detection_res = self.model.get(crop_img)
+        for i in range(len(detection_res)):
+            if len(detection_res) > 0 and detection_res[i] and detection_res[i]['det_score'] >= threshold:
+                face_bbox = detection_res[i]['bbox']
+                X = np.max([int(face_bbox[0]), 0])
+                Y = np.max([int(face_bbox[1]), 0])
+                W = np.min([int(face_bbox[2]), crop_img.shape[1]])
+                H = np.min([int(face_bbox[3]), crop_img.shape[0]])
+                face_imgs.append(crop_img[Y:H, X:W])
+                face_bboxs.append(face_bbox)
+                face_probs.append(detection_res[i]['det_score'])
+
+        return face_imgs, face_bboxs , face_probs
+
+    def detect_face_from_file_crop(self, img_path, threshold=0):
+        """
+        Given a path to an image, detect the face in the image and return it. Returns None if no face image was
+        detected.
+        :param img_path: the path to the image in which a face should be detected.
+        """
+        crop_img = cv2.imread(img_path)
+        face_img = self.detect_face_from_img(crop_img=crop_img, threshold=threshold)
+        return face_img
+
+def is_img(img):
+
+    return img is not None
 
 if __name__ == '__main__':
     gpath = "/mnt/raid1/home/bar_cohen/42street/corrected_face_clusters/"

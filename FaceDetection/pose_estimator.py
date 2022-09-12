@@ -1,12 +1,7 @@
-import os
-
 from mmpose.apis import (inference_top_down_pose_model, init_pose_model, vis_pose_result)
 from mmpose.datasets import DatasetInfo
 from PIL import Image, ImageDraw
 import numpy as np
-from FaceDetection.faceDetector import FaceDetector
-import torchvision
-
 KEYPOINTS_TO_CHECK = ['nose', 'left_eye', 'right_eye']
 
 
@@ -74,30 +69,30 @@ class PoseEstimator:
         return vis_img
 
 
-if __name__ == '__main__':
-    pose_config = '/home/bar_cohen/D-KinderGuardian/mmpose/configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/hrnet_w48_coco_256x192.py'
-    pose_checkpoint = '/home/bar_cohen/D-KinderGuardian/checkpoints/mmpose-hrnet_w48_coco_256x192-b9e0b3ab_20200708.pth'
-    device = 'cuda:0'
-    imgs_path = '/home/bar_cohen/D-KinderGuardian/FaceDetection/crops_with_faces'
-
-    face_detector = FaceDetector(keep_all=True, device=device)
-    pose_estimator = PoseEstimator(pose_config, pose_checkpoint, device)
-
-    for img_path in os.listdir(imgs_path):
-        img = Image.open(os.path.join(imgs_path, img_path)).convert('RGB')
-
-        face_bboxes, probs = face_detector.facenet_detecor.detect(img=img)
-        if face_bboxes is None:
-            print(f'No face detected in image {img_path}')
-            continue
-        pose_estimation = pose_estimator.get_pose(img)
-
-        face_bbox = [int(x) for x in face_bboxes[0]]
-
-        if pose_estimator.does_face_match_to_pose(pose_estimation, face_bbox):
-            output_path = os.path.join('/home/bar_cohen/D-KinderGuardian/FaceDetection/results-test/match', img_path)
-        else:
-            output_path = os.path.join('/home/bar_cohen/D-KinderGuardian/FaceDetection/results-test/no-match', img_path)
-
-        pose_estimator.visualize_pose(img, pose_estimation, face_bbox, output_path)
+# if __name__ == '__main__':
+#     pose_config = '/home/bar_cohen/D-KinderGuardian/mmpose/configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/hrnet_w48_coco_256x192.py'
+#     pose_checkpoint = '/home/bar_cohen/D-KinderGuardian/checkpoints/mmpose-hrnet_w48_coco_256x192-b9e0b3ab_20200708.pth'
+#     device = 'cuda:0'
+#     imgs_path = '/home/bar_cohen/D-KinderGuardian/FaceDetection/crops_with_faces'
+#
+#     face_detector = FaceDetector(keep_all=True, device=device)
+#     pose_estimator = PoseEstimator(pose_config, pose_checkpoint, device)
+#
+#     for img_path in os.listdir(imgs_path):
+#         img = Image.open(os.path.join(imgs_path, img_path)).convert('RGB')
+#
+#         face_bboxes, probs = face_detector.facenet_detecor.detect(img=img)
+#         if face_bboxes is None:
+#             print(f'No face detected in image {img_path}')
+#             continue
+#         pose_estimation = pose_estimator.get_pose(img)
+#
+#         face_bbox = [int(x) for x in face_bboxes[0]]
+#
+#         if pose_estimator.does_face_match_to_pose(pose_estimation, face_bbox):
+#             output_path = os.path.join('/home/bar_cohen/D-KinderGuardian/FaceDetection/results-test/match', img_path)
+#         else:
+#             output_path = os.path.join('/home/bar_cohen/D-KinderGuardian/FaceDetection/results-test/no-match', img_path)
+#
+#         pose_estimator.visualize_pose(img, pose_estimation, face_bbox, output_path)
 
