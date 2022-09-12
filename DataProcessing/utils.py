@@ -375,7 +375,7 @@ def viz_DB_data_on_video(input_vid, output_path, DB_path=DB_LOCATION,eval=False)
             mmcv.imwrite(cur_img, f'{temp_path}/{i:03d}.png')
         else:
             # no crops detected, write the original frame
-            print('O NOO')
+            # print('O NOO')
             mmcv.imwrite(frame, f'{temp_path}/{i:03d}.png')
 
     print(f'Saving video into: {output_path}')
