@@ -105,12 +105,12 @@ class ArcFace():
             if gallery_of_i is not None and len(gallery_of_i) > 0:
                 cur_sims = [self.face_recognition.compute_sim(input_feat, cand) for cand in gallery_of_i]
                 # mean_scores = np.max(cur_sims)
-                max_scores = np.max(cur_sims)
+                max_scores = np.max(cur_sims) #TODO is it max? mean? top-5?
                 # top_5_mean_score = np.argpartition(cur_sims, 5)[-5:].mean()
                 # print(ID_TO_NAME[i], "mean score:", mean_scores, "max score", max_scores)
                 # scores[i] = mean_scores if mean_scores > self.score_threshold else 0
                 # scores[i] = top_5_mean_score
-                scores[i] = max_scores if max_scores > 0.25 else 0
+                scores[i] = max_scores if max_scores > 0.25 else 0 # ToDo this threshold !!??!!
                 # if scores[i] > 0:
                     # print(f"Gotcha, {i}")
         return scores
@@ -149,8 +149,7 @@ class ArcFace():
             if len(gallery_of_i) > 0 and len(imgs_feats_tensor) > 1:  # this gallery is not empty
                 gallery_of_i_tensor = torch.tensor(gallery_of_i).squeeze()
                 gallery_of_i_tensor.to(device=self.device)
-                imgs_feats_n, gallery_feats_n = imgs_feats_tensor.norm(dim=1)[:, None], gallery_of_i_tensor.norm(dim=1)[
-                                                                                        :, None]
+                imgs_feats_n, gallery_feats_n = imgs_feats_tensor.norm(dim=1)[:, None], gallery_of_i_tensor.norm(dim=1)[:, None]
                 imgs_feats_norm = imgs_feats_tensor / torch.max(imgs_feats_n, eps * torch.ones_like(imgs_feats_n))
                 gallery_feats_norm = gallery_of_i_tensor / torch.max(gallery_feats_n,
                                                                      eps * torch.ones_like(gallery_feats_n))
