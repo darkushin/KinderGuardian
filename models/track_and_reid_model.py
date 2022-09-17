@@ -18,7 +18,8 @@ import mmcv
 import torch.nn.functional as F
 from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
-from FaceDetection.arcface import ArcFace, GALLERY_NO_UNKNOWNS, GPIDS_NO_UNKNOWNS, is_img
+from FaceDetection.arcface import ArcFace, GALLERY_NO_UNKNOWNS, GPIDS_NO_UNKNOWNS, is_img, GALLERY_PKL_PATH, \
+    GPIDS_PKL_PATH
 from FaceDetection.augmentions import normalize_image
 # from FaceDetection.faceClassifer import FaceClassifer # uncomment to use FaceNet classifier
 # from FaceDetection.faceDetector import FaceDetector, is_img
@@ -469,6 +470,7 @@ def create_data_by_re_id_and_track():
     else:
         # args.reid_config = "./centroids_reid/configs/256_resnet50.yml"
         reid_cfg = set_CTL_reid_cfgs(args)
+        assert len(os.listdir(reid_cfg.DATASETS.ROOT_DIR)) > 0, "reid gallery is empty, check args."
         # initialize reid model:
         checkpoint = torch.load(reid_cfg.TEST.WEIGHT)
         checkpoint['hyper_parameters']['MODEL']['PRETRAIN_PATH'] = "/home/bar_cohen/D-KinderGuardian/centroids_reid/models/resnet50-19c8e357.pth"
@@ -481,7 +483,7 @@ def create_data_by_re_id_and_track():
         g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
 
         # OR load gallery feature:
-        g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
+        # g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
         g_pids = g_paths.astype(int)
         g_feats = torch.from_numpy(g_feats)
 
@@ -510,7 +512,7 @@ def create_data_by_re_id_and_track():
     all_tracks_final_scores = dict()
     arc_device = 1 if args.device == 'cuda:0' else 0
     arc = ArcFace(gallery_path=None, device=arc_device)
-    arc.read_gallery_from_pkl(gallery_path=GALLERY_NO_UNKNOWNS, gpid_path=GPIDS_NO_UNKNOWNS)
+    arc.read_gallery_from_pkl(gallery_path=GALLERY_PKL_PATH, gpid_path=GPIDS_PKL_PATH)
 
     # iterate over all tracklets and make a prediction for every tracklet
     for track_id, crop_dicts in tqdm.tqdm(tracklets.items(), total=len(tracklets.keys())):

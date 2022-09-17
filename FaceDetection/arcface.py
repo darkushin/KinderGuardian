@@ -11,8 +11,8 @@ from insightface.app import FaceAnalysis
 
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 import tqdm
-GALLERY_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gallery.pkl"
-GPIDS_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids.pkl"
+GALLERY_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gallery_new_face_det.pkl"
+GPIDS_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_new_face_det.pkl"
 # GALLERY_PKL_PATH_MIN_FACE_MARGIN = "/mnt/raid1/home/bar_cohen/42street/pkls/gallery_mmargin.pkl"
 # GPIDS_PKL_PATH_MIN_FACE_MARGIN = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_mmargin.pkl"
 GPIDS_NO_UNKNOWNS = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_no_unknowns.pkl"
@@ -33,6 +33,7 @@ class ArcFace():
         self.gallery_path = gallery_path
         self.gallery = None # call read_gallery to set
         self.gpids = None
+        self.device = 'cuda:0' if device == 1 else 'cuda:1'
 
     def get_img_embedding_from_file(self,file):
         img = cv2.imread(file)
@@ -103,13 +104,13 @@ class ArcFace():
             gallery_of_i = self.gallery[self.gpids == ID_TO_NAME[i]]
             if gallery_of_i is not None and len(gallery_of_i) > 0:
                 cur_sims = [self.face_recognition.compute_sim(input_feat, cand) for cand in gallery_of_i]
-                mean_scores = np.mean(cur_sims)
-                # max_scores = np.max(cur_sims)
+                # mean_scores = np.max(cur_sims)
+                max_scores = np.max(cur_sims)
                 # top_5_mean_score = np.argpartition(cur_sims, 5)[-5:].mean()
                 # print(ID_TO_NAME[i], "mean score:", mean_scores, "max score", max_scores)
                 # scores[i] = mean_scores if mean_scores > self.score_threshold else 0
                 # scores[i] = top_5_mean_score
-                scores[i] = mean_scores if mean_scores > 0.25 else 0
+                scores[i] = max_scores if max_scores > 0.25 else 0
                 # if scores[i] > 0:
                     # print(f"Gotcha, {i}")
         return scores
@@ -136,51 +137,28 @@ class ArcFace():
 
 
     def predict_track_vectorized(self, imgs:np.array):
-        # converted_imgs_to_np = np.zeros_like(imgs.shape)
-        # for i, img in enumerate(imgs):
-        #     if type(img) == torch.Tensor:
-        #         img = self.img_tensor_to_cv2(img)
-        #     if img.shape != IMG_SIZE:
-        #         img = cv2.resize(img, IMG_SIZE)
-        #     converted_imgs_to_np[i] = img
-        import copy
+        eps = 1e-8
         resized_imgs = np.array([cv2.resize(img, IMG_SIZE) for img in imgs])
         imgs_feats_tensor = torch.tensor([self.face_recognition.get_feat(img) for img in resized_imgs]).squeeze()
+        if imgs_feats_tensor.ndim == 1: # edge case where only one face image was detected, reshape to matrix form
+            imgs_feats_tensor = imgs_feats_tensor.resize(1, len(imgs_feats_tensor))
+        imgs_feats_tensor.to(device=self.device)
         scores = {i: 0 for i in ID_TO_NAME.keys()}
-        cosineSim = torch.nn.CosineSimilarity(dim=1)
         for i in scores.keys():
-            cur_img_feats_tensor = copy.deepcopy(imgs_feats_tensor)
             gallery_of_i = self.gallery[self.gpids == ID_TO_NAME[i]]
-            if len(gallery_of_i) > 0:  # this gallery is not empty
+            if len(gallery_of_i) > 0 and len(imgs_feats_tensor) > 1:  # this gallery is not empty
                 gallery_of_i_tensor = torch.tensor(gallery_of_i).squeeze()
-                if gallery_of_i_tensor.size()[0] < cur_img_feats_tensor.size()[0]:  # pad gallery
-                    temp = torch.zeros_like(cur_img_feats_tensor)
-                    temp[:gallery_of_i_tensor.size()[0], :] = gallery_of_i_tensor
-                    gallery_of_i_tensor = temp
-                else:  # pad img_feats
-                    temp = torch.zeros_like(gallery_of_i_tensor)
-                    temp[:imgs_feats_tensor.size()[0], :] = imgs_feats_tensor
-                    cur_img_feats_tensor = temp
-                cur_cos_sim = cosineSim(cur_img_feats_tensor, gallery_of_i_tensor)
-                scores[i] = float(cur_cos_sim.mean())
-        return scores
-
-
-
-
-
-        # for i in
-        # normalize scores
-        # np_ids_score = np.array(list(scores.values()))
-        # mean_score = np.mean(np_ids_score)
-        # std_score = np.std(np_ids_score)
-        #
-        # # max_score = max(scores.values())
-        # # if max_score > 0:
-        # for k, v in scores.items():
-        #     scores[k] = (v - mean_score) / (std_score + 0.000001)
+                gallery_of_i_tensor.to(device=self.device)
+                imgs_feats_n, gallery_feats_n = imgs_feats_tensor.norm(dim=1)[:, None], gallery_of_i_tensor.norm(dim=1)[
+                                                                                        :, None]
+                imgs_feats_norm = imgs_feats_tensor / torch.max(imgs_feats_n, eps * torch.ones_like(imgs_feats_n))
+                gallery_feats_norm = gallery_of_i_tensor / torch.max(gallery_feats_n,
+                                                                     eps * torch.ones_like(gallery_feats_n))
+                sim_mt = torch.mm(imgs_feats_norm, gallery_feats_norm.transpose(0, 1))
+                scores[i] = float(sim_mt.max(dim=1)[0].mean())
 
         return scores
+        # TODO are the tensors are in gpu?
 
 
 

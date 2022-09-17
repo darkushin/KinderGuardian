@@ -24,12 +24,11 @@ POSE_CONFIG = "/home/bar_cohen/D-KinderGuardian/mmpose/configs/body/2d_kpt_sview
 POSE_CHECKPOINT =  "/home/bar_cohen/D-KinderGuardian/checkpoints/mmpose-hrnet_w48_coco_256x192-b9e0b3ab_20200708.pth"
 FACE_NET = 'FaceNet'
 ARC_FACE = 'ArcFace'
-GPATH = "/mnt/raid1/home/bar_cohen/42street/clusters_min_margin_low_threshold/"
+GPATH = "/mnt/raid1/home/bar_cohen/42street/new_face_det_clusters/"
 
 
 class GalleryCreator:
-    def __init__(self, gallery_path, label_encoder,
-                 min_face_size=20,
+    def __init__(self, gallery_path,
                  tracker_conf_threshold = 0.99,
                  device='cuda:0',
                  cam_id = '1',
@@ -81,7 +80,7 @@ class GalleryCreator:
                     if face_imgs is not None and len(face_imgs) == 1:
                         face_img, face_prob = self.pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs,
                                                                                     face_imgs)
-                        if is_img(face_img) and face_prob >= 0.8:
+                        if is_img(face_img) and face_prob >= 0.8: # hard coded min threshold for face rec
                             crop_candidates_faces.append(face_img)
                             crop_candidates_inds.append(i)
                         # else: TODO write when pose estimation discards image
@@ -99,7 +98,7 @@ class GalleryCreator:
                     label = max(cur_score, key=cur_score.get)
                     # silly threshold
                     print(f"the score for the best label match is: {cur_score[label]}")
-                    if cur_score[label] >= 0.25:
+                    if cur_score[label] >= 0.4: # HIGH THRESHOLD for ReiD
                         crop_name = f'{label:04d}_c{self.cam_id}_f{self.global_i:07d}.jpg'
                         # dir_path = os.path.join(self.gallery_path, ID_TO_NAME[label])
                         dir_path = self.gallery_path
@@ -121,17 +120,16 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
 
 if __name__ == '__main__':
     print("Thats right yall")
-    le = pickle.load(open("/mnt/raid1/home/bar_cohen/FaceData/le_19.pkl",'rb'))
-    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part2_all_low_detector_threshold_new_face_det/", cam_id="5",
-                        label_encoder=le, device='cuda:1', create_in_fastreid_format=True, tracker_conf_threshold=0.0)
-    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_2/"
+    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part4_all_high_detector_threshold_new_face_det_new_gallery/", cam_id="5",
+                        device='cuda:1', create_in_fastreid_format=True, tracker_conf_threshold=0.0)
+    # print('Done Creating Gallery pkls')
+    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_4/"
     vids = [os.path.join(vid_path, vid) for vid in os.listdir(vid_path)]
-    # vids = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part3/part3_s22000_e22501.mp4"]
     for vid in vids:
-        # uncomment if you want a gallery per video
-        # vid_name = vid.split('/')[-1]
-        # gc = GalleryCreator(
-        #     gallery_path=f"/mnt/raid1/home/bar_cohen/42street/part1_galleries/{vid_name[5:]}/",
-        #     label_encoder=le, device='cuda:0', create_in_fastreid_format=True)
+    #     # uncomment if you want a gallery per video
+    #     # vid_name = vid.split('/')[-1]
+    #     # gc = GalleryCreator(
+    #     #     gallery_path=f"/mnt/raid1/home/bar_cohen/42street/part1_galleries/{vid_name[5:]}/",
+    #     #     label_encoder=le, device='cuda:0', create_in_fastreid_format=True)
         gc.add_video_to_gallery(vid,face_clf=ARC_FACE, skip_every=1)
 
