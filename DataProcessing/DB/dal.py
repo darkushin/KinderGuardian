@@ -6,6 +6,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 # DB_LOCATION = '/mnt/raid1/home/bar_cohen/Shoham_KG.db' ## NEVER CHANGE THIS !!!
 DB_LOCATION = '/mnt/raid1/home/bar_cohen/42Street.db' ## NEVER CHANGE THIS !!!
+SAME_DAY_DB_LOCATION = '/mnt/raid1/home/bar_cohen/42StreetSameDayDB.db'
 Base = declarative_base()
 
 
@@ -32,6 +33,32 @@ class Crop(Base):
     def set_im_name(self):
         self.im_name = f'v_{self.vid_name}_f{self.frame_num}_bbox_{self.x1}_{self.y1}_{self.x2}_{self.y2}.png'
 
+
+class SameDayCrop(Base):
+    __tablename__ = '42StreetSameDayDB'
+    gt_label = Column(String)
+    label = Column(String)
+    part = Column(Integer)
+    im_name = Column(String, primary_key=True)  # unique name for every crop
+    face_im_name = Column(String)  # unique name for every crop
+    frame_num = Column(Integer)
+    x1_crop = Column(Integer)
+    y1_crop = Column(Integer)
+    x2_crop = Column(Integer)
+    y2_crop = Column(Integer)
+    x_face = Column(Integer)
+    y_face = Column(Integer)
+    w_face = Column(Integer)
+    h_face = Column(Integer)
+    face_conf = Column(Float)
+    vid_name = Column(String)
+    track_id = Column(Integer)
+    cam_id = Column(Integer)
+    crop_id = Column(Integer)
+
+    def set_im_name(self):
+        self.im_name = f'v_{self.vid_name}_f{self.frame_num}_bbox_{self.x1_crop}_{self.y1_crop}_{self.x2_crop}_{self.y2_crop}.png'
+        self.face_im_name = f'v_{self.vid_name}_f{self.frame_num}_bbox_{self.x_face}_{self.y_face}_{self.w_face}_{self.h_face}.png'
 
 def create_session(db_location: str = DB_LOCATION):
     engine = create_engine(f'sqlite:///{db_location}', echo=False)  # should include the path to the db file
@@ -66,7 +93,7 @@ def delete_entries(delete_filter, db_location: str = DB_LOCATION):
 
 
 def get_entries(session=None, filters: tuple = None, op: str = 'AND', order=None, group=None, distinct_by=None,
-                db_path=DB_LOCATION):
+                db_path=DB_LOCATION, crop_type=Crop):
     """
     Return all entries from the database according to the given filters. If no filters are given, return all entries.
     Args:
@@ -77,6 +104,7 @@ def get_entries(session=None, filters: tuple = None, op: str = 'AND', order=None
     Return:
         The returned result is a list of Crops objects matching the given filters.
     """
+
     if not session:
         session = create_session(db_path)
     if op == 'AND':
@@ -85,7 +113,7 @@ def get_entries(session=None, filters: tuple = None, op: str = 'AND', order=None
         query = or_(*filters)
     else:
         raise Exception('Invalid query operator, valid options are: AND, OR')
-    sql_query = session.query(Crop).filter(query)
+    sql_query = session.query(crop_type).filter(query)
     if order:
         sql_query = sql_query.order_by(order)
     if group:
@@ -95,8 +123,8 @@ def get_entries(session=None, filters: tuple = None, op: str = 'AND', order=None
     return sql_query
 
 
-# if __name__ == '__main__':
-#     create_table()
+if __name__ == '__main__':
+    create_table(db_location=SAME_DAY_DB_LOCATION)
     # vid_name = '1.8.21-095724'
     # crops = get_entries(filters=({Crop.vid_name == vid_name}), db_path=DB_LOCATION_ORIG)
 #     crop = '0001_c1_f0307006.jpg'
