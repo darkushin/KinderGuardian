@@ -6,7 +6,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 # DB_LOCATION = '/mnt/raid1/home/bar_cohen/Shoham_KG.db' ## NEVER CHANGE THIS !!!
 DB_LOCATION = '/mnt/raid1/home/bar_cohen/42Street.db' ## NEVER CHANGE THIS !!!
-SAME_DAY_DB_LOCATION = '/mnt/raid1/home/bar_cohen/42StreetSameDayDB.db'
+SAME_DAY_DB_LOCATION = '/mnt/raid1/home/bar_cohen/42StreetSameDayDB_new.db'
 Base = declarative_base()
 
 
@@ -34,8 +34,8 @@ class Crop(Base):
         self.im_name = f'v_{self.vid_name}_f{self.frame_num}_bbox_{self.x1}_{self.y1}_{self.x2}_{self.y2}.png'
 
 
-class SameDayCrop(Base):
-    __tablename__ = '42StreetSameDayDB'
+class SameDayCropV2(Base):
+    __tablename__ = '42StreetSameDayDBV2'
     gt_label = Column(String)
     label = Column(String)
     part = Column(Integer)
@@ -51,6 +51,7 @@ class SameDayCrop(Base):
     w_face = Column(Integer)
     h_face = Column(Integer)
     face_conf = Column(Float)
+    face_cos_sim = Column(Float)
     vid_name = Column(String)
     track_id = Column(Integer)
     cam_id = Column(Integer)
@@ -59,6 +60,7 @@ class SameDayCrop(Base):
     def set_im_name(self):
         self.im_name = f'v_{self.vid_name}_f{self.frame_num}_bbox_{self.x1_crop}_{self.y1_crop}_{self.x2_crop}_{self.y2_crop}.png'
         self.face_im_name = f'v_{self.vid_name}_f{self.frame_num}_bbox_{self.x_face}_{self.y_face}_{self.w_face}_{self.h_face}.png'
+
 
 def create_session(db_location: str = DB_LOCATION):
     engine = create_engine(f'sqlite:///{db_location}', echo=False)  # should include the path to the db file
@@ -125,11 +127,4 @@ def get_entries(session=None, filters: tuple = None, op: str = 'AND', order=None
 
 if __name__ == '__main__':
     create_table(db_location=SAME_DAY_DB_LOCATION)
-    # vid_name = '1.8.21-095724'
-    # crops = get_entries(filters=({Crop.vid_name == vid_name}), db_path=DB_LOCATION_ORIG)
-#     crop = '0001_c1_f0307006.jpg'
-#     parts = crop.split('_')
-#     crop1 = DbCrops(person_id=parts[0], im_name=crop, cam_id=int(parts[1][1:]), frame=int(parts[2][1:-4]), x=1, y=2,
-#                     h=3, w=4, video='daniel', track_id=5, date=123456)
-#     add_entry(crop1)
 

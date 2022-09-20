@@ -110,7 +110,7 @@ class ArcFace():
                 # print(ID_TO_NAME[i], "mean score:", mean_scores, "max score", max_scores)
                 # scores[i] = mean_scores if mean_scores > self.score_threshold else 0
                 # scores[i] = top_5_mean_score
-                scores[i] = max_scores if max_scores > 0.25 else 0 # ToDo this threshold !!??!!
+                scores[i] = max_scores
                 # if scores[i] > 0:
                     # print(f"Gotcha, {i}")
         return scores
