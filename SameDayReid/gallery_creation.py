@@ -63,10 +63,10 @@ class GalleryCreator:
         self.global_i = 0
 
     def get_vid_name_from_path(self, video_path):
-        return ''.join(video_path.split('/')[-2:])
+        return ''.join(video_path.split(os.sep)[-2:])
 
     def get_42street_part(self, video_path):
-        return int(video_path.split('/')[-2][-1])
+        return int(video_path.split(os.sep)[-2][-1])
 
     def add_video_to_db(self, video_path:str, skip_every=1):
         imgs = mmcv.VideoReader(video_path)
