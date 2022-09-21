@@ -1,28 +1,17 @@
-import csv
-import os
-import pickle
-import tempfile
+
 import time
 from argparse import ArgumentParser, REMAINDER
 import sys
 from collections import defaultdict, Counter
-from torchvision.transforms import transforms
 from PIL import Image
-import cv2
 import pandas as pd
-from matplotlib import pyplot as plt
-import tqdm
-import torch
-import numpy as np
 import mmcv
 import torch.nn.functional as F
 from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 from FaceDetection.arcface import ArcFace, GALLERY_NO_UNKNOWNS, GPIDS_NO_UNKNOWNS, is_img, GALLERY_PKL_PATH, \
     GPIDS_PKL_PATH
-from FaceDetection.augmentions import normalize_image
-# from FaceDetection.faceClassifer import FaceClassifer # uncomment to use FaceNet classifier
-# from FaceDetection.faceDetector import FaceDetector, is_img
+
 from FaceDetection.pose_estimator import PoseEstimator
 from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import ID_NOT_IN_VIDEO
@@ -31,7 +20,6 @@ warnings.filterwarnings('ignore')
 sys.path.append('fast-reid')
 sys.path.append('centroids_reid')
 from scenedetect import detect, ContentDetector
-
 from fastreid.config import get_cfg
 from fastreid.data import build_reid_test_loader
 from demo.predictor import FeatureExtractionDemo

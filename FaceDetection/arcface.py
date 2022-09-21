@@ -110,7 +110,7 @@ class ArcFace():
                 # print(ID_TO_NAME[i], "mean score:", mean_scores, "max score", max_scores)
                 # scores[i] = mean_scores if mean_scores > self.score_threshold else 0
                 # scores[i] = top_5_mean_score
-                scores[i] = max_scores if max_scores > 0.25 else 0 # ToDo this threshold !!??!!
+                scores[i] = max_scores
                 # if scores[i] > 0:
                     # print(f"Gotcha, {i}")
         return scores
@@ -168,7 +168,6 @@ class ArcFace():
         :param img_path: the img file to detect.
         """
 
-        # ToDo deal with multiface in a single crop, currently only a single face will be detected
         face_imgs = []
         face_bboxs = []
         face_probs = []
@@ -182,7 +181,7 @@ class ArcFace():
                 W = np.min([int(face_bbox[2]), crop_img.shape[1]])
                 H = np.min([int(face_bbox[3]), crop_img.shape[0]])
                 face_imgs.append(crop_img[Y:H, X:W])
-                face_bboxs.append(face_bbox)
+                face_bboxs.append([X,Y,W,H])
                 face_probs.append(detection_res[i]['det_score'])
 
         return face_imgs, face_bboxs , face_probs
@@ -194,7 +193,7 @@ class ArcFace():
         :param img_path: the path to the image in which a face should be detected.
         """
         crop_img = cv2.imread(img_path)
-        face_img = self.detect_face_from_img(crop_img=crop_img, threshold=threshold)
+        face_img , _ , _ = self.detect_face_from_img(crop_img=crop_img, threshold=threshold)
         return face_img
 
 def is_img(img):
