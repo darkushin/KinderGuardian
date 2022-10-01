@@ -6,7 +6,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 # DB_LOCATION = '/mnt/raid1/home/bar_cohen/Shoham_KG.db' ## NEVER CHANGE THIS !!!
 DB_LOCATION = '/mnt/raid1/home/bar_cohen/42Street.db' ## NEVER CHANGE THIS !!!
-SAME_DAY_DB_LOCATION = '/mnt/raid1/home/bar_cohen/42StreetSameDayDB_new.db'
+SAME_DAY_DB_LOCATION = '/mnt/raid1/home/bar_cohen/42StreetSameDayDB_newer.db'
 Base = declarative_base()
 
 
@@ -52,6 +52,7 @@ class SameDayCropV2(Base):
     h_face = Column(Integer)
     face_conf = Column(Float)
     face_cos_sim = Column(Float)
+    face_ranks_diff = Column(Float)
     vid_name = Column(String)
     track_id = Column(Integer)
     cam_id = Column(Integer)
