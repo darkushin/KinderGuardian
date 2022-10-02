@@ -1,3 +1,9 @@
+import cv2
+import tqdm
+import torch
+import numpy as np
+import pickle
+import tempfile
 import time
 from argparse import ArgumentParser, REMAINDER
 import sys
@@ -7,6 +13,7 @@ from PIL import Image
 import pandas as pd
 import mmcv
 import torch.nn.functional as F
+
 from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 from FaceDetection.arcface import ArcFace, is_img, GALLERY_PKL_PATH, GPIDS_PKL_PATH
@@ -473,9 +480,9 @@ def create_data_by_re_id_and_track():
 
         # create gallery feature:
         # if not os.path.isdir(CTL_PICKLES):
-        os.makedirs(CTL_PICKLES, exist_ok=True)
-        gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
-        g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
+        # os.makedirs(CTL_PICKLES, exist_ok=True)
+        # gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
+        # g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
 
         # OR load gallery feature:
         g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)

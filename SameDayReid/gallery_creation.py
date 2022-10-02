@@ -70,7 +70,7 @@ class GalleryCreator:
     def get_42street_part(self, video_path):
         return int(video_path.split(os.sep)[-2][-1])
 
-    def add_video_to_db(self, video_path:str, skip_every=1):
+    def add_video_to_db(self, video_path:str, skip_every=1, db_location=SAME_DAY_DB_LOCATION):
         imgs = mmcv.VideoReader(video_path)
         vid_name = self.get_vid_name_from_path(video_path=video_path)
         part = self.get_42street_part(video_path=video_path) # 42street specific
@@ -94,7 +94,7 @@ class GalleryCreator:
                                                         frame_num=image_index
                                                         ))
 
-        add_entries(crops=video_crops, db_location=SAME_DAY_DB_LOCATION) # Note this points to the SAME_DB_DB_LOCATION !
+        add_entries(crops=video_crops, db_location=db_location) # Note this points to the SAME_DB_DB_LOCATION !
 
     def detect_faces_and_create_db_crops(self, ids, confs, crops_imgs, crops_bboxes, vid_name, part, frame_num):
         crops = []
