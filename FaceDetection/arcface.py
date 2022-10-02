@@ -112,9 +112,6 @@ class ArcFace():
                 # scores[i] = mean_scores if mean_scores > self.score_threshold else 0
                 # scores[i] = top_5_mean_score
                 scores[i] = max_scores
-
-                # if scores[i] > 0:
-                    # print(f"Gotcha, {i}")
         return scores
 
     def vectorized_cosine_sim_compare(self, input_feat, gallery_of_id_i):

@@ -1,7 +1,6 @@
 import pickle
 import shutil
 import sys
-
 import matplotlib.pyplot as plt
 import mmcv
 import os
@@ -71,6 +70,11 @@ class GalleryCreator:
         return int(video_path.split(os.sep)[-2][-1])
 
     def add_video_to_db(self, video_path:str, skip_every=1, db_location=SAME_DAY_DB_LOCATION):
+
+    def get_42street_part(self, video_path):
+        return int(video_path.split(os.sep)[-2][-1])
+
+    def add_video_to_db(self, video_path:str, skip_every=1, db_location=SAME_DAY_DB_LOCATION):
         imgs = mmcv.VideoReader(video_path)
         vid_name = self.get_vid_name_from_path(video_path=video_path)
         part = self.get_42street_part(video_path=video_path) # 42street specific
@@ -95,7 +99,7 @@ class GalleryCreator:
                                                         ))
 
         add_entries(crops=video_crops, db_location=db_location) # Note this points to the SAME_DB_DB_LOCATION !
-
+        
     def detect_faces_and_create_db_crops(self, ids, confs, crops_imgs, crops_bboxes, vid_name, part, frame_num):
         crops = []
         pose_discard_counter = 0
@@ -142,7 +146,6 @@ class GalleryCreator:
                     pose_discard_counter += 1
         return crops
 
-
     def label_video(self, vid_name:str):
         def score_boundary(min_score_threshold:float):
             cur_diff = ranks[0] - ranks[1]
@@ -185,6 +188,12 @@ class GalleryCreator:
 
     def add_video_to_gallery_from_same_day_DB(self, vid_name:str, face_conf_threshold:float, face_sim_threshold:float,
                                               min_ranks_diff_threshold:float):
+                    # print(f"the score for the best label match is: {cur_score[label]}")
+                    crop_obj.label = label
+                    crop_obj.face_cos_sim = float(max(cur_score.values()))
+        session.commit()
+
+    def add_video_to_gallery_from_same_day_DB(self, vid_name:str, face_conf_threshold:float, face_sim_threshold:float):
         session = create_session(db_location=SAME_DAY_DB_LOCATION)
         crops = get_entries(session=session,
                             filters=({SameDayCropV2.vid_name == self.get_vid_name_from_path(video_path=vid_name),
@@ -244,7 +253,3 @@ if __name__ == '__main__':
         # gc.add_video_to_gallery_from_same_day_DB(vid_name=vid, face_conf_threshold=0.80,
         #                                          face_sim_threshold=0.5,
         #                                          min_ranks_diff_threshold=0.1)
-
-
-#
-#

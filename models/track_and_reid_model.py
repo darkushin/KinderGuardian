@@ -9,14 +9,16 @@ from argparse import ArgumentParser, REMAINDER
 import sys
 from collections import defaultdict
 import matplotlib.pyplot as plt
+import time
+from argparse import ArgumentParser, REMAINDER
+import sys
+from collections import defaultdict, Counter
 from PIL import Image
 import pandas as pd
 import mmcv
 import torch.nn.functional as F
-
 from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
-from FaceDetection.arcface import ArcFace, is_img, GALLERY_PKL_PATH, GPIDS_PKL_PATH
 from FaceDetection.pose_estimator import PoseEstimator
 from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import ID_NOT_IN_VIDEO
