@@ -11,8 +11,8 @@ from insightface.app import FaceAnalysis
 
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
 import tqdm
-GALLERY_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gallery_new_face_det.pkl"
-GPIDS_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_new_face_det.pkl"
+GALLERY_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gallery_face_det_improved.pkl"
+GPIDS_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_face_det_improved.pkl"
 # GALLERY_PKL_PATH_MIN_FACE_MARGIN = "/mnt/raid1/home/bar_cohen/42street/pkls/gallery_mmargin.pkl"
 # GPIDS_PKL_PATH_MIN_FACE_MARGIN = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_mmargin.pkl"
 GPIDS_NO_UNKNOWNS = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_no_unknowns.pkl"
@@ -38,6 +38,7 @@ class ArcFace():
     def get_img_embedding_from_file(self,file):
         img = cv2.imread(file)
         img = cv2.resize(img, IMG_SIZE)
+        img = img[:,:,::-1]
         embedding = self.face_recognition.get_feat(img)
         return embedding
 
@@ -104,15 +105,13 @@ class ArcFace():
             gallery_of_i = self.gallery[self.gpids == ID_TO_NAME[i]]
             if gallery_of_i is not None and len(gallery_of_i) > 0:
                 cur_sims = [self.face_recognition.compute_sim(input_feat, cand) for cand in gallery_of_i]
-                # mean_scores = np.max(cur_sims)
+                # mean_scores = np.mean(cur_sims)
                 max_scores = np.max(cur_sims) #TODO is it max? mean? top-5?
                 # top_5_mean_score = np.argpartition(cur_sims, 5)[-5:].mean()
                 # print(ID_TO_NAME[i], "mean score:", mean_scores, "max score", max_scores)
                 # scores[i] = mean_scores if mean_scores > self.score_threshold else 0
                 # scores[i] = top_5_mean_score
                 scores[i] = max_scores
-                # if scores[i] > 0:
-                    # print(f"Gotcha, {i}")
         return scores
 
     def vectorized_cosine_sim_compare(self, input_feat, gallery_of_id_i):
@@ -276,12 +275,14 @@ def main():
     vids_list = [os.path.join(videos_path, f) for f in os.listdir(videos_path)]
     collect_faces_from_list_of_videos(vids_list,face_dir=faces, skip_every=1)
     create_clusters(k=100,cluster_path=clusters,face_crops_path=faces)
-if __name__ == '__main__':
-    main()
-
-
-
 # if __name__ == '__main__':
+#     main()
+
+
+
+if __name__ == '__main__':
+    model = FaceAnalysis(providers=['CUDAExecutionProvider'])
+    pass
 #     gpath = "/mnt/raid1/home/bar_cohen/42street/corrected_face_clusters/"
 
     # arc = ArcFace(gpath)
