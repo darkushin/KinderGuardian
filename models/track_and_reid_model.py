@@ -401,9 +401,10 @@ def create_or_load_tracklets(args, create_tracklets:bool):
 
 def is_unknown_id(final_scores:dict, threshold:float=0.5):
     unknown_id = False
+    ranks = sorted(final_scores.values(), reverse=True)
     max_score = max(final_scores.values())
     print(max_score)
-    if max_score <= threshold:
+    if (ranks[0] - ranks[1]) <= 0.01 or threshold <= 0.4:
         unknown_id = True
     return unknown_id
 
@@ -477,7 +478,7 @@ def create_data_by_re_id_and_track():
         g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
 
         # OR load gallery feature:
-        # g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
+        g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
         g_pids = g_paths.astype(int)
         g_feats = torch.from_numpy(g_feats)
 
@@ -530,7 +531,7 @@ def create_data_by_re_id_and_track():
         # reid_maj_vote = np.argmax(bincount)
         # reid_maj_conf = bincount[reid_maj_vote] / len(reid_ids)
         # maj_vote_label = ID_TO_NAME[reid_maj_vote]
-        maj_vote_label = max(reid_scores, key=reid_scores.get)
+        maj_vote_label = ID_TO_NAME[max(reid_scores, key=reid_scores.get)]
         final_label_id = max(reid_scores, key=reid_scores.get)
         final_label_conf = reid_scores[final_label_id]  # only reid at this point
         final_label = ID_TO_NAME[final_label_id]
@@ -570,7 +571,7 @@ def create_data_by_re_id_and_track():
         all_tracks_final_scores[track_id] = final_scores
         final_label = ID_TO_NAME[max(final_scores, key=final_scores.get)]
         print(final_label)
-        if is_unknown_id(reid_scores, threshold=0.30):
+        if is_unknown_id(final_scores=final_scores, threshold=0.60):
             print(f'final label {final_label} replaced with Unknown')
             final_label = 'Unknown'
 

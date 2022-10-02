@@ -58,9 +58,9 @@ class GalleryCreator:
             self.gallery_path = gallery_path
 
         self.arc = ArcFace(gallery_path=GPATH)
-        self.arc.read_gallery_from_scratch()
-        # self.arc.save_gallery_to_pkl(GALLERY_PKL_PATH, GPIDS_PKL_PATH)
-        # self.arc.read_gallery_from_pkl(gallery_path=GALLERY_PKL_PATH, gpid_path=GPIDS_PKL_PATH)
+        # self.arc.read_gallery_from_scratch()
+        self.arc.save_gallery_to_pkl(GALLERY_PKL_PATH, GPIDS_PKL_PATH)
+        self.arc.read_gallery_from_pkl(gallery_path=GALLERY_PKL_PATH, gpid_path=GPIDS_PKL_PATH)
         self.pose_estimator = PoseEstimator(pose_config=POSE_CONFIG, pose_checkpoint=POSE_CHECKPOINT, device=device) # TODO hard code configs here
         self.global_i = 0
 
@@ -210,8 +210,8 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
 
 if __name__ == '__main__':
     print("Thats right yall")
-    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part2_to_test_higher/", cam_id="5",
-                        device='cuda:1', create_in_fastreid_format=True, tracker_conf_threshold=0.0)
+    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part2_to_test_higher777/", cam_id="5",
+                        device='cuda:0', create_in_fastreid_format=False, tracker_conf_threshold=0.0)
     print('Done Creating Gallery pkls')
     vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_1/"
     vids = [os.path.join(vid_path, vid) for vid in os.listdir(vid_path)]
