@@ -70,11 +70,6 @@ class GalleryCreator:
         return int(video_path.split(os.sep)[-2][-1])
 
     def add_video_to_db(self, video_path:str, skip_every=1, db_location=SAME_DAY_DB_LOCATION):
-
-    def get_42street_part(self, video_path):
-        return int(video_path.split(os.sep)[-2][-1])
-
-    def add_video_to_db(self, video_path:str, skip_every=1, db_location=SAME_DAY_DB_LOCATION):
         imgs = mmcv.VideoReader(video_path)
         vid_name = self.get_vid_name_from_path(video_path=video_path)
         part = self.get_42street_part(video_path=video_path) # 42street specific
@@ -98,7 +93,7 @@ class GalleryCreator:
                                                         frame_num=image_index
                                                         ))
 
-        add_entries(crops=video_crops, db_location=db_location) # Note this points to the SAME_DB_DB_LOCATION !
+        # add_entries(crops=video_crops, db_location=db_location) # Note this points to the SAME_DB_DB_LOCATION !
         
     def detect_faces_and_create_db_crops(self, ids, confs, crops_imgs, crops_bboxes, vid_name, part, frame_num):
         crops = []
@@ -141,7 +136,7 @@ class GalleryCreator:
                     crop.set_im_name()
                     crops.append(crop)
                     #Note - writing crop to disk prior to writing in DB
-                    mmcv.imwrite(np.array(crop_im), os.path.join(DB_GALLERY, crop.im_name))
+                    # mmcv.imwrite(np.array(crop_im), os.path.join(DB_GALLERY, crop.im_name))
                 else:
                     pose_discard_counter += 1
         return crops
@@ -184,16 +179,11 @@ class GalleryCreator:
                     crop_obj.label = label
                     crop_obj.face_cos_sim = float(max(cur_score.values()))
                     crop_obj.face_ranks_diff = diff
-        session.commit()
+        # session.commit()
 
     def add_video_to_gallery_from_same_day_DB(self, vid_name:str, face_conf_threshold:float, face_sim_threshold:float,
                                               min_ranks_diff_threshold:float):
-                    # print(f"the score for the best label match is: {cur_score[label]}")
-                    crop_obj.label = label
-                    crop_obj.face_cos_sim = float(max(cur_score.values()))
-        session.commit()
-
-    def add_video_to_gallery_from_same_day_DB(self, vid_name:str, face_conf_threshold:float, face_sim_threshold:float):
+        # print(f"the score for the best label match is: {cur_score[label]}")
         session = create_session(db_location=SAME_DAY_DB_LOCATION)
         crops = get_entries(session=session,
                             filters=({SameDayCropV2.vid_name == self.get_vid_name_from_path(video_path=vid_name),
@@ -231,9 +221,9 @@ if __name__ == '__main__':
     print(len(vids))
     print(len(existing_vids_in_db))
     print(f'todo {len(vids)} - {len(existing_vids_in_db)}')
-    # for i,vid in enumerate(vids):
-        # if i == 0:
-        #     continue
+    for i,vid in enumerate(vids):
+        if i == 0:
+            continue
         # print(f'doing vid {i} out of {len(vids)}')
         # cont = False
         # for ex_vid in existing_vids_in_db:
@@ -242,14 +232,14 @@ if __name__ == '__main__':
         #         cont = True
         # if cont:
         #     continue
-        # gc.add_video_to_db(vid, skip_every=1)
+        gc.add_video_to_db(vid, skip_every=1)
         # break
         #
         # if "_s21500_e22001.mp4" not in vid:
         #     continue
-        # print(f'Labeling video. {vid}')
-        # gc.label_video(vid_name=vid)
-        # print('Adding labeled images to gallery')
-        # gc.add_video_to_gallery_from_same_day_DB(vid_name=vid, face_conf_threshold=0.80,
-        #                                          face_sim_threshold=0.5,
-        #                                          min_ranks_diff_threshold=0.1)
+        print(f'Labeling video. {vid}')
+        gc.label_video(vid_name=vid)
+        print('Adding labeled images to gallery')
+        gc.add_video_to_gallery_from_same_day_DB(vid_name=vid, face_conf_threshold=0.80,
+                                                 face_sim_threshold=0.5,
+                                                 min_ranks_diff_threshold=0.1)
