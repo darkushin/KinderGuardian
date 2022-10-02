@@ -19,6 +19,7 @@ import mmcv
 import torch.nn.functional as F
 from DataProcessing.DB.dal import *
 from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
+from FaceDetection.arcface import is_img, GALLERY_PKL_PATH, GPIDS_PKL_PATH, ArcFace
 from FaceDetection.pose_estimator import PoseEstimator
 from DataProcessing.utils import viz_DB_data_on_video
 from models.model_constants import ID_NOT_IN_VIDEO
