@@ -10,6 +10,8 @@ sys.path.append('Simple_CCReID')
 from Simple_CCReID.models.img_resnet import ResNet50
 from Simple_CCReID.models.vid_resnet import C2DResNet50, I3DResNet50, AP3DResNet50, NLResNet50, AP3DNLResNet50
 from Simple_CCReID.configs.default_img import get_img_config
+from Simple_CCReID.configs.default_img import _C as cfg
+
 # from Simple_CCReID.configs.default_vid import get_vid_config
 from centroids_reid.inference.inference_utils import ImageDataset, TrackDataset
 import Simple_CCReID.data.img_transforms as T
@@ -50,7 +52,14 @@ def parse_option():
     return config
 
 
-def build_model(config):
+def set_CAL_reid_cfgs(args):
+    config = cfg.clone()
+    config.merge_from_file(args.reid_config)
+    config.merge_from_list(args.reid_opts)
+    return config
+
+
+def CAL_build_model(config):
     """
     Build the CAL model according to the given config.
     """
@@ -60,6 +69,8 @@ def build_model(config):
         print("Loading checkpoint from '{}'".format(config.MODEL.RESUME))
         checkpoint = torch.load(config.MODEL.RESUME)
         model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        print("Warning: Did not load a checkpoint for CAL model!")
     return model
 
 
@@ -141,12 +152,21 @@ def CAL_make_inference_data_loader(config, path, dataset_class, loaded_imgs=None
     return val_loader
 
 
+def CAL_track_inference(model, cfg, track_imgs, device):
+    """
+    Given loaded images of a track, run CTL inference on these images and return the embeddings of these images.
+    """
+    query_data = CAL_make_inference_data_loader(cfg, path='', dataset_class=TrackDataset, loaded_imgs=track_imgs)
+    q_feats, _ = CAL_run_inference(model, query_data, device)
+    return q_feats
+
+
 if __name__ == '__main__':
     # Build configs
     config = parse_option()
 
     # Build model:
-    model = build_model(config)
+    model = CAL_build_model(config)
     model.eval()
 
     # compute feature vectors given a path to a folder:

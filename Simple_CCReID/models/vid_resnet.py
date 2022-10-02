@@ -2,9 +2,9 @@ import torchvision
 import torch.nn as nn
 from torch.nn import init
 from torch.nn import functional as F
-from models.utils import inflate
-from models.utils import c3d_blocks
-from models.utils import nonlocal_blocks
+from Simple_CCReID.models.utils import inflate
+from Simple_CCReID.models.utils import c3d_blocks
+from Simple_CCReID.models.utils import nonlocal_blocks
 
 
 __all__ = ['AP3DResNet50', 'AP3DNLResNet50', 'NLResNet50', 'C2DResNet50', 

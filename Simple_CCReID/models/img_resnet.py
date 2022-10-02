@@ -1,7 +1,7 @@
 import torchvision
 from torch import nn
 from torch.nn import init
-from models.utils import pooling
+from Simple_CCReID.models.utils import pooling
         
 
 class ResNet50(nn.Module):

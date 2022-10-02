@@ -1,7 +1,9 @@
 import logging
-from models.classifier import Classifier, NormalizedClassifier
-from models.img_resnet import ResNet50
-from models.vid_resnet import C2DResNet50, I3DResNet50, AP3DResNet50, NLResNet50, AP3DNLResNet50
+import sys
+
+from Simple_CCReID.models.classifier import Classifier, NormalizedClassifier
+from Simple_CCReID.models.img_resnet import ResNet50
+from Simple_CCReID.models.vid_resnet import C2DResNet50, I3DResNet50, AP3DResNet50, NLResNet50, AP3DNLResNet50
 
 
 __factory = {

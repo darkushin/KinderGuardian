@@ -2,7 +2,7 @@ import torch
 import math
 from torch import nn
 from torch.nn import functional as F
-from models.utils import inflate
+from Simple_CCReID.models.utils import inflate
 
 
 class NonLocalBlockND(nn.Module):

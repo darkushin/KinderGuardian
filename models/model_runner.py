@@ -7,7 +7,7 @@ import sys
 
 from DataProcessing.DB.dal import Crop, get_entries
 from DataProcessing.utils import viz_DB_data_on_video
-from models.model_constants import *
+from model_constants import *
 import DataProcessing.dataFactory
 from typing import List
 
@@ -33,7 +33,7 @@ def get_args():
     parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
     parser.add_argument('--experiment_mode', action='store_true', help='run in experiment_mode')
     parser.add_argument('--exp_description', help='The description of the experiment that should appear in the ablation study output')
-    parser.add_argument('--reid_model', choices=['fastreid', 'ctl'], default='fastreid', help='Reid model that should be used.')
+    parser.add_argument('--reid_model', choices=['fastreid', 'CAL', 'ctl'], default='fastreid', help='Reid model that should be used.')
 
     return parser.parse_args()
 
