@@ -581,9 +581,10 @@ def create_data_by_re_id_and_track():
         all_tracks_final_scores[track_id] = final_scores
         final_label = ID_TO_NAME[max(final_scores, key=final_scores.get)]
         print(final_label)
-        if is_unknown_id(final_scores=final_scores, threshold=0.60):
-            print(f'final label {final_label} replaced with Unknown')
-            final_label = 'Unknown'
+        # Todo this is a nice approach, but it fails on a number of cases. Need to find more robust approachs for better results.
+        # if is_unknown_id(final_scores=final_scores, threshold=0.60):
+        #     print(f'final label {final_label} replaced with Unknown')
+        #     final_label = 'Unknown'
 
         # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
 
