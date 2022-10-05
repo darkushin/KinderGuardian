@@ -466,7 +466,8 @@ def create_data_by_re_id_and_track():
         # create gallery features:
         gallery_data = CAL_make_inference_data_loader(reid_cfg, reid_cfg.DATA.ROOT, ImageDataset)
         g_feats, g_paths = CAL_run_inference(reid_model, gallery_data, args.device)
-        print('daniel')
+        g_pids = np.array([pid.split('/')[-1].split('_')[0] for pid in g_paths]).astype(int)  # need to be only the string id of a person ('0015' etc.)
+        g_feats = torch.from_numpy(g_feats)
     else:
         # args.reid_config = "./centroids_reid/configs/256_resnet50.yml"
         reid_cfg = set_CTL_reid_cfgs(args)
@@ -524,7 +525,7 @@ def create_data_by_re_id_and_track():
             q_feats = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
             reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
         elif args.reid_model == 'CAL':
-            track_imgs = [crop_dict.get('crop_img') for crop_dict in crop_dicts]
+            track_imgs = [crop_dict.get('ctl_img') for crop_dict in crop_dicts]
             q_feats = CAL_track_inference(model=reid_model, cfg=reid_cfg, track_imgs=track_imgs, device=args.device)
             q_feats = torch.from_numpy(q_feats)
             reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
