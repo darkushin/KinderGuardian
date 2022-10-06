@@ -468,7 +468,7 @@ def create_data_by_re_id_and_track():
         g_feats, g_paths = CAL_run_inference(reid_model, gallery_data, args.device)
         g_pids = np.array([pid.split('/')[-1].split('_')[0] for pid in g_paths]).astype(int)  # need to be only the string id of a person ('0015' etc.)
         g_feats = torch.from_numpy(g_feats)
-    else:
+    elif args.reid_model == 'CTL':
         # args.reid_config = "./centroids_reid/configs/256_resnet50.yml"
         reid_cfg = set_CTL_reid_cfgs(args)
         assert len(os.listdir(reid_cfg.DATASETS.ROOT_DIR)) > 0, "reid gallery is empty, check args."
@@ -487,6 +487,8 @@ def create_data_by_re_id_and_track():
         # g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
         g_pids = g_paths.astype(int)
         g_feats = torch.from_numpy(g_feats)
+    else:
+        raise Exception('Unsupported ReID model.')
 
     tl_start = time.time()
     print('Starting to create tracklets')
@@ -530,12 +532,14 @@ def create_data_by_re_id_and_track():
             q_feats = torch.from_numpy(q_feats)
             reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
 
-        else:
+        elif args.reid_model == 'CTL':
             track_imgs = [crop_dict.get('ctl_img') for crop_dict in crop_dicts]
             # use loaded images for inference:
             q_feats = ctl_track_inference(model=reid_model, cfg=reid_cfg, track_imgs=track_imgs, device=args.device)
             q_feats = torch.from_numpy(q_feats)
             reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
+        else:
+            raise Exception('Unsupported ReID model')
 
         # print(reid_scores)
         bincount = np.bincount(reid_ids)
