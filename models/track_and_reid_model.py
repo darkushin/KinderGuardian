@@ -22,6 +22,7 @@ from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 from FaceDetection.arcface import is_img, GALLERY_PKL_PATH, GPIDS_PKL_PATH, ArcFace
 from FaceDetection.pose_estimator import PoseEstimator
 from DataProcessing.utils import viz_DB_data_on_video
+from SameDayReid.gallery_creation import GPATH
 from models.model_constants import ID_NOT_IN_VIDEO
 import warnings
 warnings.filterwarnings('ignore')
@@ -119,7 +120,16 @@ def get_reid_score_all_ids_full_gallery(track_im_conf, simmat, g_pids):
     aligned_simmat = simmat
     for pid in set(g_pids):
         # maybe take the top-K?
-        ids_score[pid] +=  aligned_simmat[:,np.where(g_pids==pid)].max(axis=1).mean()
+        id_matrix = aligned_simmat[:, np.where(g_pids==pid)]
+        if len(id_matrix) > 0:
+            if len(id_matrix.shape) == 3:
+                id_matrix = np.squeeze(id_matrix, axis=1)
+            if len(id_matrix.shape) == 2:
+                ids_score[pid] +=  np.max(id_matrix, axis=1).mean()
+            else:
+                print("THIS IS STRANGE")
+                print(id_matrix)
+                continue
         # np.argpartition(aligned_simmat[:,np.where(g_pids==pid)], 5)[-5:].mean()
 
 
@@ -374,7 +384,7 @@ def create_tracklets_using_tracking(args):
                             conf=conf,
                             cam_id=CAM_ID,
                             crop_id=-1,
-                            is_face=is_img(face_img),
+                            is_face=is_img(face_img) and face_prob > 0.7, # NOTE! the 0.8 face conf threshold was build for the 42Street dataset only, face gallery is labeled using the same threshold
                             reviewed_one=False,
                             reviewed_two=False,
                             invalid=False,
@@ -409,13 +419,19 @@ def create_or_load_tracklets(args, create_tracklets:bool):
     return tracklets
 
 
-def is_unknown_id(final_scores:dict, threshold:float=0.5):
+def is_unknown_id(reid_scores:dict, face_scores:dict, face_confs:np.array):
     unknown_id = False
-    ranks = sorted(final_scores.values(), reverse=True)
-    max_score = max(final_scores.values())
-    print(max_score)
-    if (ranks[0] - ranks[1]) <= 0.01 or threshold <= 0.4:
+    face_cos_sim = max(face_scores.values())
+    # an already labeled unknown reid already exists in the gallery and face_cos_sim is low
+    if ID_TO_NAME[max(reid_scores, key=reid_scores.get)] == 'Unknown' and face_cos_sim <= 0.4:
         unknown_id = True
+    face_ranks = sorted(face_scores.values(), reverse=True)
+    face_ranks_diff = face_ranks[0] - face_ranks[1]
+
+    # its a high quality face but the face model is unsure
+    if face_ranks_diff <= 0.01 and face_cos_sim <= 0.30 and face_confs.mean() >= 0.8:
+        unknown_id = True
+
     return unknown_id
 
 
@@ -483,12 +499,12 @@ def create_data_by_re_id_and_track():
 
         # create gallery feature:
         # if not os.path.isdir(CTL_PICKLES):
-        # os.makedirs(CTL_PICKLES, exist_ok=True)
-        # gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
-        # g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
+        os.makedirs(CTL_PICKLES, exist_ok=True)
+        gallery_data = make_inference_data_loader(reid_cfg, reid_cfg.DATASETS.ROOT_DIR, ImageDataset)
+        g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
 
         # OR load gallery feature:
-        g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
+        # g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
         g_pids = g_paths.astype(int)
         g_feats = torch.from_numpy(g_feats)
 
@@ -516,7 +532,7 @@ def create_data_by_re_id_and_track():
 
     all_tracks_final_scores = dict()
     arc_device = 1 if args.device == 'cuda:0' else 0
-    arc = ArcFace(gallery_path=None, device=arc_device)
+    arc = ArcFace(gallery_path=GPATH, device=arc_device)
     # arc.read_gallery_from_scratch()
     arc.read_gallery_from_pkl(gallery_path=GALLERY_PKL_PATH, gpid_path=GPIDS_PKL_PATH)
 
@@ -574,7 +590,7 @@ def create_data_by_re_id_and_track():
         for key in final_scores.keys():
             final_scores[key] = reid_scores[key] * alpha + (1 - alpha) * face_scores[key]
 
-        final_scores = {pid : alpha*reid_score + (1-alpha) * face_score for pid, reid_score, face_score in zip(reid_scores.keys() , reid_scores.values(), face_scores.values())}
+        # final_scores = {pid : alpha*reid_score + (1-alpha) * face_score for pid, reid_score, face_score in zip(reid_scores.keys() , reid_scores.values(), face_scores.values())}
         print(f"Face Scores :{face_scores} \n")
         print(f"Reid Scores: {reid_scores} \n")
         print(f"Final combo scores: {final_scores} \n")
@@ -582,9 +598,9 @@ def create_data_by_re_id_and_track():
         final_label = ID_TO_NAME[max(final_scores, key=final_scores.get)]
         print(final_label)
         # Todo this is a nice approach, but it fails on a number of cases. Need to find more robust approachs for better results.
-        # if is_unknown_id(final_scores=final_scores, threshold=0.60):
-        #     print(f'final label {final_label} replaced with Unknown')
-        #     final_label = 'Unknown'
+        if is_unknown_id(reid_scores=reid_scores, face_scores=face_scores, face_confs=face_imgs_conf):
+            print(f'final label {final_label} replaced with Unknown')
+            final_label = 'Thresh Unknown'
 
         # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
 
@@ -594,6 +610,7 @@ def create_data_by_re_id_and_track():
             crop.crop_id = crop_id
             crop_label = ID_TO_NAME[reid_ids[crop_id]]
             crop.label = final_label
+            crop.conf = max(final_scores.values())
             if crop.conf >= float(args.acc_th):
                 db_entries.append(crop)
             if args.inference_only and crop.conf >= float(args.acc_th):
