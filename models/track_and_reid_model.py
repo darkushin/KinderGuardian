@@ -122,14 +122,15 @@ def get_reid_score_all_ids_full_gallery(track_im_conf, simmat, g_pids):
         # maybe take the top-K?
         id_matrix = aligned_simmat[:, np.where(g_pids==pid)]
         if len(id_matrix) > 0:
+            # if dim of matrix is 3, squeeze it out
             if len(id_matrix.shape) == 3:
                 id_matrix = np.squeeze(id_matrix, axis=1)
+            # this is the correct dim
             if len(id_matrix.shape) == 2:
                 ids_score[pid] +=  np.max(id_matrix, axis=1).mean()
+            # something went wrong
             else:
-                print("THIS IS STRANGE")
-                print(id_matrix)
-                continue
+                raise ValueError('Id cosin sim martix is not in the correct dims.')
         # np.argpartition(aligned_simmat[:,np.where(g_pids==pid)], 5)[-5:].mean()
 
 
