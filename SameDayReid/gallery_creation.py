@@ -1,6 +1,7 @@
 import pickle
 import shutil
 import sys
+import matplotlib.pyplot as plt
 import mmcv
 import os
 from DataProcessing.DB.dal import add_entries, SAME_DAY_DB_LOCATION, get_entries, create_session, \
@@ -28,7 +29,7 @@ POSE_CONFIG = "/home/bar_cohen/D-KinderGuardian/mmpose/configs/body/2d_kpt_sview
 POSE_CHECKPOINT =  "/home/bar_cohen/D-KinderGuardian/checkpoints/mmpose-hrnet_w48_coco_256x192-b9e0b3ab_20200708.pth"
 FACE_NET = 'FaceNet'
 ARC_FACE = 'ArcFace'
-GPATH = "/mnt/raid1/home/bar_cohen/42street/new_face_det_clusters/"
+GPATH = "/mnt/raid1/home/bar_cohen/42street/new_face_det_clusters_cleaned/"
 
 
 class GalleryCreator:
@@ -40,6 +41,7 @@ class GalleryCreator:
                  track_config=TRACKING_CONFIG_PATH,
                  track_checkpoint=TRACKING_CHECKPOINT,
                  create_in_fastreid_format=False,
+                 init_models = True
                  ):
         self.similarty_threshold = similarty_threshold
         self.tracking_model = init_model(track_config, track_checkpoint, device=device)
@@ -54,13 +56,14 @@ class GalleryCreator:
         else:
             os.makedirs(gallery_path, exist_ok=True)
             self.gallery_path = gallery_path
-
-        self.arc = ArcFace(gallery_path=GPATH)
-        # self.arc.read_gallery_from_scratch()
-        # self.arc.save_gallery_to_pkl(GALLERY_PKL_PATH, GPIDS_PKL_PATH)
-        self.arc.read_gallery_from_pkl(gallery_path=GALLERY_PKL_PATH, gpid_path=GPIDS_PKL_PATH)
-        self.pose_estimator = PoseEstimator(pose_config=POSE_CONFIG, pose_checkpoint=POSE_CHECKPOINT, device=device) # TODO hard code configs here
         self.global_i = 0
+
+        if init_models:
+            self.arc = ArcFace(gallery_path=GPATH)
+            # self.arc.read_gallery_from_scratch()
+            # self.arc.save_gallery_to_pkl(GALLERY_PKL_PATH, GPIDS_PKL_PATH)
+            self.arc.read_gallery_from_pkl(gallery_path=GALLERY_PKL_PATH, gpid_path=GPIDS_PKL_PATH)
+            self.pose_estimator = PoseEstimator(pose_config=POSE_CONFIG, pose_checkpoint=POSE_CHECKPOINT, device=device) # TODO hard code configs here
 
     def get_vid_name_from_path(self, video_path):
         return ''.join(video_path.split(os.sep)[-2:])
@@ -68,7 +71,7 @@ class GalleryCreator:
     def get_42street_part(self, video_path):
         return int(video_path.split(os.sep)[-2][-1])
 
-    def add_video_to_db(self, video_path:str, skip_every=1):
+    def add_video_to_db(self, video_path:str, skip_every=1, db_location=SAME_DAY_DB_LOCATION):
         imgs = mmcv.VideoReader(video_path)
         vid_name = self.get_vid_name_from_path(video_path=video_path)
         part = self.get_42street_part(video_path=video_path) # 42street specific
@@ -92,8 +95,8 @@ class GalleryCreator:
                                                         frame_num=image_index
                                                         ))
 
-        add_entries(crops=video_crops, db_location=SAME_DAY_DB_LOCATION) # Note this points to the SAME_DB_DB_LOCATION !
-
+        add_entries(crops=video_crops, db_location=db_location) # Note this points to the SAME_DB_DB_LOCATION !
+        
     def detect_faces_and_create_db_crops(self, ids, confs, crops_imgs, crops_bboxes, vid_name, part, frame_num):
         crops = []
         pose_discard_counter = 0
@@ -127,6 +130,7 @@ class GalleryCreator:
                                 h_face=h_face,
                                 face_conf=face_prob,
                                 face_cos_sim=-1,
+                                face_ranks_diff=-1,
                                 track_id=id,
                                 cam_id=5, # a constant 5 for now
                                 crop_id=i
@@ -140,6 +144,11 @@ class GalleryCreator:
         return crops
 
     def label_video(self, vid_name:str):
+        def score_boundary(min_score_threshold:float):
+            cur_diff = ranks[0] - ranks[1]
+            assert cur_diff > 0
+            return cur_diff
+
         session = create_session(db_location=SAME_DAY_DB_LOCATION)
         crops = get_entries(session=session,
                             filters=({SameDayCropV2.vid_name == self.get_vid_name_from_path(video_path=vid_name)}),
@@ -149,29 +158,65 @@ class GalleryCreator:
         if len(crop_faces) > 0:  # some faces where detected
             for crop_obj , face in tqdm.tqdm(zip(crops, crop_faces), total=len(crops)):
                 face = face[:, :, ::-1] # switch color channels
-                if face.shape[0] > 0 and face.shape[1] > 1:
+                if face.shape[0] > 0 and face.shape[1] > 1 and crop_obj.face_conf >= 0.8:
                     cur_score = self.arc.predict_img(face)
+                    ranks = sorted(cur_score.values(), reverse=True)
                     label = max(cur_score, key=cur_score.get)
-                    # print(f"the score for the best label match is: {cur_score[label]}")
+                    diff = score_boundary(min_score_threshold=0.5)
+                    print(f"diff is {(ranks[0] - ranks[1])}, max score is {max(cur_score.values())}, "
+                          f"face conf is {crop_obj.face_conf}, the given label is {label}")
                     crop_obj.label = label
                     crop_obj.face_cos_sim = float(max(cur_score.values()))
+                    crop_obj.face_ranks_diff = diff
         session.commit()
 
-    def add_video_to_gallery_from_same_day_DB(self, vid_name:str, face_conf_threshold:float, face_sim_threshold:float):
+    def add_video_to_gallery_from_same_day_DB(self, vid_name:str, face_conf_threshold:float, face_sim_threshold:float,
+                                              min_ranks_diff_threshold:float, create_labeled_training=False):
+
         session = create_session(db_location=SAME_DAY_DB_LOCATION)
-        crops = get_entries(session=session,
+        good_crops = get_entries(session=session,
                             filters=({SameDayCropV2.vid_name == self.get_vid_name_from_path(video_path=vid_name),
                                       SameDayCropV2.face_conf >= face_conf_threshold,
-                                      SameDayCropV2.face_cos_sim >= face_sim_threshold
+                                      SameDayCropV2.face_cos_sim >= face_sim_threshold,
+                                      SameDayCropV2.face_ranks_diff >= min_ranks_diff_threshold,
                                       }
                                       ),
                             db_path=SAME_DAY_DB_LOCATION,
                             crop_type=SameDayCropV2).all()
-        for crop in tqdm.tqdm(crops):
+
+        if not create_labeled_training:
+            unknown_crops = get_entries(session=session,
+                                filters=({SameDayCropV2.vid_name == self.get_vid_name_from_path(video_path=vid_name),
+                                          SameDayCropV2.face_conf > 0.87,
+                                          SameDayCropV2.face_cos_sim < 0.30,
+                                          SameDayCropV2.face_ranks_diff < 0.01,
+                                          }
+                                          ),
+                                db_path=SAME_DAY_DB_LOCATION,
+                                crop_type=SameDayCropV2).all()
+
+            for crop in unknown_crops:
+                crop.label = 12
+
+            good_crops.extend(unknown_crops)
+
+        for crop in tqdm.tqdm(good_crops):
             if crop.label:
                 crop_name = f'{int(crop.label):04d}_c{self.cam_id}_f{self.global_i:07d}.jpg'
-                self.global_i += 1
                 shutil.copy(os.path.join(DB_GALLERY, crop.im_name), os.path.join(self.gallery_path, crop_name))
+                if create_labeled_training:
+                    # save the face crop as well as the full body crop
+                    crop_face = mmcv.imread(os.path.join(DB_GALLERY, crop.im_name))[crop.y_face:crop.h_face,
+                                 crop.x_face:crop.w_face]
+                    crop_face_name = f'{int(crop.label):04d}_c{self.cam_id}_f{self.global_i:07d}_face.jpg'
+                    mmcv.imwrite(np.array(crop_face), os.path.join(self.gallery_path, crop_face_name))
+                self.global_i += 1
+
+
+def is_high_quality_unknown(crop:SameDayCropV2):
+    # the difference between rank1 and rank2 is low, the max score received for known ids is low but the face
+    # itself is of high quality --- possibly an unknown?
+    return crop.face_ranks_diff <= 0.01 and crop.face_cos_sim <= 0.30 and crop.face_conf >= 0.87
 
 def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
     result = inference_mot(tracking_model, img, frame_id=frame_id)
@@ -182,15 +227,23 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
 
 if __name__ == '__main__':
     print("Thats right yall")
-    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/par1_0.5_0.5/", cam_id="5",
-                        device='cuda:1', create_in_fastreid_format=True, tracker_conf_threshold=0.0)
-    # print('Done Creating Gallery pkls')
-    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_2/"
+    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part1_unknown1/", cam_id="5",
+                        device='cuda:0', create_in_fastreid_format=False, tracker_conf_threshold=0.0, init_models=True)
+    print('Done Creating Gallery pkls')
+    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_1/"
     vids = [os.path.join(vid_path, vid) for vid in os.listdir(vid_path)]
-    for vid in vids:
-        # gc.add_video_to_db(vid, skip_every=1)
-        # print(f'Labeling video. {vid}')
+    session = create_session(db_location=SAME_DAY_DB_LOCATION)
+    crops = get_entries(session=session, filters=(), db_path=SAME_DAY_DB_LOCATION, crop_type=SameDayCropV2).all()
+    existing_vids_in_db = set([crop.vid_name for crop in crops])
+    for i,vid in enumerate(vids):
+        print(f'doing vid {i} out of {len(vids)}')
+        # gc.add_video_to_db(vid, skip_every=1)        #
+        # if "_s21500_e22001.mp4" not in vid:
+        #     continue
+        print(f'Labeling video. {vid}')
         # gc.label_video(vid_name=vid)
-        # print('Adding labeled images to gallery')
-        gc.add_video_to_gallery_from_same_day_DB(vid_name=vid, face_conf_threshold=0.5, face_sim_threshold=0.5)
-
+        print('Adding labeled images to gallery')
+        gc.add_video_to_gallery_from_same_day_DB(vid_name=vid, face_conf_threshold=0.80,
+                                                 face_sim_threshold=0,
+                                                 min_ranks_diff_threshold=0.0,
+                                                 create_labeled_training=True)
