@@ -24,7 +24,7 @@ from FaceDetection.pose_estimator import PoseEstimator
 from DataProcessing.utils import viz_DB_data_on_video
 from model_constants import ID_NOT_IN_VIDEO
 from SameDayReid.gallery_creation import GPATH
-from models.model_constants import ID_NOT_IN_VIDEO
+# from model_constants import ID_NOT_IN_VIDEO
 import warnings
 warnings.filterwarnings('ignore')
 sys.path.append('fast-reid')
@@ -503,7 +503,7 @@ def create_data_by_re_id_and_track():
         g_feats, g_paths = CAL_run_inference(reid_model, gallery_data, args.device)
         g_pids = np.array([pid.split('/')[-1].split('_')[0] for pid in g_paths]).astype(int)  # need to be only the string id of a person ('0015' etc.)
         g_feats = torch.from_numpy(g_feats)
-    elif args.reid_model == 'CTL':
+    elif args.reid_model == 'ctl':
         # args.reid_config = "./centroids_reid/configs/256_resnet50.yml"
         reid_cfg = set_CTL_reid_cfgs(args)
         assert len(os.listdir(reid_cfg.DATASETS.ROOT_DIR)) > 0, "reid gallery is empty, check args."
@@ -568,7 +568,7 @@ def create_data_by_re_id_and_track():
             q_feats = torch.from_numpy(q_feats)
             reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
 
-        elif args.reid_model == 'CTL':
+        elif args.reid_model == 'ctl':
             track_imgs = [crop_dict.get('ctl_img') for crop_dict in crop_dicts]
             # use loaded images for inference:
             q_feats = ctl_track_inference(model=reid_model, cfg=reid_cfg, track_imgs=track_imgs, device=args.device)
