@@ -7,7 +7,7 @@ import sys
 
 from DataProcessing.DB.dal import Crop, get_entries
 from DataProcessing.utils import viz_DB_data_on_video
-from models.model_constants import *
+from model_constants import *
 import DataProcessing.dataFactory
 from typing import List
 
@@ -33,7 +33,7 @@ def get_args():
     parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
     parser.add_argument('--experiment_mode', action='store_true', help='run in experiment_mode')
     parser.add_argument('--exp_description', help='The description of the experiment that should appear in the ablation study output')
-    parser.add_argument('--reid_model', choices=['fastreid', 'ctl'], default='fastreid', help='Reid model that should be used.')
+    parser.add_argument('--reid_model', choices=['fastreid', 'CAL', 'ctl'], default='fastreid', help='Reid model that should be used.')
 
     return parser.parse_args()
 
@@ -222,6 +222,39 @@ def execute_combined_model():
     --reid_config ./fast-reid/configs/DukeMTMC/bagtricks_R101-ibn.yml --input /home/bar_cohen/KinderGuardian/Videos/trimmed_1.8.21-095724.mp4
     --output ./Results/trimmed-bytetrack_labeled.mp4 --acc_th 0.7 --crops_folder /mnt/raid1/home/bar_cohen/DB_Test/
     --device cuda:1 --reid_opts DATASETS.DATASET inference_on_train_data MODEL.WEIGHTS ./fast-reid/checkpoints/1.8.21-model.pth
+
+    CAL:
+    re-id-and-tracking
+--track_config
+./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py
+--mmtrack_checkpoint
+/home/bar_cohen/KinderGuardian/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth
+--reid_config
+./Simple_CCReID/configs/res50_cels_cal.yaml
+--input
+/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210803105422/IPCamera_20210803105422_s0_e501.mp4
+--output
+/mnt/raid1/home/bar_cohen/labled_videos/20210803105422_s0_e501_new_model.mp4
+--acc_th
+0.0
+--crops_folder
+/mnt/raid1/home/bar_cohen/42street/42StreetCrops/
+--inference_only
+--exp_description
+"Testing CAL before merge"
+--device
+cuda:0
+--reid_model
+CAL
+--pose_config
+/home/bar_cohen/D-KinderGuardian/mmpose/configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/hrnet_w48_coco_256x192.py
+--pose_checkpoint
+/home/bar_cohen/D-KinderGuardian/checkpoints/mmpose-hrnet_w48_coco_256x192-b9e0b3ab_20200708.pth
+--reid_opts
+MODEL.RESUME
+/home/bar_cohen/Simple-CCReID/checkpoints/prcc-checkpoint.pth.tar
+DATA.ROOT
+/mnt/raid1/home/bar_cohen/42street/part2_gallery/
     """
     reid_opts: List = create_reid_opts()
     optional_args: List = create_optional_args()

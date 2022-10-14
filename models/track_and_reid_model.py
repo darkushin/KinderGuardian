@@ -22,8 +22,9 @@ from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 from FaceDetection.arcface import is_img, GALLERY_PKL_PATH, GPIDS_PKL_PATH, ArcFace
 from FaceDetection.pose_estimator import PoseEstimator
 from DataProcessing.utils import viz_DB_data_on_video
+from model_constants import ID_NOT_IN_VIDEO
 from SameDayReid.gallery_creation import GPATH
-from models.model_constants import ID_NOT_IN_VIDEO
+# from model_constants import ID_NOT_IN_VIDEO
 import warnings
 warnings.filterwarnings('ignore')
 sys.path.append('fast-reid')
@@ -35,6 +36,7 @@ from demo.predictor import FeatureExtractionDemo
 from mmtrack.apis import inference_mot, init_model
 from double_id_handler import remove_double_ids, NODES_ORDER
 from CTL_reid_inference import *
+from CAL_reid_inference import *
 
 CAM_ID = 1
 P_POWER = 2
@@ -71,7 +73,7 @@ def get_args():
     parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
     parser.add_argument('--experiment_mode', action='store_true', help='run in experiment_mode')
     parser.add_argument('--exp_description', help='The description of the experiment that should appear in the ablation study output')
-    parser.add_argument('--reid_model', choices=['fastreid', 'ctl'], default='fastreid', help='Reid model that should be used.')
+    parser.add_argument('--reid_model', choices=['fastreid', 'CAL', 'ctl'], default='fastreid', help='Reid model that should be used.')
     args = parser.parse_args()
     return args
 
@@ -489,7 +491,19 @@ def create_data_by_re_id_and_track():
             os.makedirs(FAST_PICKLES, exist_ok=True)
         gen_reid_features(reid_cfg, reid_model, output_path=FAST_PICKLES)  # UNCOMMENT TO Recreate reid features
         feats, g_feats, g_pids, g_camids = load_reid_features(output_path=FAST_PICKLES)
-    else:
+    elif args.reid_model == 'CAL':
+        reid_cfg = set_CAL_reid_cfgs(args)
+        assert len(os.listdir(reid_cfg.DATA.ROOT)) > 0, "reid gallery is empty, check args."
+
+        # initialize reid model:
+        reid_model = CAL_build_model(reid_cfg)
+
+        # create gallery features:
+        gallery_data = CAL_make_inference_data_loader(reid_cfg, reid_cfg.DATA.ROOT, ImageDataset)
+        g_feats, g_paths = CAL_run_inference(reid_model, gallery_data, args.device)
+        g_pids = np.array([pid.split('/')[-1].split('_')[0] for pid in g_paths]).astype(int)  # need to be only the string id of a person ('0015' etc.)
+        g_feats = torch.from_numpy(g_feats)
+    elif args.reid_model == 'ctl':
         # args.reid_config = "./centroids_reid/configs/256_resnet50.yml"
         reid_cfg = set_CTL_reid_cfgs(args)
         assert len(os.listdir(reid_cfg.DATASETS.ROOT_DIR)) > 0, "reid gallery is empty, check args."
@@ -508,6 +522,8 @@ def create_data_by_re_id_and_track():
         # g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
         g_pids = g_paths.astype(int)
         g_feats = torch.from_numpy(g_feats)
+    else:
+        raise Exception('Unsupported ReID model.')
 
     tl_start = time.time()
     print('Starting to create tracklets')
@@ -546,12 +562,20 @@ def create_data_by_re_id_and_track():
             track_imgs = [crop_dict.get('crop_img') for crop_dict in crop_dicts]
             q_feats = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
             reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
-        else:
+        elif args.reid_model == 'CAL':
+            track_imgs = [crop_dict.get('ctl_img') for crop_dict in crop_dicts]
+            q_feats = CAL_track_inference(model=reid_model, cfg=reid_cfg, track_imgs=track_imgs, device=args.device)
+            q_feats = torch.from_numpy(q_feats)
+            reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
+
+        elif args.reid_model == 'ctl':
             track_imgs = [crop_dict.get('ctl_img') for crop_dict in crop_dicts]
             # use loaded images for inference:
             q_feats = ctl_track_inference(model=reid_model, cfg=reid_cfg, track_imgs=track_imgs, device=args.device)
             q_feats = torch.from_numpy(q_feats)
             reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
+        else:
+            raise Exception('Unsupported ReID model')
 
         # print(reid_scores)
         bincount = np.bincount(reid_ids)
