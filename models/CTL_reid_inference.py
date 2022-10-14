@@ -138,7 +138,7 @@ def create_query_prob_vector(q_feats, g_feats, g_paths):
     return probs_vectors
 
 
-def compute_accuracy(q_feats, q_paths, g_feats, g_paths):
+def compute_accuracy(q_feats, q_paths, g_feats, g_paths, sc=True):
     distmat = create_distmat(q_feats, g_feats)
     indices = np.argsort(distmat, axis=1)
     
@@ -150,7 +150,8 @@ def compute_accuracy(q_feats, q_paths, g_feats, g_paths):
 
         if true_label == pred_label:
             accuracy += 1
-    print(f'Total accuracy: {accuracy / len(q_feats)}')
+    print_message = 'same-clothes query.' if sc else 'different-clothes query.'
+    print(f'Total accuracy: {accuracy / len(q_feats)} for {print_message}')
 
 
 def usage_example_folder_path_query(args):
@@ -165,21 +166,31 @@ def usage_example_folder_path_query(args):
     checkpoint['hyper_parameters']['MODEL']['PRETRAIN_PATH'] = './centroids_reid/models/resnet50-19c8e357.pth'
     reid_model = CTLModel._load_model_state(checkpoint)
 
+    dataset_base_path = reid_cfg.DATASETS.ROOT_DIR
+
     # create gallery feature:
-    # gallery_imgs_path = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/diff_day_train_as_test_0730_0808_quary/bounding_box_test'
-    # gallery_data = make_inference_data_loader(reid_cfg, gallery_imgs_path, ImageDataset)
-    # g_feats, g_paths = create_gallery_features(reid_model, gallery_data, args.device, output_path=CTL_PICKLES)
+    gallery_imgs_path = os.path.join(dataset_base_path, 'bounding_box_test')
+    gallery_data = make_inference_data_loader(reid_cfg, gallery_imgs_path, ImageDataset)
+    g_feats, g_paths = run_inference(reid_model, gallery_data, args.device)  #, output_path=CTL_PICKLES)
 
     # OR load gallery feature:
-    g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
+    # g_feats, g_paths = load_gallery_features(gallery_path=CTL_PICKLES)
     
-    # compute query feature vectors:
-    query_imgs_path = '/home/bar_cohen/KinderGuardian/fast-reid/datasets/same_day_0730/bounding_box_test'
-    query_data = make_inference_data_loader(reid_cfg, query_imgs_path, ImageDataset)
-    q_feats, q_paths = run_inference(reid_model, query_data, args.device)
+    # compute same-clothes query feature vectors:
+    query_same_imgs_path = os.path.join(dataset_base_path, 'query_same')
+    query_same_data = make_inference_data_loader(reid_cfg, query_same_imgs_path, ImageDataset)
+    q_sc_feats, q_sc_paths = run_inference(reid_model, query_same_data, args.device)
 
-    # compute accuracy for dataset:
-    compute_accuracy(q_feats, q_paths, g_feats, g_paths)
+    # compute accuracy for sc part:
+    compute_accuracy(q_sc_feats, q_sc_paths, g_feats, g_paths, sc=True)
+
+    # compute diff-clothes query feature vectors:
+    query_diff_imgs_path = os.path.join(dataset_base_path, 'query_diff')
+    query_diff_data = make_inference_data_loader(reid_cfg, query_diff_imgs_path, ImageDataset)
+    q_dc_feats, q_dc_paths = run_inference(reid_model, query_diff_data, args.device)
+
+    # compute accuracy for sc part:
+    compute_accuracy(q_dc_feats, q_dc_paths, g_feats, g_paths, sc=False)
 
 
 def usage_example_track_as_query(args):

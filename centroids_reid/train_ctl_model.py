@@ -19,8 +19,8 @@ from pytorch_lightning.utilities import AttributeDict, rank_zero_only
 from torch import tensor
 from tqdm import tqdm
 
-from config import cfg
-from modelling.bases import ModelBase
+from centroids_reid.config import cfg
+from centroids_reid.modelling.bases import ModelBase
 from centroids_reid.utils.misc import run_main
 
 """
