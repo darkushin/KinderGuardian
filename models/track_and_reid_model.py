@@ -29,6 +29,7 @@ import warnings
 warnings.filterwarnings('ignore')
 sys.path.append('fast-reid')
 sys.path.append('centroids_reid')
+sys.path.append('models')
 from scenedetect import detect, ContentDetector
 from fastreid.config import get_cfg
 from fastreid.data import build_reid_test_loader
@@ -438,8 +439,8 @@ def is_unknown_id(reid_scores:dict, face_scores:dict, face_confs:np.array):
     return unknown_id
 
 
-def update_ablation_results_per_track(columns_dict, is_correct_on_track):
-    if is_correct_on_track:
+def update_ablation_results_per_track(columns_dict,total_tagged_crops, is_correct_on_track):
+    if is_correct_on_track >= total_tagged_crops * 0.98: # the 0.98 threshold is due to labeling issues
         columns_dict['reid_with_face_clf_maj_vote_per_track'] += 1
 
 
@@ -629,7 +630,8 @@ def create_data_by_re_id_and_track():
 
         # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
 
-        is_correct_on_track = False
+        correct_on_track = 0
+        tagged_crops_in_track = 0
         for crop_id, crop_dict in enumerate(crop_dicts):
             crop = crop_dict.get('Crop')
             crop.crop_id = crop_id
@@ -639,17 +641,22 @@ def create_data_by_re_id_and_track():
             if crop.conf >= float(args.acc_th):
                 db_entries.append(crop)
             if args.inference_only and crop.conf >= float(args.acc_th):
-                total_crops, total_crops_of_tracks_with_face, correct_on_cur_track = update_ablation_results(columns_dict, crop, crop_label,
+                new_total_crops, total_crops_of_tracks_with_face, correct_on_cur_track = update_ablation_results(columns_dict, crop, crop_label,
                                                                                        face_label, final_label,
                                                                                        ids_acc_dict, is_face_in_track,
                                                                                        maj_vote_label, total_crops,
                                                                                        total_crops_of_tracks_with_face)
+                if new_total_crops > total_crops:
+                    tagged_crops_in_track += 1
+                total_crops = new_total_crops
                 # we are under the same track here, if we are correct on the first image we should be correct on the last
-                if is_correct_on_track and correct_on_cur_track:
-                    is_correct_on_track = True
+                if correct_on_cur_track:
+                    correct_on_track += 1
             if not args.inference_only:
                 mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder,get_vid_name(args), crop.im_name))
-        update_ablation_results_per_track(columns_dict=columns_dict, is_correct_on_track=is_correct_on_track)
+        update_ablation_results_per_track(columns_dict=columns_dict,
+                                          total_tagged_crops=tagged_crops_in_track,
+                                          is_correct_on_track=correct_on_track)
 
     add_entries(db_entries, db_location)
 
@@ -694,7 +701,6 @@ def update_ablation_results(columns_dict, crop, crop_label, face_label, final_la
     # if tagged_label_crop and tagged_label_crop != "Unknown":  # there is a tagging for this crop which is not invalid, count it
     if tagged_label_crop:  # there is a tagging for this crop which is not invalid, count it
         total_crops += 1
-        is_correct_on_track = True
         if is_face_in_track:
             total_crops_of_tracks_with_face += 1
         tagged_label = tagged_label_crop[0].label
@@ -704,6 +710,7 @@ def update_ablation_results(columns_dict, crop, crop_label, face_label, final_la
         ids_acc_dict[tagged_label][0] += 1
 
         if tagged_label == crop_label:
+            is_correct_on_track = True
             columns_dict['pure_reid_model'] += 1
         if tagged_label == maj_vote_label:
             columns_dict['reid_with_maj_vote'] += 1
