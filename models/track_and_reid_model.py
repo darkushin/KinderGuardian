@@ -29,6 +29,7 @@ import warnings
 warnings.filterwarnings('ignore')
 sys.path.append('fast-reid')
 sys.path.append('centroids_reid')
+sys.path.append('models')
 from scenedetect import detect, ContentDetector
 from fastreid.config import get_cfg
 from fastreid.data import build_reid_test_loader
@@ -42,8 +43,9 @@ CAM_ID = 1
 P_POWER = 2
 FAST_PICKLES = '/home/bar_cohen/raid/OUR_DATASETS/FAST_reid'
 ABLATION_OUTPUT = "/mnt/raid1/home/bar_cohen/42street/Results/42Street_inference_results.csv"
-ABLATION_COLUMNS = ['description', 'video_name', 'ids_in_video', 'total_ids_in_video', 'total_tracks',
-                    'tracks_with_face', 'pure_reid_model', 'reid_with_maj_vote','reid_with_face_clf_maj_vote_per_track',
+ABLATION_COLUMNS = ['description', 'video_name', 'ids_in_video', 'total_ids_in_video', 'total_tracks', 'total_crops_of_tracks_with_face',
+                    'tracks_with_face', 'pure_reid_model', 'reid_with_maj_vote','reid_maj_vote_per_track',
+                    'face_maj_vote_per_track', 'reid_with_face_clf_maj_vote_per_track',
                     'face_clf_only', 'face_clf_only_tracks_with_face', 'reid_with_face_clf_maj_vote', 'rank-1', 'sorted-rank-1',
                     'appearance-order', 'max-difference', 'model_name', 'running_time', 'total_crops']#,
                     # 'Adam', 'Avigail', 'Ayelet', 'Bar', 'Batel', 'Big-Gali', 'Eitan', 'Gali', 'Guy', 'Halel', 'Lea',
@@ -242,21 +244,22 @@ def load_reid_features(output_path=None):
     return feats, g_feats, g_pids, g_camids
 
 
-def write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, ablation_df, db_location):
+def write_ablation_results(args, columns_dict, ids_acc_dict, ablation_df, db_location):
         acc_columns = ['pure_reid_model', 'face_clf_only', 'reid_with_maj_vote', 'reid_with_face_clf_maj_vote']
         acc_columns.extend(NODES_ORDER)
+        track_columns = ['face_maj_vote_per_track', 'reid_maj_vote_per_track', 'reid_with_face_clf_maj_vote_per_track']
         for acc in acc_columns:
-            columns_dict[acc] = columns_dict[acc] / total_crops
+            columns_dict[acc] = columns_dict[acc] / columns_dict['total_crops']
 
-        if total_crops_of_tracks_with_face > 0:
-            columns_dict['face_clf_only_tracks_with_face'] = columns_dict['face_clf_only_tracks_with_face'] / total_crops_of_tracks_with_face
-        if columns_dict['reid_with_face_clf_maj_vote_per_track'] > 0:
-            columns_dict['reid_with_face_clf_maj_vote_per_track'] /= columns_dict['total_tracks']
+        if columns_dict['total_crops_of_tracks_with_face'] > 0:
+            columns_dict['face_clf_only_tracks_with_face'] = columns_dict['face_clf_only_tracks_with_face'] / columns_dict['total_crops_of_tracks_with_face']
+
+        for track in track_columns:
+            columns_dict[track] /= columns_dict['total_tracks']
         ids_set = set(name for name, value in ids_acc_dict.items() if value[0] > 0)
         columns_dict['total_ids_in_video'] = len(ids_set)
         columns_dict['ids_in_video'] = str(ids_set)
         columns_dict['description'] = args.exp_description if args.exp_description else ""
-        columns_dict['total_crops'] = total_crops
         for name, value in ids_acc_dict.items():
             if value[0] == ID_NOT_IN_VIDEO: # this id was never in video
                 columns_dict[name] = ID_NOT_IN_VIDEO
@@ -438,8 +441,12 @@ def is_unknown_id(reid_scores:dict, face_scores:dict, face_confs:np.array):
     return unknown_id
 
 
-def update_ablation_results_per_track(columns_dict, is_correct_on_track):
-    if is_correct_on_track:
+def update_ablation_results_per_track(columns_dict,track_acc_dict):
+    if track_acc_dict['correct_on_track_face_clf'] >= track_acc_dict['tagged_crops_in_track'] * 0.98:
+        columns_dict['face_maj_vote_per_track'] += 1
+    if track_acc_dict['correct_on_track_maj_vote_ReID'] >= track_acc_dict['tagged_crops_in_track'] * 0.98:
+        columns_dict['reid_maj_vote_per_track'] += 1
+    if track_acc_dict['is_correct_on_track_combined'] >= track_acc_dict['tagged_crops_in_track'] * 0.98: # the 0.98 threshold is due to labeling issues
         columns_dict['reid_with_face_clf_maj_vote_per_track'] += 1
 
 
@@ -500,6 +507,7 @@ def create_data_by_re_id_and_track():
 
         # create gallery features:
         gallery_data = CAL_make_inference_data_loader(reid_cfg, reid_cfg.DATA.ROOT, ImageDataset)
+        assert len(gallery_data) > 0 , "gallery data is empty, check args"
         g_feats, g_paths = CAL_run_inference(reid_model, gallery_data, args.device)
         g_pids = np.array([pid.split('/')[-1].split('_')[0] for pid in g_paths]).astype(int)  # need to be only the string id of a person ('0015' etc.)
         g_feats = torch.from_numpy(g_feats)
@@ -542,8 +550,6 @@ def create_data_by_re_id_and_track():
     # id dict value at index 1 - number of times correctly classified in video
     ids_acc_dict = {name: [ID_NOT_IN_VIDEO,ID_NOT_IN_VIDEO] for name in ID_TO_NAME.values()}
 
-    total_crops = 0
-    total_crops_of_tracks_with_face = 0
     if not args.inference_only:
         os.makedirs(os.path.join(args.crops_folder,get_vid_name(args)), exist_ok=True)
 
@@ -610,7 +616,7 @@ def create_data_by_re_id_and_track():
             print(f"No face found, using Reid as Final Label: {final_label}")
             print(f"Reid scores: {reid_scores}")
 
-        alpha = 0.5  # TODO enter as an arg
+        alpha = 0.75  # TODO enter as an arg
         final_scores = {pid: 0 for pid in ID_TO_NAME.keys()}
         for key in final_scores.keys():
             final_scores[key] = reid_scores[key] * alpha + (1 - alpha) * face_scores[key]
@@ -623,13 +629,19 @@ def create_data_by_re_id_and_track():
         final_label = ID_TO_NAME[max(final_scores, key=final_scores.get)]
         print(final_label)
         # Todo this is a nice approach, but it fails on a number of cases. Need to find more robust approachs for better results.
-        if is_unknown_id(reid_scores=reid_scores, face_scores=face_scores, face_confs=face_imgs_conf):
-            print(f'final label {final_label} replaced with Unknown')
-            final_label = 'Thresh Unknown'
+        # if is_unknown_id(reid_scores=reid_scores, face_scores=face_scores, face_confs=face_imgs_conf):
+        #     print(f'final label {final_label} replaced with Unknown')
+        #     final_label = 'Thresh Unknown'
 
         # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
 
-        is_correct_on_track = False
+        track_acc_dict = {
+            'tagged_crops_in_track' : 0 ,
+            'correct_on_track_face_clf' : 0,
+            'correct_on_track_maj_vote_ReID': 0,
+            'is_correct_on_track_combined' : 0
+        }
+
         for crop_id, crop_dict in enumerate(crop_dicts):
             crop = crop_dict.get('Crop')
             crop.crop_id = crop_id
@@ -639,17 +651,16 @@ def create_data_by_re_id_and_track():
             if crop.conf >= float(args.acc_th):
                 db_entries.append(crop)
             if args.inference_only and crop.conf >= float(args.acc_th):
-                total_crops, total_crops_of_tracks_with_face, correct_on_cur_track = update_ablation_results(columns_dict, crop, crop_label,
-                                                                                       face_label, final_label,
-                                                                                       ids_acc_dict, is_face_in_track,
-                                                                                       maj_vote_label, total_crops,
-                                                                                       total_crops_of_tracks_with_face)
+                update_ablation_results(columns_dict, crop, crop_label,
+                                       face_label, final_label,
+                                       ids_acc_dict, is_face_in_track,
+                                       maj_vote_label, track_acc_dict)
+
                 # we are under the same track here, if we are correct on the first image we should be correct on the last
-                if is_correct_on_track and correct_on_cur_track:
-                    is_correct_on_track = True
             if not args.inference_only:
                 mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder,get_vid_name(args), crop.im_name))
-        update_ablation_results_per_track(columns_dict=columns_dict, is_correct_on_track=is_correct_on_track)
+        update_ablation_results_per_track(columns_dict=columns_dict,
+                                          track_acc_dict=track_acc_dict)
 
     add_entries(db_entries, db_location)
 
@@ -675,11 +686,11 @@ def create_data_by_re_id_and_track():
     # session.commit()
     end = time.time()
     columns_dict['running_time'] = int(end-start)
-    if args.inference_only and total_crops > 0:
+    if args.inference_only and columns_dict['total_crops'] > 0:
         print('Writing ablation results...')
-        write_ablation_results(args, columns_dict, total_crops, total_crops_of_tracks_with_face, ids_acc_dict, ablation_df, db_location)
+        write_ablation_results(args, columns_dict, ids_acc_dict, ablation_df, db_location)
     else:
-        print(f"Something went wrong with ablation results writing. Num of total crops is: {total_crops}")
+        print(f"Video is not tagged. Num of total crops is: {columns_dict['total_crops']}")
         print('Viz video based temp_DB only...')
         viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=False)
 
@@ -687,33 +698,35 @@ def create_data_by_re_id_and_track():
 
 
 def update_ablation_results(columns_dict, crop, crop_label, face_label, final_label, ids_acc_dict, is_face_in_track,
-                            maj_vote_label, total_crops, total_crops_of_tracks_with_face):
-    is_correct_on_track = False
+                            maj_vote_label, track_acc_dict, count_unknowns=False):
+
     tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
     # print(f'DB label is: {tagged_label}, Inference label is: {reid_ids[crop_id]}')
-    # if tagged_label_crop and tagged_label_crop != "Unknown":  # there is a tagging for this crop which is not invalid, count it
-    if tagged_label_crop:  # there is a tagging for this crop which is not invalid, count it
-        total_crops += 1
-        is_correct_on_track = True
+    if tagged_label_crop and (tagged_label_crop != "Unknown" or count_unknowns):  # there is a tagging for this crop which is not invalid, count it
+    # there is a tagging for this crop which is not invalid, count it
+        columns_dict['total_crops'] += 1
+        track_acc_dict['tagged_crops_in_track'] += 1
         if is_face_in_track:
-            total_crops_of_tracks_with_face += 1
+            columns_dict['total_crops_of_tracks_with_face'] += 1
         tagged_label = tagged_label_crop[0].label
         if ids_acc_dict[tagged_label][0] == ID_NOT_IN_VIDEO:  # init this id as present in vid
             ids_acc_dict[tagged_label][0] = 0
             ids_acc_dict[tagged_label][1] = 0
         ids_acc_dict[tagged_label][0] += 1
-
         if tagged_label == crop_label:
             columns_dict['pure_reid_model'] += 1
         if tagged_label == maj_vote_label:
             columns_dict['reid_with_maj_vote'] += 1
+            track_acc_dict['correct_on_track_maj_vote_ReID'] += 1
         if is_face_in_track and tagged_label == face_label:
             columns_dict['face_clf_only_tracks_with_face'] += 1
             columns_dict['face_clf_only'] += 1
+            track_acc_dict['correct_on_track_face_clf'] += 1
+
         if tagged_label == final_label:
             columns_dict['reid_with_face_clf_maj_vote'] += 1
+            track_acc_dict['is_correct_on_track_combined'] += 1
             ids_acc_dict[tagged_label][1] += 1
-    return total_crops, total_crops_of_tracks_with_face, is_correct_on_track
 
 
 if __name__ == '__main__':
