@@ -12,8 +12,7 @@ DB_GALLERY = "/mnt/raid1/home/bar_cohen/42street/db_gallery/"
 
 sys.path.append('FaceDetection')
 
-from FaceDetection.arcface import ArcFace, GALLERY_PKL_PATH, GPIDS_PKL_PATH, GALLERY_NO_UNKNOWNS, GPIDS_NO_UNKNOWNS, \
-    is_img
+from FaceDetection.arcface import ArcFace, GALLERY_PKL_PATH, GPIDS_PKL_PATH, is_img, GPATH
 
 sys.path.append('mmpose')
 import tqdm
@@ -29,7 +28,6 @@ POSE_CONFIG = "/home/bar_cohen/D-KinderGuardian/mmpose/configs/body/2d_kpt_sview
 POSE_CHECKPOINT =  "/home/bar_cohen/D-KinderGuardian/checkpoints/mmpose-hrnet_w48_coco_256x192-b9e0b3ab_20200708.pth"
 FACE_NET = 'FaceNet'
 ARC_FACE = 'ArcFace'
-GPATH = "/mnt/raid1/home/bar_cohen/42street/new_face_det_clusters_cleaned/"
 
 
 class GalleryCreator:
@@ -227,23 +225,24 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
 
 if __name__ == '__main__':
     print("Thats right yall")
-    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part1_unknown1/", cam_id="5",
+    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part3_new_face_gallery8/", cam_id="5",
                         device='cuda:0', create_in_fastreid_format=False, tracker_conf_threshold=0.0, init_models=True)
     print('Done Creating Gallery pkls')
-    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_1/"
+    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_5/"
     vids = [os.path.join(vid_path, vid) for vid in os.listdir(vid_path)]
     session = create_session(db_location=SAME_DAY_DB_LOCATION)
     crops = get_entries(session=session, filters=(), db_path=SAME_DAY_DB_LOCATION, crop_type=SameDayCropV2).all()
     existing_vids_in_db = set([crop.vid_name for crop in crops])
     for i,vid in enumerate(vids):
+
         print(f'doing vid {i} out of {len(vids)}')
         # gc.add_video_to_db(vid, skip_every=1)        #
         # if "_s21500_e22001.mp4" not in vid:
         #     continue
         print(f'Labeling video. {vid}')
-        # gc.label_video(vid_name=vid)
+        gc.label_video(vid_name=vid)
         print('Adding labeled images to gallery')
-        gc.add_video_to_gallery_from_same_day_DB(vid_name=vid, face_conf_threshold=0.80,
-                                                 face_sim_threshold=0,
-                                                 min_ranks_diff_threshold=0.0,
-                                                 create_labeled_training=True)
+        # gc.add_video_to_gallery_from_same_day_DB(vid_name=vid, face_conf_threshold=0.80,
+        #                                          face_sim_threshold=0.5,
+        #                                          min_ranks_diff_threshold=0.1,
+        #                                          create_labeled_training=False)

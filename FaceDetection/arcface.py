@@ -17,6 +17,7 @@ GPIDS_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_face_det_improve
 # GPIDS_PKL_PATH_MIN_FACE_MARGIN = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_mmargin.pkl"
 GPIDS_NO_UNKNOWNS = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_no_unknowns.pkl"
 GALLERY_NO_UNKNOWNS = "/mnt/raid1/home/bar_cohen/42street/pkls/gallery_no_unknowns.pkl"
+GPATH = "/mnt/raid1/home/bar_cohen/42street/part1_faces_clusters/"
 
 model_path = '/home/bar_cohen/D-KinderGuardian/insightface_test/checkpoints/w600k_r50.onnx'
 IMG_SIZE = ((112,112))
