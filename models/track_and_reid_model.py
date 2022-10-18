@@ -267,7 +267,7 @@ def write_ablation_results(args, columns_dict, ids_acc_dict, ablation_df, db_loc
                 columns_dict[name] = value[1] / value[0]
         ablation_df.append(columns_dict, ignore_index=True).to_csv(ABLATION_OUTPUT)
         print('Making visualization using temp DB')
-        viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
+        viz_DB_data_on_video(input_vid=args.input, output_path=args.output,eval=True)
         assert db_location not in [DB_LOCATION_VAL,DB_LOCATION_TEST], 'Pay attention! you almost destroyed the labeled DB!'
         print('removing temp DB')
         os.remove(db_location)
