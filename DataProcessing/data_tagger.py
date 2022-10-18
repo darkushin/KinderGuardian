@@ -215,5 +215,6 @@ def rewrite_face_tagging(correct_face_img_path:str):
     print('done!')
 
 if __name__ == '__main__':
-    tag_and_create_vid(vid_name='_s35000_e35501',part='part4')
+    tag_and_create_vid(vid_name='_s22500_e23001',part='part4')
+
     # rewrite_face_tagging("/mnt/raid1/home/bar_cohen/FaceData/reviewed_one_images/")
