@@ -268,7 +268,7 @@ def write_ablation_results(args, columns_dict, ids_acc_dict, ablation_df, db_loc
         ablation_df.append(columns_dict, ignore_index=True).to_csv(ABLATION_OUTPUT)
         print('Making visualization using temp DB')
         viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
-        assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
+        assert db_location not in [DB_LOCATION_VAL,DB_LOCATION_TEST], 'Pay attention! you almost destroyed the labeled DB!'
         print('removing temp DB')
         os.remove(db_location)
 
@@ -460,7 +460,7 @@ def create_data_by_re_id_and_track():
     """
     args = get_args()
     print(f'Args: {args}')
-    db_location = DB_LOCATION
+    db_location = DB_LOCATION_TEST
     columns_dict = {}
     start = time.time()
     ablation_df = None
@@ -475,7 +475,7 @@ def create_data_by_re_id_and_track():
         print('*** Running in inference-only mode ***')
         db_location = f'/mnt/raid1/home/bar_cohen/OUR_DATASETS/temp_db/inference_db{np.random.randint(0, 10000000000)}.db'
         if os.path.isfile(db_location): # remove temp db if leave-over from prev runs
-            assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
+            assert db_location not in [DB_LOCATION_VAL,DB_LOCATION_TEST], 'Pay attention! you almost destroyed the labeled DB!'
             os.remove(db_location)
         create_table(db_location)
         print(f'Created temp DB in: {db_location}')
@@ -659,8 +659,10 @@ def create_data_by_re_id_and_track():
                 # we are under the same track here, if we are correct on the first image we should be correct on the last
             if not args.inference_only:
                 mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder,get_vid_name(args), crop.im_name))
-        update_ablation_results_per_track(columns_dict=columns_dict,
-                                          track_acc_dict=track_acc_dict)
+
+        if args.inference_only:
+            update_ablation_results_per_track(columns_dict=columns_dict,
+                                              track_acc_dict=track_acc_dict)
 
     add_entries(db_entries, db_location)
 
@@ -671,7 +673,7 @@ def create_data_by_re_id_and_track():
                                         db_location=db_location, nodes_order=nodes_order)
         session = create_session(db_location)
         if args.inference_only:
-            assert db_location != DB_LOCATION, 'You fool!'
+            assert db_location not in [DB_LOCATION_VAL,DB_LOCATION_TEST], 'You fool!'
         tracks = [track.track_id for track in get_entries(filters=(), group=Crop.track_id, db_path=db_location, session=session)]
         for track in tracks:
             crops = get_entries(filters=({Crop.track_id==track}), db_path=db_location, session=session).all()
@@ -690,7 +692,7 @@ def create_data_by_re_id_and_track():
         print('Writing ablation results...')
         write_ablation_results(args, columns_dict, ids_acc_dict, ablation_df, db_location)
     else:
-        print(f"Video is not tagged. Num of total crops is: {columns_dict['total_crops']}")
+        print(f"Video is not tagged.")
         print('Viz video based temp_DB only...')
         viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=False)
 

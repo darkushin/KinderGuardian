@@ -186,12 +186,11 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
 
     session.commit()
 
-def tag_and_create_vid(vid_name:str):
+def tag_and_create_vid(vid_name:str,part):
     session = create_session()
     label_tracks_DB(vid_name=vid_name,
                     crops_folder=f"/mnt/raid1/home/bar_cohen/42street/42StreetCrops/{vid_name}/",
                     session=session)
-    part = vid_name.split('_')[0]
     viz_DB_data_on_video(
         f"/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/{part}/{vid_name}.mp4",
         output_path=f'/mnt/raid1/home/bar_cohen/42street/GT_output_videos/{vid_name}_GT.mp4')
@@ -216,5 +215,5 @@ def rewrite_face_tagging(correct_face_img_path:str):
     print('done!')
 
 if __name__ == '__main__':
-    tag_and_create_vid(vid_name='part1_s9500_e10001')
+    tag_and_create_vid(vid_name='_s35000_e35501',part='part4')
     # rewrite_face_tagging("/mnt/raid1/home/bar_cohen/FaceData/reviewed_one_images/")
