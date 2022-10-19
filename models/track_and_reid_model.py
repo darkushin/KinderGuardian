@@ -50,6 +50,9 @@ ABLATION_COLUMNS = ['description', 'video_name', 'ids_in_video', 'total_ids_in_v
                     'appearance-order', 'max-difference', 'model_name', 'running_time', 'total_crops']#,
                     # 'Adam', 'Avigail', 'Ayelet', 'Bar', 'Batel', 'Big-Gali', 'Eitan', 'Gali', 'Guy', 'Halel', 'Lea',
                     # 'Noga', 'Ofir', 'Omer', 'Roni', 'Sofi', 'Sofi-Daughter', 'Yahel', 'Hagai', 'Ella', 'Daniel']
+
+MINIMAL_CROPS_FOR_TRACK = 10
+LABEL_MISTAKE_BUFFER = 0.98
 ABLATION_COLUMNS.extend(list(NAME_TO_ID.keys()))
 
 def get_args():
@@ -442,12 +445,14 @@ def is_unknown_id(reid_scores:dict, face_scores:dict, face_confs:np.array):
 
 
 def update_ablation_results_per_track(columns_dict,track_acc_dict):
-    if track_acc_dict['correct_on_track_face_clf'] >= track_acc_dict['tagged_crops_in_track'] * 0.98:
-        columns_dict['face_maj_vote_per_track'] += 1
-    if track_acc_dict['correct_on_track_maj_vote_ReID'] >= track_acc_dict['tagged_crops_in_track'] * 0.98:
-        columns_dict['reid_maj_vote_per_track'] += 1
-    if track_acc_dict['is_correct_on_track_combined'] >= track_acc_dict['tagged_crops_in_track'] * 0.98: # the 0.98 threshold is due to labeling issues
-        columns_dict['reid_with_face_clf_maj_vote_per_track'] += 1
+    if track_acc_dict['tagged_crops_in_track'] >= MINIMAL_CROPS_FOR_TRACK:
+        columns_dict['total_tracks'] += 1
+        if track_acc_dict['correct_on_track_face_clf'] >= track_acc_dict['tagged_crops_in_track'] * LABEL_MISTAKE_BUFFER:
+            columns_dict['face_maj_vote_per_track'] += 1
+        if track_acc_dict['correct_on_track_maj_vote_ReID'] >= track_acc_dict['tagged_crops_in_track'] * LABEL_MISTAKE_BUFFER:
+            columns_dict['reid_maj_vote_per_track'] += 1
+        if track_acc_dict['is_correct_on_track_combined'] >= track_acc_dict['tagged_crops_in_track'] * LABEL_MISTAKE_BUFFER: # the 0.98 threshold is due to labeling issues
+            columns_dict['reid_with_face_clf_maj_vote_per_track'] += 1
 
 
 def create_data_by_re_id_and_track():
@@ -562,8 +567,7 @@ def create_data_by_re_id_and_track():
     # iterate over all tracklets and make a prediction for every tracklet
     for track_id, crop_dicts in tqdm.tqdm(tracklets.items(), total=len(tracklets.keys())):
         if args.inference_only:
-            columns_dict['total_tracks'] += 1
-        track_imgs_conf = np.array([crop_dict.get('Crop').conf for crop_dict in crop_dicts])
+            track_imgs_conf = np.array([crop_dict.get('Crop').conf for crop_dict in crop_dicts])
         if args.reid_model == 'fastreid':
             track_imgs = [crop_dict.get('crop_img') for crop_dict in crop_dicts]
             q_feats = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
@@ -700,11 +704,11 @@ def create_data_by_re_id_and_track():
 
 
 def update_ablation_results(columns_dict, crop, crop_label, face_label, final_label, ids_acc_dict, is_face_in_track,
-                            maj_vote_label, track_acc_dict, count_unknowns=False):
+                            maj_vote_label, track_acc_dict, count_unknowns=True):
 
     tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
     # print(f'DB label is: {tagged_label}, Inference label is: {reid_ids[crop_id]}')
-    if tagged_label_crop and (tagged_label_crop != "Unknown" or count_unknowns):  # there is a tagging for this crop which is not invalid, count it
+    if tagged_label_crop and (tagged_label_crop[0].label != "Unknown" or count_unknowns):  # there is a tagging for this crop which is not invalid, count it
     # there is a tagging for this crop which is not invalid, count it
         columns_dict['total_crops'] += 1
         track_acc_dict['tagged_crops_in_track'] += 1
