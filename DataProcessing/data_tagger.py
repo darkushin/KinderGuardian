@@ -24,6 +24,10 @@ def discard_crops(track, crops_inds):
     for crop_id in crops_inds:
         track[crop_id].invalid = True
 
+def undiscard_crops(track, crops_inds):
+    for crop_id in crops_inds:
+        track[crop_id].invalid = False
+
 
 def split_track(track, split_start, split_end, new_label, new_track_id):
     splitted_track = track[split_start:split_end]
@@ -100,6 +104,7 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
                 user_input = input(f"{APPROVE_TRACK} to approve,"
                                    f"{SPLIT_TRACK} to split, "
                                    f"{DISCARD} to discard,"
+                                   f"{UNDISCARD} to un-discard, "
                                    f"{VAGUE} to mark vague,"
                                    f"{RELABEL} for relabel,"
                                    f"{SKIP_TRACK} to skip review")
@@ -121,6 +126,15 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
                         print('Some values are not valid crop ids, try again')
                         continue
                     discard_crops(track, parsed_input)
+                    actions_taken.append((DISCARD, discard_input))
+
+                elif user_input == UNDISCARD:
+                    discard_input = input('Enter crop_ids to un-Discard')
+                    parsed_input = parse_input(discard_input)
+                    if max(parsed_input) > len(track):
+                        print('Some values are not valid crop ids, try again')
+                        continue
+                    undiscard_crops(track, parsed_input)
                     actions_taken.append((DISCARD, discard_input))
 
                 elif user_input == VAGUE:
@@ -186,12 +200,11 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
 
     session.commit()
 
-def tag_and_create_vid(vid_name:str):
+def tag_and_create_vid(vid_name:str,part):
     session = create_session()
     label_tracks_DB(vid_name=vid_name,
                     crops_folder=f"/mnt/raid1/home/bar_cohen/42street/42StreetCrops/{vid_name}/",
                     session=session)
-    part = vid_name.split('_')[0]
     viz_DB_data_on_video(
         f"/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/{part}/{vid_name}.mp4",
         output_path=f'/mnt/raid1/home/bar_cohen/42street/GT_output_videos/{vid_name}_GT.mp4')
@@ -216,5 +229,6 @@ def rewrite_face_tagging(correct_face_img_path:str):
     print('done!')
 
 if __name__ == '__main__':
-    tag_and_create_vid(vid_name='part1_s9500_e10001')
+    tag_and_create_vid(vid_name='_s22500_e23001',part='part4')
+
     # rewrite_face_tagging("/mnt/raid1/home/bar_cohen/FaceData/reviewed_one_images/")
