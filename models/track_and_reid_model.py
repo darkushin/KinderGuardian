@@ -267,7 +267,7 @@ def write_ablation_results(args, columns_dict, ids_acc_dict, ablation_df, db_loc
                 columns_dict[name] = value[1] / value[0]
         ablation_df.append(columns_dict, ignore_index=True).to_csv(ABLATION_OUTPUT)
         print('Making visualization using temp DB')
-        viz_DB_data_on_video(input_vid=args.input, output_path=args.output,db_path=db_location, eval=True)
+        viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=True)
         assert db_location != DB_LOCATION, 'Pay attention! you almost destroyed the labeled DB!'
         print('removing temp DB')
         os.remove(db_location)
@@ -659,30 +659,28 @@ def create_data_by_re_id_and_track():
                 # we are under the same track here, if we are correct on the first image we should be correct on the last
             if not args.inference_only:
                 mmcv.imwrite(crop_dict['crop_img'], os.path.join(args.crops_folder,get_vid_name(args), crop.im_name))
-
-        if args.inference_only:
-            update_ablation_results_per_track(columns_dict=columns_dict,
-                                              track_acc_dict=track_acc_dict)
+        update_ablation_results_per_track(columns_dict=columns_dict,
+                                          track_acc_dict=track_acc_dict)
 
     add_entries(db_entries, db_location)
 
     # handle double-id and update it in the DB
     # Remove double ids according to different heuristics and record it in the ablation study results
-    # for nodes_order in NODES_ORDER:  # NOTE: the last order in this list will be used for the visualization
-    #     new_id_dict = remove_double_ids(vid_name=get_vid_name(args), tracks_scores=all_tracks_final_scores,
-    #                                     db_location=db_location, nodes_order=nodes_order)
-    #     session = create_session(db_location)
-    #     if args.inference_only:
-    #         assert db_location not in [DB_LOCATION_VAL, DB_LOCATION], 'You fool!'
-    #     tracks = [track.track_id for track in get_entries(filters=(), group=Crop.track_id, db_path=db_location, session=session)]
-    #     for track in tracks:
-    #         crops = get_entries(filters=({Crop.track_id==track}), db_path=db_location, session=session).all()
-    #         for crop in crops:
-    #             # crop.label = ID_TO_NAME[new_id_dict[track]]
-    #             if args.inference_only:
-    #                 tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
-    #                 if tagged_label_crop and tagged_label_crop[0].label == ID_TO_NAME[new_id_dict[track]]:
-    #                     columns_dict[nodes_order] += 1
+    for nodes_order in NODES_ORDER:  # NOTE: the last order in this list will be used for the visualization
+        new_id_dict = remove_double_ids(vid_name=get_vid_name(args), tracks_scores=all_tracks_final_scores,
+                                        db_location=db_location, nodes_order=nodes_order)
+        session = create_session(db_location)
+        if args.inference_only:
+            assert db_location != DB_LOCATION, 'You fool!'
+        tracks = [track.track_id for track in get_entries(filters=(), group=Crop.track_id, db_path=db_location, session=session)]
+        for track in tracks:
+            crops = get_entries(filters=({Crop.track_id==track}), db_path=db_location, session=session).all()
+            for crop in crops:
+                # crop.label = ID_TO_NAME[new_id_dict[track]]
+                if args.inference_only:
+                    tagged_label_crop = get_entries(filters={Crop.im_name == crop.im_name, Crop.invalid == False}).all()
+                    if tagged_label_crop and tagged_label_crop[0].label == ID_TO_NAME[new_id_dict[track]]:
+                        columns_dict[nodes_order] += 1
 
     # calculate new precision after IDs update and add to ablation study
     # session.commit()
@@ -692,9 +690,9 @@ def create_data_by_re_id_and_track():
         print('Writing ablation results...')
         write_ablation_results(args, columns_dict, ids_acc_dict, ablation_df, db_location)
     else:
-        print(f"Video is not tagged.")
+        print(f"Video is not tagged. Num of total crops is: {columns_dict['total_crops']}")
         print('Viz video based temp_DB only...')
-        viz_DB_data_on_video(input_vid=args.input, output_path=args.output, db_path=db_location,eval=False)
+        viz_DB_data_on_video(input_vid=args.input, output_path=args.output, DB_path=db_location,eval=False)
 
     print(f"Done within {int(end-start)} seconds.")
 

@@ -1,17 +1,13 @@
 import pickle
 import shutil
 import sys
-from collections import defaultdict
-
 import matplotlib.pyplot as plt
 import mmcv
 import os
 from DataProcessing.DB.dal import add_entries, SAME_DAY_DB_LOCATION, get_entries, create_session, \
     SameDayCropV2
-from DataProcessing.dataProcessingConstants import ID_TO_NAME
 
 DB_GALLERY = "/mnt/raid1/home/bar_cohen/42street/db_gallery/"
-LABELED_TRACK_GALLERY = "/mnt/raid1/home/bar_cohen/42street/labeled_track_gallery/"
 
 
 sys.path.append('FaceDetection')
@@ -214,47 +210,6 @@ class GalleryCreator:
                     mmcv.imwrite(np.array(crop_face), os.path.join(self.gallery_path, crop_face_name))
                 self.global_i += 1
 
-    def create_labeled_tracks_using_DB(self, video_path):
-        session = create_session(db_location=SAME_DAY_DB_LOCATION)
-        imgs = mmcv.VideoReader(video_path)
-        vid_name = self.get_vid_name_from_path(video_path=video_path)
-        part = self.get_42street_part(video_path=video_path) # 42street specific
-        track_label_dict = dict()
-        track_imgs = defaultdict(list)
-        for image_index, img in tqdm.tqdm(enumerate(imgs), total=len(imgs)):
-            result = tracking_inference(self.tracking_model, img, image_index,
-                                        acc_threshold=float(self.tracker_conf_threshold))
-            ids = list(map(int, result['track_results'][0][:, 0]))
-            crops_bboxes = result['track_results'][0][:, 1:-1]
-            crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
-            for crop_img,track_id in zip(crops_imgs, ids):
-                    if track_id not in track_label_dict.keys():
-                        labeled_track_crops = get_entries(session=session, filters={SameDayCropV2.vid_name == vid_name,
-                                                                                    SameDayCropV2.track_id == track_id,
-                                                                                    SameDayCropV2.part == part,
-                                                                                    SameDayCropV2.face_conf >= 0.83,
-                                                                                    SameDayCropV2.face_cos_sim >= 0.6,
-                                                                                    }, crop_type=SameDayCropV2, db_path=SAME_DAY_DB_LOCATION).all()
-
-                        if len(labeled_track_crops) > 3:
-                            track_labels = [crop.label for crop in labeled_track_crops]
-                            bincount = np.bincount(track_labels)
-                            track_maj_vote = np.argmax(bincount)
-                            track_maj_conf = bincount[track_maj_vote] / len(labeled_track_crops)
-                            if track_maj_conf > 0.9:
-                                track_label_dict[track_id] = track_maj_vote
-
-                        else:
-                            track_label_dict[track_id] = -1 # this track does not have what it takes, skip it on the next img
-                    if track_id in track_label_dict.keys() and track_label_dict[track_id] != -1:
-                        track_imgs[track_id].append(crop_img)
-
-        for track_id in track_imgs.keys():
-            if track_label_dict[track_id] != -1: # this track has high quality faces labeled
-                for i,crop_im in enumerate(track_imgs[track_id]):
-                    crop_name = f'{int(track_label_dict[track_id]):04d}_c{self.cam_id}_t{track_id}_f{i:07d}_{self.global_i:05d}.jpg'
-                    mmcv.imwrite(np.array(crop_im), os.path.join(LABELED_TRACK_GALLERY, crop_name))
-        self.global_i += 1 # this will be used for diff videos
 
 def is_high_quality_unknown(crop:SameDayCropV2):
     # the difference between rank1 and rank2 is low, the max score received for known ids is low but the face
@@ -271,23 +226,22 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
 if __name__ == '__main__':
     print("Thats right yall")
     gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part3_new_face_gallery8/", cam_id="5",
-                        device='cuda:0', create_in_fastreid_format=False, tracker_conf_threshold=0.0, init_models=False)
+                        device='cuda:0', create_in_fastreid_format=False, tracker_conf_threshold=0.0, init_models=True)
     print('Done Creating Gallery pkls')
-    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_1/"
+    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_5/"
     vids = [os.path.join(vid_path, vid) for vid in os.listdir(vid_path)]
     session = create_session(db_location=SAME_DAY_DB_LOCATION)
-    # crops = get_entries(session=session, filters=(), db_path=SAME_DAY_DB_LOCATION, crop_type=SameDayCropV2).all()
-    # existing_vids_in_db = set([crop.vid_name for crop in crops])
+    crops = get_entries(session=session, filters=(), db_path=SAME_DAY_DB_LOCATION, crop_type=SameDayCropV2).all()
+    existing_vids_in_db = set([crop.vid_name for crop in crops])
     for i,vid in enumerate(vids):
-        gc.create_labeled_tracks_using_DB(vid)
-        print(f'doing vid {i} out of {len(vids)}')
 
+        print(f'doing vid {i} out of {len(vids)}')
         # gc.add_video_to_db(vid, skip_every=1)        #
         # if "_s21500_e22001.mp4" not in vid:
         #     continue
-        # print(f'Labeling video. {vid}')
-        # gc.label_video(vid_name=vid)
-        # print('Adding labeled images to gallery')
+        print(f'Labeling video. {vid}')
+        gc.label_video(vid_name=vid)
+        print('Adding labeled images to gallery')
         # gc.add_video_to_gallery_from_same_day_DB(vid_name=vid, face_conf_threshold=0.80,
         #                                          face_sim_threshold=0.5,
         #                                          min_ranks_diff_threshold=0.1,
