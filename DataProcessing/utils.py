@@ -341,7 +341,7 @@ def viz_data_on_video_using_pickle(input_vid, output_path, pre_labeled_pkl_path=
 #     plt.show()
 
 
-def viz_DB_data_on_video(input_vid, output_path, db_path=DB_LOCATION_TEST, eval=False):
+def viz_DB_data_on_video(input_vid, output_path, db_path=DB_LOCATION, eval=False):
     """
     Use the labeled data from the DB to visualize the labels on a given video.
     Args:

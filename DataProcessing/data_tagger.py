@@ -104,7 +104,7 @@ def label_tracks_DB(vid_name: str, crops_folder: str, session):
                 user_input = input(f"{APPROVE_TRACK} to approve,"
                                    f"{SPLIT_TRACK} to split, "
                                    f"{DISCARD} to discard,"
-                                   f"{UNDISCARD} to un-discard"
+                                   f"{UNDISCARD} to un-discard, "
                                    f"{VAGUE} to mark vague,"
                                    f"{RELABEL} for relabel,"
                                    f"{SKIP_TRACK} to skip review")
