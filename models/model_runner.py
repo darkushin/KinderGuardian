@@ -262,13 +262,18 @@ DATA.ROOT
     # print('Total videos in eval set:', len(get_query_set()))
     # street42 = ["/mnt/raid1/home/bar_cohen/42street/val_videos_2/"]
     # street42 = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged/_vids/part1/"]
-    street42 = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part3/"]
+    street42 = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part4/"]
     query_set = [os.path.join(part, vid) for part in street42 for vid in os.listdir(part)]
     for query_vid in query_set:
         # if '_s28000_e28501' not in query_vid:
         #     print(f'skipping {query_vid}')
         #     continue
         print(f'running {query_vid}')
+        args.input = os.path.join('/mnt/raid1/home/bar_cohen/trimmed_videos',
+                                  query_vid.split('_')[0] + '_' + query_vid.split('_')[1],
+                                  query_vid)
+
+        args.output = os.path.join(inference_output, 'inference_' + query_vid.split('/')[-1])
         script_args = ['/home/bar_cohen/miniconda3/envs/CTL/bin/python3.7', './models/track_and_reid_model.py',
                        args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
 
