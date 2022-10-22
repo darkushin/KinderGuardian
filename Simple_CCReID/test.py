@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch import distributed as dist
 from tools.eval_metrics import evaluate, evaluate_with_clothes
-
+import tqdm
 
 VID_DATASET = ['ccvid']
 
@@ -47,24 +47,35 @@ def extract_img_feature(model, dataloader):
 
 
 @torch.no_grad()
-def extract_vid_feature(model, dataloader, vid2clip_index, data_length):
+def extract_vid_feature(model, dataloader, vid2clip_index, data_length, model_type='CAL'):
     # In build_dataloader, each original test video is split into a series of equilong clips.
     # During test, we first extact features for all clips
+    # clip_features, clip_pids, clip_camids, clip_clothes_ids = [], torch.tensor([], dtype=torch.int64), torch.tensor([], dtype=torch.int64), torch.tensor([], dtype=torch.int64)  # fix for huji
     clip_features, clip_pids, clip_camids, clip_clothes_ids = [], torch.tensor([]), torch.tensor([]), torch.tensor([])
-    for batch_idx, (vids, batch_pids, batch_camids, batch_clothes_ids) in enumerate(dataloader):
-        if (batch_idx + 1) % 200==0:
-            logger.info("{}/{}".format(batch_idx+1, len(dataloader)))
+    for batch_idx, (vids, batch_pids, batch_camids, batch_clothes_ids) in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
+        # if (batch_idx + 1) % 200!=0:
+        #     print(f'batch {batch_idx}/{len(dataloader)}')
         vids = vids.cuda()
-        batch_features = model(vids)
+        if 'CAL' in model_type:
+            batch_features = model(vids)
+        elif model_type == 'CTL':
+            batch_features = torch.zeros(vids.shape[0], 2048, device=model.device)
+            for vid in range(vids.shape[0]):
+                imgs = vids[vid, :, :, :, :].permute(1, 0, 2, 3)
+                _, vid_features = model.backbone(imgs)
+                batch_features[vid] = torch.mean(vid_features, 0)
+            batch_features = model.bn(batch_features)
+        else:
+            raise Exception(f'Selected model type: {model_type} is invalid, select from: [CAL, CAL_VID, CTL]')
         clip_features.append(batch_features.cpu())
         clip_pids = torch.cat((clip_pids, batch_pids.cpu()), dim=0)
         clip_camids = torch.cat((clip_camids, batch_camids.cpu()), dim=0)
-        clip_clothes_ids = torch.cat((clip_clothes_ids, batch_clothes_ids.cpu()), dim=0)
+        clip_clothes_ids = torch.cat((clip_clothes_ids, batch_clothes_ids.to(dtype=torch.float32).cpu()), dim=0)
     clip_features = torch.cat(clip_features, 0)
 
     # Gather samples from different GPUs
-    clip_features, clip_pids, clip_camids, clip_clothes_ids = \
-        concat_all_gather([clip_features, clip_pids, clip_camids, clip_clothes_ids], data_length)
+    # clip_features, clip_pids, clip_camids, clip_clothes_ids = \
+    #     concat_all_gather([clip_features, clip_pids, clip_camids, clip_clothes_ids], data_length)
 
     # Use the averaged feature of all clips split from a video as the representation of this original full-length video
     features = torch.zeros(len(vid2clip_index), clip_features.size(1)).cuda()

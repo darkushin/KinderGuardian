@@ -78,7 +78,7 @@ def get_args():
     parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
     parser.add_argument('--experiment_mode', action='store_true', help='run in experiment_mode')
     parser.add_argument('--exp_description', help='The description of the experiment that should appear in the ablation study output')
-    parser.add_argument('--reid_model', choices=['fastreid', 'CAL', 'ctl'], default='fastreid', help='Reid model that should be used.')
+    parser.add_argument('--reid_model', choices=['fastreid', 'CAL', 'ctl', 'CAL_VID'], default='fastreid', help='Reid model that should be used.')
     args = parser.parse_args()
     return args
 
@@ -516,6 +516,24 @@ def create_data_by_re_id_and_track():
         g_feats, g_paths = CAL_run_inference(reid_model, gallery_data, args.device)
         g_pids = np.array([pid.split('/')[-1].split('_')[0] for pid in g_paths]).astype(int)  # need to be only the string id of a person ('0015' etc.)
         g_feats = torch.from_numpy(g_feats)
+    elif args.reid_model == 'CAL_VID':
+        reid_cfg = set_CAL_VID_reid_cfgs(args)
+
+        # initialize reid model:
+        reid_model = CAL_build_model(reid_cfg, args.device)
+
+        # from torch import distributed as dist
+        # os.environ['CUDA_VISIBLE_DEVICES'] = reid_cfg.GPU
+        # # Init dist
+        # dist.init_process_group(backend="nccl", init_method='env://')
+        # local_rank = dist.get_rank()
+        dataset, galleryloader = build_CAL_VID_gallery(reid_cfg)
+
+        g_feats, g_pids, g_camids, _ = extract_vid_feature(reid_model, galleryloader,
+                                                                  dataset.gallery_vid2clip_index,
+                                                                  len(dataset.recombined_gallery),
+                                                                  model_type='CAL_VID')
+        print('daniel')
     elif args.reid_model == 'ctl':
         # args.reid_config = "./centroids_reid/configs/256_resnet50.yml"
         reid_cfg = set_CTL_reid_cfgs(args)
@@ -566,26 +584,27 @@ def create_data_by_re_id_and_track():
 
     # iterate over all tracklets and make a prediction for every tracklet
     for track_id, crop_dicts in tqdm.tqdm(tracklets.items(), total=len(tracklets.keys())):
-        if args.inference_only:
-            track_imgs_conf = np.array([crop_dict.get('Crop').conf for crop_dict in crop_dicts])
+        # if args.inference_only:
+        track_imgs_conf = np.array([crop_dict.get('Crop').conf for crop_dict in crop_dicts])
         if args.reid_model == 'fastreid':
             track_imgs = [crop_dict.get('crop_img') for crop_dict in crop_dicts]
             q_feats = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
-            reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
+            # reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
         elif args.reid_model == 'CAL':
             track_imgs = [crop_dict.get('ctl_img') for crop_dict in crop_dicts]
             q_feats = CAL_track_inference(model=reid_model, cfg=reid_cfg, track_imgs=track_imgs, device=args.device)
             q_feats = torch.from_numpy(q_feats)
-            reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
+            # reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
 
         elif args.reid_model == 'ctl':
             track_imgs = [crop_dict.get('ctl_img') for crop_dict in crop_dicts]
             # use loaded images for inference:
             q_feats = ctl_track_inference(model=reid_model, cfg=reid_cfg, track_imgs=track_imgs, device=args.device)
             q_feats = torch.from_numpy(q_feats)
-            reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
+            # reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
         else:
             raise Exception('Unsupported ReID model')
+        reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
 
         # print(reid_scores)
         bincount = np.bincount(reid_ids)

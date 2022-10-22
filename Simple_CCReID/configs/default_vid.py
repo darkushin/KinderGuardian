@@ -124,7 +124,7 @@ _C.SEED = 1
 # Perform evaluation only
 _C.EVAL_MODE = False
 # GPU device ids for CUDA_VISIBLE_DEVICES
-_C.GPU = '0, 1'
+_C.GPU = '1'
 # Path to output folder, overwritten by command line argument
 _C.OUTPUT = '/data/guxinqian/logs/'
 # Tag of experiment, overwritten by command line argument

@@ -10,11 +10,18 @@ sys.path.append('Simple_CCReID')
 from Simple_CCReID.models.img_resnet import ResNet50
 from Simple_CCReID.models.vid_resnet import C2DResNet50, I3DResNet50, AP3DResNet50, NLResNet50, AP3DNLResNet50
 from Simple_CCReID.configs.default_img import get_img_config
+from Simple_CCReID.configs.default_vid import get_vid_config
 from Simple_CCReID.configs.default_img import _C as cfg
+from Simple_CCReID.configs.default_vid import _C as cfg_vid
+from Simple_CCReID.data.datasets.street42 import Street42
+# from Simple_CCReID.data.dataloader import DataLoaderX
+from Simple_CCReID.data.dataset_loader import VideoDataset
+# from Simple_CCReID.data.samplers import DistributedInferenceSampler
+from Simple_CCReID.test import extract_vid_feature
 
-# from Simple_CCReID.configs.default_vid import get_vid_config
 from centroids_reid.inference.inference_utils import ImageDataset, TrackDataset
 import Simple_CCReID.data.img_transforms as T
+import Simple_CCReID.data.spatial_transforms as ST
 from torch.utils.data import DataLoader
 
 
@@ -27,6 +34,7 @@ __factory = {
     'ap3dnlres50': AP3DNLResNet50,
 }
 
+VID_DATASET = ['ccvid', 'street42']
 
 def parse_option():
     parser = argparse.ArgumentParser(
@@ -44,10 +52,10 @@ def parse_option():
     parser.add_argument('--gpu', default='0', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
 
     args, unparsed = parser.parse_known_args()
-    # if args.dataset in VID_DATASET:
-    #     config = get_vid_config(args)
-    # else:
-    config = get_img_config(args)
+    if args.dataset in VID_DATASET:
+        config = get_vid_config(args)
+    else:
+        config = get_img_config(args)
 
     return config
 
@@ -59,7 +67,25 @@ def set_CAL_reid_cfgs(args):
     return config
 
 
-def CAL_build_model(config):
+def set_CAL_VID_reid_cfgs(args):
+    config = cfg_vid.clone()
+    config.merge_from_file(args.reid_config)
+    config.merge_from_list(args.reid_opts)
+    return config
+
+
+def build_CAL_VID_gallery(config):
+    dataset = Street42(root=config.DATA.ROOT, seq_len=config.AUG.SEQ_LEN, stride=config.AUG.SAMPLING_STRIDE)
+    spatial_transform_test, temporal_transform_test = build_vid_transforms(config)
+    galleryloader = DataLoader(
+        dataset=VideoDataset(dataset.recombined_gallery, spatial_transform_test, temporal_transform_test),
+        # sampler=DistributedInferenceSampler(dataset.recombined_gallery),
+        batch_size=config.DATA.TEST_BATCH, num_workers=config.DATA.NUM_WORKERS,
+        pin_memory=True, drop_last=False, shuffle=False)
+    return dataset, galleryloader
+
+
+def CAL_build_model(config, device=None):
     """
     Build the CAL model according to the given config.
     """
@@ -71,6 +97,8 @@ def CAL_build_model(config):
         model.load_state_dict(checkpoint['model_state_dict'])
     else:
         print("Warning: Did not load a checkpoint for CAL model!")
+    if device:
+        model = model.to(device)
     return model
 
 
@@ -133,6 +161,16 @@ def build_img_transforms(config):
     ])
 
     return transform_test
+
+
+def build_vid_transforms(config):
+    spatial_transform_test = ST.Compose([
+        ST.Scale((config.DATA.HEIGHT, config.DATA.WIDTH), interpolation=3),
+        ST.ToTensor(),
+        ST.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+    temporal_transform_test = None
+    return spatial_transform_test, temporal_transform_test
 
 
 def CAL_make_inference_data_loader(config, path, dataset_class, loaded_imgs=None):
