@@ -174,7 +174,8 @@ class GalleryCreator:
         session.commit()
 
     def add_video_to_gallery_from_same_day_DB(self, vid_name:str, face_conf_threshold:float, face_sim_threshold:float,
-                                              min_ranks_diff_threshold:float, create_labeled_training=False):
+                                              min_ranks_diff_threshold:float, create_labeled_training=False,
+                                              augment=False):
 
         session = create_session(db_location=SAME_DAY_DB_LOCATION)
         good_crops = get_entries(session=session,
@@ -214,8 +215,14 @@ class GalleryCreator:
                     crop_face_name = f'{int(crop.label):04d}_c{self.cam_id}_f{self.global_i:07d}_face.jpg'
                     mmcv.imwrite(np.array(crop_face), os.path.join(self.gallery_path, crop_face_name))
                 self.global_i += 1
+                if augment:
+                    img = mmcv.imread(os.path.join(DB_GALLERY, crop.im_name))
+                    crop_name = f'{int(crop.label):04d}_c{self.cam_id}_f{self.global_i:07d}.jpg' # updated global_i
+                    downsampled = augment_by_downsampling(img)
+                    mmcv.imwrite(np.array(downsampled), os.path.join(self.gallery_path, crop_name))
+                    self.global_i += 1
 
-    def create_labeled_tracks_using_DB(self, video_path,save_type):
+    def create_labeled_tracks_using_DB(self, video_path,save_type,augment=False):
         assert save_type in [FOLDER_HIERARCHY, ENRICH_ENRICHED] , "Save Type param not supported"
         session = create_session(db_location=SAME_DAY_DB_LOCATION)
         imgs = mmcv.VideoReader(video_path)
@@ -262,15 +269,40 @@ class GalleryCreator:
                                                 f"v{self.global_i:03d}_t{track_id:07d}")
                         os.makedirs(cur_path, exist_ok=True)
                         crop_name = f'{i:07d}.jpg'
+                        mmcv.imwrite(np.array(crop_im), os.path.join(cur_path, crop_name))
+
                     elif save_type == ENRICH_ENRICHED:
                         cur_path = self.gallery_path
                         crop_name = f'{cur_label:04d}_c{self.cam_id}_f{self.global_i:07d}.jpg'
+                        mmcv.imwrite(np.array(crop_im), os.path.join(cur_path, crop_name))
                         self.global_i += 1 # here global i is per crop
-                    assert cur_path, crop_name
-                    mmcv.imwrite(np.array(crop_im), os.path.join(cur_path, crop_name))
+                        if augment:
+                            downsampled = augment_by_downsampling(crop_im)
+                            crop_name = f'{cur_label:04d}_c{self.cam_id}_f{self.global_i:07d}.jpg' #global_i updated
+                            mmcv.imwrite(np.array(downsampled), os.path.join(cur_path, crop_name))
+                            self.global_i += 1  # here global i is per crop
 
         if FOLDER_HIERARCHY: # we only distinguish between video
             self.global_i += 1 # this will be used for diff videos
+
+def augment_by_downsampling(img):
+    import torchvision.transforms as T
+    from PIL import Image
+    img = Image.fromarray(img)
+    padded = T.Pad(padding=100)(img)
+    padded_and_resize = T.Resize(80)(padded)
+    return padded_and_resize
+    # plt.imshow(img)
+    # plt.show()
+    # padded = T.Pad(padding=100)(img)
+    # plt.imshow(padded)
+    # plt.show()
+    # resized = T.Resize(50)(img)
+    # plt.imshow(resized)
+    # plt.show()
+    # padded_and_resize = T.Resize(80)(padded)
+    # plt.imshow(padded_and_resize)
+    # plt.show()
 
 def is_high_quality_unknown(crop:SameDayCropV2):
     # the difference between rank1 and rank2 is low, the max score received for known ids is low but the face
@@ -286,18 +318,20 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
 
 if __name__ == '__main__':
     print("Thats right yall")
-    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part2_track_enriched/", cam_id="5",
-                        device='cuda:0', create_in_fastreid_format=False, tracker_conf_threshold=0.0, init_models=False)
+    sample_img = "/mnt/raid1/home/bar_cohen/42street/temp/0003_c5_f0000830.jpg"
+    img = mmcv.imread(sample_img)
+    augment_by_downsampling(img)
+    #
+    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part2_track_enriched_down_sampled/", cam_id="5",
+                        device='cuda:0', create_in_fastreid_format=True, tracker_conf_threshold=0.0, init_models=False)
     print('Done Creating Gallery pkls')
-    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_1/"
+    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_2/"
     vids = [os.path.join(vid_path, vid) for vid in os.listdir(vid_path)]
-    # crops = get_entries(session=session, filters=(), db_path=SAME_DAY_DB_LOCATION, crop_type=SameDayCropV2).all()
-    # existing_vids_in_db = set([crop.vid_name for crop in crops])
     for i,vid in enumerate(vids):
-        if i <= 3:
-            continue
+        # if i > 1:
+        #     break
         print(f'doing vid {i} out of {len(vids)}')
-        # gc.add_video_to_db(vid, skip_every=1)        #
+        # gc.add_video_to_db(vid, skip_every=1)
         # if "_s21500_e22001.mp4" not in vid:
         #     continue
         # print(f'Labeling video. {vid}')
@@ -306,9 +340,9 @@ if __name__ == '__main__':
         gc.add_video_to_gallery_from_same_day_DB(vid_name=vid, face_conf_threshold=0.80,
                                                  face_sim_threshold=0.5,
                                                  min_ranks_diff_threshold=0.1,
-                                                 create_labeled_training=False)
+                                                 create_labeled_training=False, augment=True)
         print('Adding high confidence labeled tracks to gallery')
-        gc.create_labeled_tracks_using_DB(vid, save_type=ENRICH_ENRICHED)
+        gc.create_labeled_tracks_using_DB(vid, save_type=ENRICH_ENRICHED, augment=True)
 
 
 
