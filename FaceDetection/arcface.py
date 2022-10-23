@@ -136,7 +136,7 @@ class ArcFace():
         return scores
 
 
-    def predict_track_vectorized(self, imgs:np.array):
+    def predict_track_vectorized(self, imgs:np.array, k=5):
         eps = 1e-8
         resized_imgs = np.array([cv2.resize(img, IMG_SIZE) for img in imgs])
         imgs_feats_tensor = torch.tensor([self.face_recognition.get_feat(img) for img in resized_imgs]).squeeze()
@@ -154,7 +154,8 @@ class ArcFace():
                 gallery_feats_norm = gallery_of_i_tensor / torch.max(gallery_feats_n,
                                                                      eps * torch.ones_like(gallery_feats_n))
                 sim_mt = torch.mm(imgs_feats_norm, gallery_feats_norm.transpose(0, 1))
-                scores[i] = float(sim_mt.max(dim=1)[0].mean())
+                k = min(k, len(gallery_of_i))
+                scores[i] = float(np.sort(sim_mt, axis=1)[:,-k:].mean())
 
         return scores
         # TODO are the tensors are in gpu?

@@ -261,13 +261,13 @@ DATA.ROOT
     inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
     # print('Total videos in eval set:', len(get_query_set()))
     # street42 = ["/mnt/raid1/home/bar_cohen/42street/val_videos_2/"]
-    # street42 = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged/_vids/part1/"]
-    street42 = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part4/"]
+    street42 = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part2/"]
+    # street42 = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part4/"]
     query_set = [os.path.join(part, vid) for part in street42 for vid in os.listdir(part)]
     for query_vid in query_set:
-        # if '_s28000_e28501' not in query_vid:
-        #     print(f'skipping {query_vid}')
-        #     continue
+        if '_s29500_e30001.' not in query_vid:
+            print(f'skipping {query_vid}')
+            continue
         print(f'running {query_vid}')
         args.input = query_vid
 
