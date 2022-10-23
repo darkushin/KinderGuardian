@@ -121,7 +121,7 @@ def get_reid_score(track_im_conf, distmat, g_pids):
 
     return ids_score
 
-def get_reid_score_all_ids_full_gallery(track_im_conf, simmat, g_pids):
+def get_reid_score_all_ids_full_gallery(track_im_conf, simmat, g_pids, k=5):
     ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
     # aligned_simmat = (track_im_conf[:, np.newaxis] * simmat) ** P_POWER
     aligned_simmat = simmat
@@ -135,7 +135,8 @@ def get_reid_score_all_ids_full_gallery(track_im_conf, simmat, g_pids):
             # this is the correct dim
             if len(id_matrix.shape) == 2:
                 # ids_score[pid] +=  np.max(id_matrix, axis=1).mean()
-                ids_score[pid] += np.sort(id_matrix, axis=1)[:, -5:].mean()
+                k = min(k, id_matrix.shape[1])
+                ids_score[pid] += np.sort(id_matrix, axis=1)[:, -k:].mean()
             # something went wrong
             else:
                 raise ValueError('Id cosin sim martix is not in the correct dims.')
@@ -160,7 +161,7 @@ def get_reid_score_mult_ids(track_im_conf, simmat, g_pids):
     return ids_score
 
 
-def find_best_reid_match(q_feat, g_feat, g_pids, track_imgs_conf):
+def find_best_reid_match(q_feat, g_feat, g_pids, track_imgs_conf,k=5):
     """
     Given feature vectors of the query images, return the ids of the images that are most similar in the test gallery
     """
@@ -170,7 +171,7 @@ def find_best_reid_match(q_feat, g_feat, g_pids, track_imgs_conf):
     distmat = 1 - simmat
     # distmat = distmat.numpy()
     # ids_score = get_reid_score(track_imgs_conf, distmat, g_pids)
-    ids_score = get_reid_score_all_ids_full_gallery(track_imgs_conf, simmat, g_pids)
+    ids_score = get_reid_score_all_ids_full_gallery(track_imgs_conf, simmat, g_pids,k=k)
     # ids_score = get_reid_score_mult_ids(track_imgs_conf, simmat, g_pids)
     # ids_score = get_reid_score_cosine_sim(track_imgs_conf, simmat, g_pids)
     best_match_in_gallery = np.argmin(distmat, axis=1)
