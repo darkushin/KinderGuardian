@@ -245,12 +245,12 @@ class GalleryCreator:
                                                                                     SameDayCropV2.face_cos_sim >= 0.6,
                                                                                     }, crop_type=SameDayCropV2, db_path=SAME_DAY_DB_LOCATION).all()
 
-                        if len(labeled_track_crops) > 3:
+                        if len(labeled_track_crops) > 10:
                             track_labels = [crop.label for crop in labeled_track_crops]
                             bincount = np.bincount(track_labels)
                             track_maj_vote = np.argmax(bincount)
                             track_maj_conf = bincount[track_maj_vote] / len(labeled_track_crops)
-                            if track_maj_conf > 0.9:
+                            if track_maj_conf > 0.95:
                                 track_label_dict[track_id] = track_maj_vote
 
                         else:
