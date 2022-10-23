@@ -2,7 +2,7 @@ import pickle
 import shutil
 import sys
 from collections import defaultdict
-
+from PIL import Image
 import matplotlib.pyplot as plt
 import mmcv
 import os
@@ -34,6 +34,8 @@ FACE_NET = 'FaceNet'
 ARC_FACE = 'ArcFace'
 FOLDER_HIERARCHY = 'folder_hierarchy'
 ENRICH_ENRICHED = 'enrich_enriched'
+MIN_IMG_SIZE_FOR_DOWNSAMPLE = 300
+DOWN_SAMPLE_RATIO = 0.2
 
 class GalleryCreator:
     def __init__(self, gallery_path,
@@ -219,7 +221,8 @@ class GalleryCreator:
                     img = mmcv.imread(os.path.join(DB_GALLERY, crop.im_name))
                     crop_name = f'{int(crop.label):04d}_c{self.cam_id}_f{self.global_i:07d}.jpg' # updated global_i
                     downsampled = augment_by_downsampling(img)
-                    mmcv.imwrite(np.array(downsampled), os.path.join(self.gallery_path, crop_name))
+                    if downsampled:
+                        mmcv.imwrite(np.array(downsampled), os.path.join(self.gallery_path, crop_name))
                     self.global_i += 1
 
     def create_labeled_tracks_using_DB(self, video_path,save_type,augment=False):
@@ -278,31 +281,20 @@ class GalleryCreator:
                         self.global_i += 1 # here global i is per crop
                         if augment:
                             downsampled = augment_by_downsampling(crop_im)
-                            crop_name = f'{cur_label:04d}_c{self.cam_id}_f{self.global_i:07d}.jpg' #global_i updated
-                            mmcv.imwrite(np.array(downsampled), os.path.join(cur_path, crop_name))
-                            self.global_i += 1  # here global i is per crop
+                            if downsampled:
+                                crop_name = f'{cur_label:04d}_c{self.cam_id}_f{self.global_i:07d}.jpg' #global_i updated
+                                mmcv.imwrite(np.array(downsampled), os.path.join(cur_path, crop_name))
+                                self.global_i += 1  # here global i is per crop
 
         if FOLDER_HIERARCHY: # we only distinguish between video
             self.global_i += 1 # this will be used for diff videos
 
 def augment_by_downsampling(img):
-    import torchvision.transforms as T
-    from PIL import Image
+    resize_img = None
     img = Image.fromarray(img)
-    padded = T.Pad(padding=100)(img)
-    padded_and_resize = T.Resize(80)(padded)
-    return padded_and_resize
-    # plt.imshow(img)
-    # plt.show()
-    # padded = T.Pad(padding=100)(img)
-    # plt.imshow(padded)
-    # plt.show()
-    # resized = T.Resize(50)(img)
-    # plt.imshow(resized)
-    # plt.show()
-    # padded_and_resize = T.Resize(80)(padded)
-    # plt.imshow(padded_and_resize)
-    # plt.show()
+    if min(img.size) >= MIN_IMG_SIZE_FOR_DOWNSAMPLE:
+        resize_img = img.resize((int(img.size[0]*DOWN_SAMPLE_RATIO), int(img.size[1]*DOWN_SAMPLE_RATIO)))
+    return resize_img
 
 def is_high_quality_unknown(crop:SameDayCropV2):
     # the difference between rank1 and rank2 is low, the max score received for known ids is low but the face
@@ -320,7 +312,6 @@ if __name__ == '__main__':
     print("Thats right yall")
     sample_img = "/mnt/raid1/home/bar_cohen/42street/temp/0003_c5_f0000830.jpg"
     img = mmcv.imread(sample_img)
-    augment_by_downsampling(img)
     #
     gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part2_track_enriched_down_sampled/", cam_id="5",
                         device='cuda:0', create_in_fastreid_format=True, tracker_conf_threshold=0.0, init_models=False)
