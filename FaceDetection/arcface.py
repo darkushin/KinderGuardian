@@ -123,7 +123,7 @@ class ArcFace():
                 cur_sims = [self.face_recognition.compute_sim(face_embedding, cand) for cand in gallery_of_i]
                 # mean_scores = np.mean(cur_sims)
                 k = min(k, len(gallery_of_i))
-                top_5_mean = np.sort(cur_sims)[-k:].mean() 
+                top_5_mean = np.sort(cur_sims)[-k:].mean()
                 # top_5_mean_score = np.argpartition(cur_sims, 5)[-5:].mean()
                 # print(ID_TO_NAME[i], "mean score:", mean_scores, "max score", max_scores)
                 # scores[i] = mean_scores if mean_scores > self.score_threshold else 0
