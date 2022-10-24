@@ -115,14 +115,21 @@ class ArcFace():
                 scores[i] = max_scores
         return scores
 
-    def vectorized_cosine_sim_compare(self, input_feat, gallery_of_id_i):
-
-
-
-        # input_feat = input_feat.ravel()
-        pass
-
-
+    def predict_img_using_embedding(self, face_embedding,k=5):
+        scores = {i:0 for i in ID_TO_NAME.keys()}
+        for i in scores.keys():
+            gallery_of_i = self.gallery[self.gpids == ID_TO_NAME[i]]
+            if gallery_of_i is not None and len(gallery_of_i) > 0:
+                cur_sims = [self.face_recognition.compute_sim(face_embedding, cand) for cand in gallery_of_i]
+                # mean_scores = np.mean(cur_sims)
+                k = min(k, len(gallery_of_i))
+                top_5_mean = np.sort(cur_sims)[-k:].mean() 
+                # top_5_mean_score = np.argpartition(cur_sims, 5)[-5:].mean()
+                # print(ID_TO_NAME[i], "mean score:", mean_scores, "max score", max_scores)
+                # scores[i] = mean_scores if mean_scores > self.score_threshold else 0
+                # scores[i] = top_5_mean_score
+                scores[i] = top_5_mean
+        return scores
 
     def predict_track(self, imgs:np.array):
         scores = {i:0 for i in ID_TO_NAME.keys()}
@@ -185,7 +192,7 @@ class ArcFace():
                 face_bboxs.append([X,Y,W,H])
                 face_probs.append(detection_res[i]['det_score'])
 
-        return face_imgs, face_bboxs , face_probs
+        return face_imgs, face_bboxs , face_probs, detection_res
 
     def detect_face_from_file_crop(self, img_path, threshold=0):
         """
@@ -194,7 +201,7 @@ class ArcFace():
         :param img_path: the path to the image in which a face should be detected.
         """
         crop_img = cv2.imread(img_path)
-        face_img , _ , _ = self.detect_face_from_img(crop_img=crop_img, threshold=threshold)
+        face_img , _ , _, _= self.detect_face_from_img(crop_img=crop_img, threshold=threshold)
         return face_img
 
 def is_img(img):
@@ -210,7 +217,7 @@ def collect_faces_from_video(video_path:str, face_dir:str, skip_every=1, face_de
     # trans = transforms.ToPILImage()
     for i ,img in enumerate(tqdm.tqdm(imgs)):
         if i % skip_every == 0:
-            face_imgs, face_bboxes, face_probs = arc.detect_face_from_img(crop_img=img)
+            face_imgs, face_bboxes, face_probs, _ = arc.detect_face_from_img(crop_img=img)
             if face_imgs is not None:
                 for face, prob in zip(face_imgs, face_probs):
                     if prob >= face_det_threshold:

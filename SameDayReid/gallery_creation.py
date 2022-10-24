@@ -30,6 +30,7 @@ TRACKING_CHECKPOINT = "/home/bar_cohen/KinderGuardian/mmtracking/checkpoints/byt
 FACE_CHECKPOINT = "/mnt/raid1/home/bar_cohen/FaceData/checkpoints/4.8 Val, 1.pth"
 POSE_CONFIG = "/home/bar_cohen/D-KinderGuardian/mmpose/configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/hrnet_w48_coco_256x192.py"
 POSE_CHECKPOINT =  "/home/bar_cohen/D-KinderGuardian/checkpoints/mmpose-hrnet_w48_coco_256x192-b9e0b3ab_20200708.pth"
+FACE_EMBEDDINGS_PKL = '/mnt/raid1/home/bar_cohen/42street/face_embeddings.pkl'
 FACE_NET = 'FaceNet'
 ARC_FACE = 'ArcFace'
 FOLDER_HIERARCHY = 'folder_hierarchy'
@@ -52,6 +53,7 @@ class GalleryCreator:
         self.tracking_model = init_model(track_config, track_checkpoint, device=device)
         self.tracker_conf_threshold = tracker_conf_threshold
         self.cam_id = cam_id
+        self.face_embeddings = pickle.load(open(FACE_EMBEDDINGS_PKL,'rb'))
         if create_in_fastreid_format:
             os.makedirs(gallery_path)
             os.makedirs(os.path.join(gallery_path,'bounding_box_test'))
@@ -100,16 +102,18 @@ class GalleryCreator:
                                                         frame_num=image_index
                                                         ))
 
+
+        pickle.dump(self.face_embeddings, open(FACE_EMBEDDINGS_PKL,'wb'))
+
         add_entries(crops=video_crops, db_location=db_location) # Note this points to the SAME_DB_DB_LOCATION !
-        
+
     def detect_faces_and_create_db_crops(self, ids, confs, crops_imgs, crops_bboxes, vid_name, part, frame_num):
         crops = []
-        pose_discard_counter = 0
         errs_counter = 0
         for i, (id, conf, crop_im, crop_bbox) in enumerate(zip(ids, confs, crops_imgs, crops_bboxes)):
             # try:
             ## first detection run --- detect all faces in image
-            face_imgs, face_bboxes, face_probs = self.arc.detect_face_from_img(crop_img=crop_im)
+            face_imgs, face_bboxes, face_probs , detection_res = self.arc.detect_face_from_img(crop_img=crop_im)
             # if only a single face exists, apply a high threshold to get a high resolution face image and body
             if face_imgs is not None and len(face_imgs) == 1:
                 face_img, face_prob = self.pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs,
@@ -142,10 +146,9 @@ class GalleryCreator:
                     )
                     crop.set_im_name()
                     crops.append(crop)
+                    self.face_embeddings[crop.im_name] = detection_res[0].embedding
                     #Note - writing crop to disk prior to writing in DB
-                    mmcv.imwrite(np.array(crop_im), os.path.join(DB_GALLERY, crop.im_name))
-                else:
-                    pose_discard_counter += 1
+                    # mmcv.imwrite(np.array(crop_im), os.path.join(DB_GALLERY, crop.im_name))
         return crops
 
     def label_video(self, vid_name:str):
@@ -159,20 +162,20 @@ class GalleryCreator:
                             filters=({SameDayCropV2.vid_name == self.get_vid_name_from_path(video_path=vid_name)}),
                             db_path=SAME_DAY_DB_LOCATION,
                             crop_type=SameDayCropV2).all()
-        crop_faces = [mmcv.imread(os.path.join(DB_GALLERY, crop.im_name))[crop.y_face:crop.h_face, crop.x_face:crop.w_face] for crop in crops]
-        if len(crop_faces) > 0:  # some faces where detected
-            for crop_obj , face in tqdm.tqdm(zip(crops, crop_faces), total=len(crops)):
-                face = face[:, :, ::-1] # switch color channels
-                if face.shape[0] > 0 and face.shape[1] > 1 and crop_obj.face_conf >= 0.8:
-                    cur_score = self.arc.predict_img(face)
-                    ranks = sorted(cur_score.values(), reverse=True)
-                    label = max(cur_score, key=cur_score.get)
-                    diff = score_boundary(min_score_threshold=0.5)
-                    print(f"diff is {(ranks[0] - ranks[1])}, max score is {max(cur_score.values())}, "
-                          f"face conf is {crop_obj.face_conf}, the given label is {label}")
-                    crop_obj.label = label
-                    crop_obj.face_cos_sim = float(max(cur_score.values()))
-                    crop_obj.face_ranks_diff = diff
+        # crop_faces = [mmcv.imread(os.path.join(DB_GALLERY, crop.im_name))[crop.y_face:crop.h_face, crop.x_face:crop.w_face] for crop in crops]
+        # if len(crop_faces) > 0:  # some faces where detected
+        for crop_obj in tqdm.tqdm(crops, total=len(crops)):
+            # face = face[:, :, ::-1] # switch color channels
+            if crop_obj.face_conf >= 0.8:
+                cur_score = self.arc.predict_img_using_embedding(self.face_embeddings[crop_obj.im_name])
+                ranks = sorted(cur_score.values(), reverse=True)
+                label = max(cur_score, key=cur_score.get)
+                diff = score_boundary(min_score_threshold=0.5)
+                print(f"diff is {(ranks[0] - ranks[1])}, max score is {max(cur_score.values())}, "
+                      f"face conf is {crop_obj.face_conf}, the given label is {label}")
+                crop_obj.label = label
+                crop_obj.face_cos_sim = float(max(cur_score.values()))
+                crop_obj.face_ranks_diff = diff
         session.commit()
 
     def add_video_to_gallery_from_same_day_DB(self, vid_name:str, face_conf_threshold:float, face_sim_threshold:float,
@@ -313,27 +316,27 @@ if __name__ == '__main__':
     sample_img = "/mnt/raid1/home/bar_cohen/42street/temp/0003_c5_f0000830.jpg"
     img = mmcv.imread(sample_img)
     #
-    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part2_track_enriched_down_sampled/", cam_id="5",
-                        device='cuda:0', create_in_fastreid_format=True, tracker_conf_threshold=0.0, init_models=False)
+    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part1_embedding_attempt_1/", cam_id="5",
+                        device='cuda:0', create_in_fastreid_format=True, tracker_conf_threshold=0.0, init_models=True)
     print('Done Creating Gallery pkls')
-    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_2/"
+    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_1/"
     vids = [os.path.join(vid_path, vid) for vid in os.listdir(vid_path)]
     for i,vid in enumerate(vids):
-        # if i > 1:
-        #     break
+        if i < 1:
+            continue
         print(f'doing vid {i} out of {len(vids)}')
-        # gc.add_video_to_db(vid, skip_every=1)
+        gc.add_video_to_db(vid, skip_every=1)
         # if "_s21500_e22001.mp4" not in vid:
         #     continue
-        # print(f'Labeling video. {vid}')
-        # gc.label_video(vid_name=vid)
+        print(f'Labeling video. {vid}')
+        gc.label_video(vid_name=vid)
         print('Adding labeled images to gallery')
         gc.add_video_to_gallery_from_same_day_DB(vid_name=vid, face_conf_threshold=0.80,
                                                  face_sim_threshold=0.5,
                                                  min_ranks_diff_threshold=0.1,
                                                  create_labeled_training=False, augment=True)
         print('Adding high confidence labeled tracks to gallery')
-        gc.create_labeled_tracks_using_DB(vid, save_type=ENRICH_ENRICHED, augment=True)
+        # gc.create_labeled_tracks_using_DB(vid, save_type=ENRICH_ENRICHED, augment=True)
 
 
 
