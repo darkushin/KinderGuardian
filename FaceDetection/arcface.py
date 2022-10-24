@@ -143,10 +143,10 @@ class ArcFace():
         return scores
 
 
-    def predict_track_vectorized(self, imgs:np.array, k=5):
+    def predict_track_vectorized(self, face_embeddings:np.array, k=5):
         eps = 1e-8
-        resized_imgs = np.array([cv2.resize(img, IMG_SIZE) for img in imgs])
-        imgs_feats_tensor = torch.tensor([self.face_recognition.get_feat(img) for img in resized_imgs]).squeeze()
+        # resized_imgs = np.array([cv2.resize(img, IMG_SIZE) for img in imgs])
+        imgs_feats_tensor = torch.tensor(face_embeddings).squeeze()
         if imgs_feats_tensor.ndim == 1: # edge case where only one face image was detected, reshape to matrix form
             imgs_feats_tensor = imgs_feats_tensor.resize(1, len(imgs_feats_tensor))
         imgs_feats_tensor.to(device=self.device)
