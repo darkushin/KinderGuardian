@@ -9,6 +9,7 @@ import os
 from DataProcessing.DB.dal import add_entries, SAME_DAY_DB_LOCATION, get_entries, create_session, \
     SameDayCropV2
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
+from models.track_and_reid_model import find_scene_cuts
 
 DB_GALLERY = "/mnt/raid1/home/bar_cohen/42street/db_gallery/"
 LABELED_TRACK_GALLERY = "/mnt/raid1/home/bar_cohen/42street/labeled_track_gallery_t/"
@@ -58,6 +59,7 @@ class GalleryCreator:
         self.tracking_model = init_model(track_config, track_checkpoint, device=device)
         self.tracker_conf_threshold = tracker_conf_threshold
         self.cam_id = cam_id
+        self.face_embeddings_path = face_embedding_pkl_path
         self.face_embeddings = pickle.load(open(face_embedding_pkl_path,'rb'))
         if create_in_fastreid_format:
             os.makedirs(gallery_path)
@@ -108,7 +110,7 @@ class GalleryCreator:
                                                         ))
 
 
-        pickle.dump(self.face_embeddings, open(FACE_EMBEDDINGS_PKL,'wb'))
+        pickle.dump(self.face_embeddings, open(self.face_embeddings_path,'wb'))
 
         add_entries(crops=video_crops, db_location=db_location) # Note this points to the SAME_DB_DB_LOCATION !
 
@@ -241,10 +243,21 @@ class GalleryCreator:
         part = self.get_42street_part(video_path=video_path) # 42street specific
         track_label_dict = dict()
         track_imgs = defaultdict(list)
+        scene_cuts = find_scene_cuts(vid_name=video_path)
+        total_scene_max = 0
+        cur_scene_max = 0
+
         for image_index, img in tqdm.tqdm(enumerate(imgs), total=len(imgs)):
+            if image_index in scene_cuts:
+                self.tracking_model.tracker.reset()
+                total_scene_max += cur_scene_max + 1
+                cur_scene_max = 0
             result = tracking_inference(self.tracking_model, img, image_index,
                                         acc_threshold=float(self.tracker_conf_threshold))
             ids = list(map(int, result['track_results'][0][:, 0]))
+            if ids and len(ids) > 0:
+                cur_scene_max = max(cur_scene_max, max(ids))
+                ids = [ids[i] + total_scene_max for i in range(len(ids))]
             crops_bboxes = result['track_results'][0][:, 1:-1]
             crops_imgs = mmcv.image.imcrop(img, crops_bboxes, scale=1.0, pad_fill=None)
             for crop_img,track_id in zip(crops_imgs, ids):
