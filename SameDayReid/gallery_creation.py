@@ -30,7 +30,11 @@ TRACKING_CHECKPOINT = "/home/bar_cohen/KinderGuardian/mmtracking/checkpoints/byt
 FACE_CHECKPOINT = "/mnt/raid1/home/bar_cohen/FaceData/checkpoints/4.8 Val, 1.pth"
 POSE_CONFIG = "/home/bar_cohen/D-KinderGuardian/mmpose/configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/hrnet_w48_coco_256x192.py"
 POSE_CHECKPOINT =  "/home/bar_cohen/D-KinderGuardian/checkpoints/mmpose-hrnet_w48_coco_256x192-b9e0b3ab_20200708.pth"
-FACE_EMBEDDINGS_PKL = '/mnt/raid1/home/bar_cohen/42street/face_embeddings.pkl'
+FACE_EMBEDDINGS_PKL_1 = '/mnt/raid1/home/bar_cohen/42street/pkls/face_embeddings_1.pkl'
+FACE_EMBEDDINGS_PKL_2 = '/mnt/raid1/home/bar_cohen/42street/pkls/face_embeddings_2.pkl'
+FACE_EMBEDDINGS_PKL_3 = '/mnt/raid1/home/bar_cohen/42street/pkls/face_embeddings_3.pkl'
+FACE_EMBEDDINGS_PKL_4 = '/mnt/raid1/home/bar_cohen/42street/pkls/face_embeddings_4.pkl'
+FACE_EMBEDDINGS_PKL_5 = '/mnt/raid1/home/bar_cohen/42street/pkls/face_embeddings_5.pkl'
 FACE_NET = 'FaceNet'
 ARC_FACE = 'ArcFace'
 FOLDER_HIERARCHY = 'folder_hierarchy'
@@ -40,6 +44,7 @@ DOWN_SAMPLE_RATIO = 0.2
 
 class GalleryCreator:
     def __init__(self, gallery_path,
+                 face_embedding_pkl_path,
                  tracker_conf_threshold = 0.99,
                  similarty_threshold = 0.5,
                  device= 'cuda:0',
@@ -47,13 +52,13 @@ class GalleryCreator:
                  track_config=TRACKING_CONFIG_PATH,
                  track_checkpoint=TRACKING_CHECKPOINT,
                  create_in_fastreid_format=False,
-                 init_models = True
+                 init_models = True,
                  ):
         self.similarty_threshold = similarty_threshold
         self.tracking_model = init_model(track_config, track_checkpoint, device=device)
         self.tracker_conf_threshold = tracker_conf_threshold
         self.cam_id = cam_id
-        self.face_embeddings = pickle.load(open(FACE_EMBEDDINGS_PKL,'rb'))
+        self.face_embeddings = pickle.load(open(face_embedding_pkl_path,'rb'))
         if create_in_fastreid_format:
             os.makedirs(gallery_path)
             os.makedirs(os.path.join(gallery_path,'bounding_box_test'))
@@ -148,7 +153,7 @@ class GalleryCreator:
                     crops.append(crop)
                     self.face_embeddings[crop.im_name] = detection_res[0].embedding
                     #Note - writing crop to disk prior to writing in DB
-                    # mmcv.imwrite(np.array(crop_im), os.path.join(DB_GALLERY, crop.im_name))
+                    mmcv.imwrite(np.array(crop_im), os.path.join(DB_GALLERY, crop.im_name))
         return crops
 
     def label_video(self, vid_name:str):
@@ -313,17 +318,13 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
 
 if __name__ == '__main__':
     print("Thats right yall")
-    sample_img = "/mnt/raid1/home/bar_cohen/42street/temp/0003_c5_f0000830.jpg"
-    img = mmcv.imread(sample_img)
-    #
-    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part1_embedding_attempt_1/", cam_id="5",
-                        device='cuda:0', create_in_fastreid_format=True, tracker_conf_threshold=0.0, init_models=True)
+    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part4_embedding_attempt_1/",
+                        face_embedding_pkl_path=FACE_EMBEDDINGS_PKL_4 ,cam_id="5",
+                        device='cuda:0', create_in_fastreid_format=False, tracker_conf_threshold=0.0, init_models=True)
     print('Done Creating Gallery pkls')
-    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_1/"
+    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_4/"
     vids = [os.path.join(vid_path, vid) for vid in os.listdir(vid_path)]
     for i,vid in enumerate(vids):
-        if i < 1:
-            continue
         print(f'doing vid {i} out of {len(vids)}')
         gc.add_video_to_db(vid, skip_every=1)
         # if "_s21500_e22001.mp4" not in vid:
@@ -331,10 +332,10 @@ if __name__ == '__main__':
         print(f'Labeling video. {vid}')
         gc.label_video(vid_name=vid)
         print('Adding labeled images to gallery')
-        gc.add_video_to_gallery_from_same_day_DB(vid_name=vid, face_conf_threshold=0.80,
-                                                 face_sim_threshold=0.5,
-                                                 min_ranks_diff_threshold=0.1,
-                                                 create_labeled_training=False, augment=True)
+        # gc.add_video_to_gallery_from_same_day_DB(vid_name=vid, face_conf_threshold=0.80,
+        #                                          face_sim_threshold=0.5,
+        #                                          min_ranks_diff_threshold=0.1,
+        #                                          create_labeled_training=False, augment=True)
         print('Adding high confidence labeled tracks to gallery')
         # gc.create_labeled_tracks_using_DB(vid, save_type=ENRICH_ENRICHED, augment=True)
 
