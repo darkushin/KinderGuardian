@@ -409,24 +409,16 @@ def create_tracklets_using_tracking(args):
     return tracklets
 
 
-def create_or_load_tracklets(args, create_tracklets:bool):
-    if create_tracklets and not args.db_tracklets:  # create tracklets from video using tracking
+def create_or_load_tracklets(args):
+    pkl_path = os.path.join('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/', f"{get_vid_name(args)}.pkl")
+    if os.path.isfile(pkl_path):
+        tracklets = pickle.load(open(pkl_path,'rb'))
+        assert tracklets
+        print(f'********* Tracklets pkl file found with {len(tracklets)} tracks')
+    else:
         print('******* Creating tracklets using tracking: *******')
         tracklets = create_tracklets_using_tracking(args=args)
-        pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl', 'wb'))
-
-    elif create_tracklets and args.db_tracklets:  # create tracklets using the tagged DB
-        print('***** Creating tracklets using DB *****')
-        tracklets = create_tracklets_from_db(vid_name=get_vid_name(args), args=args)
-        pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/db-tracklets.pkl', 'wb'))
-
-    else:
-        if args.db_tracklets:
-            print('***** Using loaded DB tracklets! *****')
-            tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/db-tracklets.pkl', 'rb'))
-        else:
-            print('***** Using loaded tracking tracklets! *****')
-            tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl', 'rb'))
+        pickle.dump(tracklets, open(pkl_path, 'wb'))
     return tracklets
 
 
@@ -544,13 +536,7 @@ def create_data_by_re_id_and_track():
 
     tl_start = time.time()
     print('Starting to create tracklets')
-    if args.experiment_mode:
-        tracklets = create_or_load_tracklets(args,create_tracklets=True) # TODO huge issue here, requires manual adpation every run
-    else:
-        if not args.db_tracklets:  # create tracklets from video using tracking
-            tracklets = create_tracklets_using_tracking(args=args)
-        else:  # create tracklets from DB
-            tracklets = create_tracklets_from_db(vid_name=get_vid_name(args), args=args)
+    tracklets = create_tracklets_using_tracking(args=args)
     tl_end = time.time()
     print(f'Total time for loading tracklets for video {args.input.split("/")[-1]}: {int(tl_end-tl_start)}')
     print('******* Making predictions and saving crops to DB *******')
