@@ -146,16 +146,14 @@ class ArcFace():
     def predict_track_vectorized(self, face_embeddings:np.array, k=5):
         eps = 1e-8
         # resized_imgs = np.array([cv2.resize(img, IMG_SIZE) for img in imgs])
-        imgs_feats_tensor = torch.tensor(face_embeddings).squeeze()
-        if imgs_feats_tensor.ndim == 1: # edge case where only one face image was detected, reshape to matrix form
-            imgs_feats_tensor = imgs_feats_tensor.resize(1, len(imgs_feats_tensor))
-        imgs_feats_tensor.to(device=self.device)
+        imgs_feats_tensor = torch.tensor(face_embeddings)
+        # if imgs_feats_tensor.ndim == 1: # edge case where only one face image was detected, reshape to matrix form
+        #     imgs_feats_tensor = imgs_feats_tensor.resize(1, len(imgs_feats_tensor))
         scores = {i: 0 for i in ID_TO_NAME.keys()}
         for i in scores.keys():
             gallery_of_i = self.gallery[self.gpids == ID_TO_NAME[i]]
             if len(gallery_of_i) > 0 and len(imgs_feats_tensor) > 1:  # this gallery is not empty
                 gallery_of_i_tensor = torch.tensor(gallery_of_i).squeeze()
-                gallery_of_i_tensor.to(device=self.device)
                 imgs_feats_n, gallery_feats_n = imgs_feats_tensor.norm(dim=1)[:, None], gallery_of_i_tensor.norm(dim=1)[:, None]
                 imgs_feats_norm = imgs_feats_tensor / torch.max(imgs_feats_n, eps * torch.ones_like(imgs_feats_n))
                 gallery_feats_norm = gallery_of_i_tensor / torch.max(gallery_feats_n,
@@ -205,7 +203,6 @@ class ArcFace():
         return face_img
 
 def is_img(img):
-
     return img is not None
 
 def collect_faces_from_video(video_path:str, face_dir:str, skip_every=1, face_det_threshold = 0.8):

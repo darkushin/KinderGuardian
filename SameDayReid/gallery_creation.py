@@ -6,13 +6,15 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import mmcv
 import os
+
+from scenedetect import detect, ContentDetector
+
 from DataProcessing.DB.dal import add_entries, SAME_DAY_DB_LOCATION, get_entries, create_session, \
     SameDayCropV2
 from DataProcessing.dataProcessingConstants import ID_TO_NAME
-from models.track_and_reid_model import find_scene_cuts
 
 DB_GALLERY = "/mnt/raid1/home/bar_cohen/42street/db_gallery/"
-LABELED_TRACK_GALLERY = "/mnt/raid1/home/bar_cohen/42street/labeled_track_gallery_t/"
+LABELED_TRACK_GALLERY = "/mnt/raid1/home/bar_cohen/42street/labeled_track_gallery_new/"
 
 
 sys.path.append('FaceDetection')
@@ -243,7 +245,8 @@ class GalleryCreator:
         part = self.get_42street_part(video_path=video_path) # 42street specific
         track_label_dict = dict()
         track_imgs = defaultdict(list)
-        scene_cuts = find_scene_cuts(vid_name=video_path)
+        scene_list = detect(video_path, ContentDetector(threshold=24.0))
+        scene_cuts = [scene[1].get_frames() for scene in scene_list]
         total_scene_max = 0
         cur_scene_max = 0
 
@@ -331,26 +334,27 @@ def tracking_inference(tracking_model, img, frame_id, acc_threshold=0.98):
 
 if __name__ == '__main__':
     print("Thats right yall")
-    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part4_embedding_attempt_1/",
-                        face_embedding_pkl_path=FACE_EMBEDDINGS_PKL_4 ,cam_id="5",
-                        device='cuda:0', create_in_fastreid_format=False, tracker_conf_threshold=0.0, init_models=True)
+
+    gc = GalleryCreator(gallery_path="/mnt/raid1/home/bar_cohen/42street/part3_embedding_0.4/",
+                        face_embedding_pkl_path=FACE_EMBEDDINGS_PKL_3 ,cam_id="5",
+                        device='cuda:0', create_in_fastreid_format=True, tracker_conf_threshold=0.0, init_models=False)
     print('Done Creating Gallery pkls')
-    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_4/"
+    vid_path = "/mnt/raid1/home/bar_cohen/42street/val_videos_3/"
     vids = [os.path.join(vid_path, vid) for vid in os.listdir(vid_path)]
     for i,vid in enumerate(vids):
         print(f'doing vid {i} out of {len(vids)}')
-        gc.add_video_to_db(vid, skip_every=1)
-        # if "_s21500_e22001.mp4" not in vid:
+        # if "s26000_e26501.mp4" not in vid:
         #     continue
-        print(f'Labeling video. {vid}')
-        gc.label_video(vid_name=vid)
-        print('Adding labeled images to gallery')
-        # gc.add_video_to_gallery_from_same_day_DB(vid_name=vid, face_conf_threshold=0.80,
-        #                                          face_sim_threshold=0.5,
-        #                                          min_ranks_diff_threshold=0.1,
-        #                                          create_labeled_training=False, augment=True)
-        print('Adding high confidence labeled tracks to gallery')
-        # gc.create_labeled_tracks_using_DB(vid, save_type=ENRICH_ENRICHED, augment=True)
+        # gc.add_video_to_db(vid, skip_every=1)
+        # print(f'Labeling video. {vid}')
+        # gc.label_video(vid_name=vid)
+        # print('Adding labeled images to gallery')
+        gc.add_video_to_gallery_from_same_day_DB(vid_name=vid, face_conf_threshold=0.80,
+                                                 face_sim_threshold=0.4,
+                                                 min_ranks_diff_threshold=0.1,
+                                                 create_labeled_training=False, augment=False)
+        # print('Adding high confidence labeled tracks to gallery')
+        # gc.create_labeled_tracks_using_DB(vid, save_type=FOLDER_HIERARCHY, augment=False)
 
 
 
