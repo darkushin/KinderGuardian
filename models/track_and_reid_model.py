@@ -320,14 +320,14 @@ def create_tracklets_from_db(vid_name, args):
             ctl_img = crop_im
             ctl_img.convert("RGB")
 
-            face_imgs , face_bboxes, face_probs = face_detector.detect_face_from_img(crop_img=crop_im)
+            face_imgs , face_bboxes, face_probs, detection_res = face_detector.detect_face_from_img(crop_img=crop_im)
             face_img, face_prob = None, 0
             if face_imgs is not None and len(face_imgs) > 0:
                 if pose_estimator:
                     face_img, face_prob = pose_estimator.find_matching_face(crop_im, face_bboxes,face_probs, face_imgs)
             crop_im = mmcv.imread(im_path)
             tracklets[track].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
-                                     'ctl_img': ctl_img})
+                                     'ctl_img': ctl_img, 'face_embedding': detection_res[0].embedding})
     del face_detector
     return tracklets
 
@@ -379,7 +379,7 @@ def create_tracklets_using_tracking(args):
                 # face_prob = face_prob if face_prob else 0
                 # for video_name we skip the first 8 chars as to fit the IP_Camera video name convention, if entering
                 # a different video name note this.
-                face_imgs, face_bboxes, face_probs = face_detector.detect_face_from_img(crop_img=crop_im)
+                face_imgs, face_bboxes, face_probs, detection_res = face_detector.detect_face_from_img(crop_img=crop_im)
                 face_img, face_prob = None, 0
                 if face_imgs is not None and len(face_imgs) > 0:
                     if pose_estimator:
@@ -401,10 +401,11 @@ def create_tracklets_using_tracking(args):
                             invalid=False,
                             is_vague=False)
                 crop.set_im_name()
+                face_emb = detection_res[0].embedding if is_img(face_img) else None
                 mmcv.imwrite(crop_im, f'/mnt/raid1/home/bar_cohen/CTL_Reid/{get_vid_name(args)}.jpg')
                 ctl_img = Image.open(f'/mnt/raid1/home/bar_cohen/CTL_Reid/{get_vid_name(args)}.jpg').convert("RGB")
                 tracklets[id].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
-                                      'ctl_img': ctl_img})
+                                      'ctl_img': ctl_img, 'face_embedding': face_emb})
     del face_detector
     return tracklets
 
@@ -491,9 +492,6 @@ def create_data_by_re_id_and_track():
     else:
         print(f'Saving the output crops to: {os.path.join(args.crops_folder, get_vid_name(args))}')
         assert args.crops_folder, "You must insert crop_folder param in order to create data"
-
-    with open("/mnt/raid1/home/bar_cohen/FaceData/le_19.pkl", 'rb') as f:
-        le = pickle.load(f)
 
     if args.reid_model == 'fastreid':
         reid_cfg = set_reid_cfgs(args)
@@ -586,7 +584,7 @@ def create_data_by_re_id_and_track():
             # use loaded images for inference:
             q_feats = ctl_track_inference(model=reid_model, cfg=reid_cfg, track_imgs=track_imgs, device=args.device)
             q_feats = torch.from_numpy(q_feats)
-            reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
+            reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf,k=5)
         else:
             raise Exception('Unsupported ReID model')
 
@@ -602,26 +600,28 @@ def create_data_by_re_id_and_track():
         print(final_label)
         all_tracks_final_scores[track_id] = reid_scores  # add reid scores in case the track doesn't include face images
 
-        face_imgs = [crop_dict.get('face_img') for crop_dict in crop_dicts if is_img(crop_dict.get('face_img'))]
+        # face_imgs = [crop_dict.get('face_img') for crop_dict in crop_dicts if is_img(crop_dict.get('face_img'))]
+        face_embeddings = [crop_dict.get('face_embedding') for crop_dict in crop_dicts if is_img(crop_dict.get('face_embedding'))]
         face_imgs_conf = np.array([crop_dict.get('face_img_conf') for crop_dict in crop_dicts if crop_dict.get('face_img_conf') > 0])
-        assert len(face_imgs) == len(face_imgs_conf)
+        # assert len(face_imgs) == len(face_imgs_conf)
+        assert len(face_embeddings) == len(face_imgs_conf)
         is_face_in_track = False
         face_track_score_label = 'None'
         face_scores = {pid: 0 for pid in ID_TO_NAME.keys()}
 
-        if len(face_imgs) > 0:  # at least 1 face was detected
+        if len(face_embeddings) > 0:  # at least 1 face was detected
             is_face_in_track = True
 
             # ARCFACE --- the below model uses ArcFace as the Face Classifier
             # face_scores = arc.predict_track(face_imgs)
-            face_scores = arc.predict_track_vectorized(face_imgs)
+            face_scores = arc.predict_track_vectorized(face_embeddings)
             face_track_score_label = ID_TO_NAME[max(face_scores, key=face_scores.get)]
 
         else:
             print(f"No face found, using Reid as Final Label: {final_label}")
             print(f"Reid scores: {reid_scores}")
 
-        alpha = 0.75  # TODO enter as an arg
+        alpha = 0.5  # TODO enter as an arg
         final_scores = {pid: 0 for pid in ID_TO_NAME.keys()}
         for key in final_scores.keys():
             final_scores[key] = reid_scores[key] * alpha + (1 - alpha) * face_scores[key]
