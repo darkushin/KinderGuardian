@@ -427,13 +427,18 @@ def is_unknown_id(reid_scores:dict, face_scores:dict, face_confs:np.array):
     unknown_id = False
     face_cos_sim = max(face_scores.values())
     # an already labeled unknown reid already exists in the gallery and face_cos_sim is low
-    if ID_TO_NAME[max(reid_scores, key=reid_scores.get)] == 'Unknown' and face_cos_sim <= 0.4:
-        unknown_id = True
+    # if ID_TO_NAME[max(reid_scores, key=reid_scores.get)] == 'Unknown' and face_cos_sim <= 0.4:
+    #     unknown_id = True
     face_ranks = sorted(face_scores.values(), reverse=True)
     face_ranks_diff = face_ranks[0] - face_ranks[1]
 
+    reid_ranks = sorted(reid_scores.values(), reverse=True)
+    reid_ranks_diff = face_ranks[0] - face_ranks[1]
+
     # its a high quality face but the face model is unsure
-    if face_ranks_diff <= 0.01 and face_cos_sim <= 0.30 and face_confs.mean() >= 0.8:
+    if face_ranks_diff <= 0.02 and face_cos_sim <= 0.30 and face_confs.mean() >= 0.8:
+        unknown_id = True
+    elif reid_ranks_diff <= 0.02:
         unknown_id = True
 
     return unknown_id
@@ -620,9 +625,9 @@ def create_data_by_re_id_and_track():
         final_label = ID_TO_NAME[max(final_scores, key=final_scores.get)]
         print(final_label)
         # Todo this is a nice approach, but it fails on a number of cases. Need to find more robust approachs for better results.
-        # if is_unknown_id(reid_scores=reid_scores, face_scores=face_scores, face_confs=face_imgs_conf):
-        #     print(f'final label {final_label} replaced with Unknown')
-        #     final_label = 'Thresh Unknown'
+        if is_unknown_id(reid_scores=reid_scores, face_scores=face_scores, face_confs=face_imgs_conf):
+            print(f'final label {final_label} replaced with Unknown')
+            final_label = 'Unknown'
 
         # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
 
