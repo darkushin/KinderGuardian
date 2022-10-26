@@ -318,7 +318,6 @@ DATA.TEST_BATCH
         script_args.append('--reid_opts')
         script_args.extend(reid_opts)
         call(script_args)
-        # break
 
 def runner():
     if args.action == TRACKING:

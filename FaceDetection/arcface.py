@@ -115,14 +115,21 @@ class ArcFace():
                 scores[i] = max_scores
         return scores
 
-    def vectorized_cosine_sim_compare(self, input_feat, gallery_of_id_i):
-
-
-
-        # input_feat = input_feat.ravel()
-        pass
-
-
+    def predict_img_using_embedding(self, face_embedding,k=5):
+        scores = {i:0 for i in ID_TO_NAME.keys()}
+        for i in scores.keys():
+            gallery_of_i = self.gallery[self.gpids == ID_TO_NAME[i]]
+            if gallery_of_i is not None and len(gallery_of_i) > 0:
+                cur_sims = [self.face_recognition.compute_sim(face_embedding, cand) for cand in gallery_of_i]
+                # mean_scores = np.mean(cur_sims)
+                k = min(k, len(gallery_of_i))
+                top_5_mean = np.sort(cur_sims)[-k:].mean()
+                # top_5_mean_score = np.argpartition(cur_sims, 5)[-5:].mean()
+                # print(ID_TO_NAME[i], "mean score:", mean_scores, "max score", max_scores)
+                # scores[i] = mean_scores if mean_scores > self.score_threshold else 0
+                # scores[i] = top_5_mean_score
+                scores[i] = top_5_mean
+        return scores
 
     def predict_track(self, imgs:np.array):
         scores = {i:0 for i in ID_TO_NAME.keys()}
@@ -136,25 +143,24 @@ class ArcFace():
         return scores
 
 
-    def predict_track_vectorized(self, imgs:np.array):
+    def predict_track_vectorized(self, face_embeddings:np.array, k=5):
         eps = 1e-8
-        resized_imgs = np.array([cv2.resize(img, IMG_SIZE) for img in imgs])
-        imgs_feats_tensor = torch.tensor([self.face_recognition.get_feat(img) for img in resized_imgs]).squeeze()
-        if imgs_feats_tensor.ndim == 1: # edge case where only one face image was detected, reshape to matrix form
-            imgs_feats_tensor = imgs_feats_tensor.resize(1, len(imgs_feats_tensor))
-        imgs_feats_tensor.to(device=self.device)
+        # resized_imgs = np.array([cv2.resize(img, IMG_SIZE) for img in imgs])
+        imgs_feats_tensor = torch.tensor(face_embeddings)
+        # if imgs_feats_tensor.ndim == 1: # edge case where only one face image was detected, reshape to matrix form
+        #     imgs_feats_tensor = imgs_feats_tensor.resize(1, len(imgs_feats_tensor))
         scores = {i: 0 for i in ID_TO_NAME.keys()}
         for i in scores.keys():
             gallery_of_i = self.gallery[self.gpids == ID_TO_NAME[i]]
             if len(gallery_of_i) > 0 and len(imgs_feats_tensor) > 1:  # this gallery is not empty
                 gallery_of_i_tensor = torch.tensor(gallery_of_i).squeeze()
-                gallery_of_i_tensor.to(device=self.device)
                 imgs_feats_n, gallery_feats_n = imgs_feats_tensor.norm(dim=1)[:, None], gallery_of_i_tensor.norm(dim=1)[:, None]
                 imgs_feats_norm = imgs_feats_tensor / torch.max(imgs_feats_n, eps * torch.ones_like(imgs_feats_n))
                 gallery_feats_norm = gallery_of_i_tensor / torch.max(gallery_feats_n,
                                                                      eps * torch.ones_like(gallery_feats_n))
                 sim_mt = torch.mm(imgs_feats_norm, gallery_feats_norm.transpose(0, 1))
-                scores[i] = float(sim_mt.max(dim=1)[0].mean())
+                k = min(k, len(gallery_of_i))
+                scores[i] = float(np.sort(sim_mt, axis=1)[:,-k:].mean())
 
         return scores
         # TODO are the tensors are in gpu?
@@ -184,7 +190,7 @@ class ArcFace():
                 face_bboxs.append([X,Y,W,H])
                 face_probs.append(detection_res[i]['det_score'])
 
-        return face_imgs, face_bboxs , face_probs
+        return face_imgs, face_bboxs , face_probs, detection_res
 
     def detect_face_from_file_crop(self, img_path, threshold=0):
         """
@@ -193,11 +199,10 @@ class ArcFace():
         :param img_path: the path to the image in which a face should be detected.
         """
         crop_img = cv2.imread(img_path)
-        face_img , _ , _ = self.detect_face_from_img(crop_img=crop_img, threshold=threshold)
+        face_img , _ , _, _= self.detect_face_from_img(crop_img=crop_img, threshold=threshold)
         return face_img
 
 def is_img(img):
-
     return img is not None
 
 def collect_faces_from_video(video_path:str, face_dir:str, skip_every=1, face_det_threshold = 0.8):
@@ -209,7 +214,7 @@ def collect_faces_from_video(video_path:str, face_dir:str, skip_every=1, face_de
     # trans = transforms.ToPILImage()
     for i ,img in enumerate(tqdm.tqdm(imgs)):
         if i % skip_every == 0:
-            face_imgs, face_bboxes, face_probs = arc.detect_face_from_img(crop_img=img)
+            face_imgs, face_bboxes, face_probs, _ = arc.detect_face_from_img(crop_img=img)
             if face_imgs is not None:
                 for face, prob in zip(face_imgs, face_probs):
                     if prob >= face_det_threshold:
