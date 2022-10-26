@@ -488,9 +488,6 @@ def create_data_by_re_id_and_track():
         print(f'Saving the output crops to: {os.path.join(args.crops_folder, get_vid_name(args))}')
         assert args.crops_folder, "You must insert crop_folder param in order to create data"
 
-    with open("/mnt/raid1/home/bar_cohen/FaceData/le_19.pkl", 'rb') as f:
-        le = pickle.load(f)
-
     if args.reid_model == 'fastreid':
         reid_cfg = set_reid_cfgs(args)
 
@@ -521,19 +518,17 @@ def create_data_by_re_id_and_track():
 
         # initialize reid model:
         reid_model = CAL_build_model(reid_cfg, args.device)
-
-        # from torch import distributed as dist
-        # os.environ['CUDA_VISIBLE_DEVICES'] = reid_cfg.GPU
-        # # Init dist
-        # dist.init_process_group(backend="nccl", init_method='env://')
-        # local_rank = dist.get_rank()
         dataset, galleryloader = build_CAL_VID_gallery(reid_cfg)
 
+        # if False:
         g_feats, g_pids, g_camids, _ = extract_vid_feature(reid_model, galleryloader,
                                                                   dataset.gallery_vid2clip_index,
                                                                   len(dataset.recombined_gallery),
                                                                   model_type='CAL_VID')
-        print('daniel')
+        # pickle.dump((g_feats, g_pids, g_camids), open('/home/bar_cohen/raid/42street/cal_vid_tests.pkl', 'wb'))
+        # else:
+        #     g_feats, g_pi000ds, g_camids = pickle.load(open('/home/bar_cohen/raid/42street/cal_vid_tests.pkl', 'rb'))
+        g_pids = np.array(g_pids).astype(int)
     elif args.reid_model == 'ctl':
         # args.reid_config = "./centroids_reid/configs/256_resnet50.yml"
         reid_cfg = set_CTL_reid_cfgs(args)
@@ -595,7 +590,20 @@ def create_data_by_re_id_and_track():
             q_feats = CAL_track_inference(model=reid_model, cfg=reid_cfg, track_imgs=track_imgs, device=args.device)
             q_feats = torch.from_numpy(q_feats)
             # reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
-
+        elif args.reid_model == 'CAL_VID':
+            track_imgs = [crop_dict.get('ctl_img') for crop_dict in crop_dicts]
+            query_dataset = [(list(np.arange(len(track_imgs))), 1, 1, 1)]
+            recombined_query, query_vid2clip_index = recombination_for_testset(query_dataset)
+            spatial_transform_test, temporal_transform_test = build_vid_transforms(reid_cfg)
+            queryloader = DataLoader(
+                dataset=VideoDataset(recombined_query, spatial_transform_test, temporal_transform_test, loaded_imgs=track_imgs),
+                batch_size=reid_cfg.DATA.TEST_BATCH, num_workers=reid_cfg.DATA.NUM_WORKERS,
+                pin_memory=True, drop_last=False, shuffle=False)
+            q_feats, _, _, _ = extract_vid_feature(reid_model, queryloader,
+                                                               query_vid2clip_index,
+                                                               len(recombined_query),
+                                                               model_type='CAL_VID')
+            # q_feats = torch.from_numpy(q_feats)
         elif args.reid_model == 'ctl':
             track_imgs = [crop_dict.get('ctl_img') for crop_dict in crop_dicts]
             # use loaded images for inference:
@@ -668,7 +676,9 @@ def create_data_by_re_id_and_track():
         for crop_id, crop_dict in enumerate(crop_dicts):
             crop = crop_dict.get('Crop')
             crop.crop_id = crop_id
-            crop_label = ID_TO_NAME[reid_ids[crop_id]]
+            crop_label = None
+            if args.reid_model != 'CAL_VID':
+                crop_label = ID_TO_NAME[reid_ids[crop_id]]
             crop.label = final_label
             crop.conf = max(final_scores.values())
             if crop.conf >= float(args.acc_th):
@@ -738,7 +748,7 @@ def update_ablation_results(columns_dict, crop, crop_label, face_label, final_la
             ids_acc_dict[tagged_label][0] = 0
             ids_acc_dict[tagged_label][1] = 0
         ids_acc_dict[tagged_label][0] += 1
-        if tagged_label == crop_label:
+        if crop_label and tagged_label == crop_label:
             columns_dict['pure_reid_model'] += 1
         if tagged_label == maj_vote_label:
             columns_dict['reid_with_maj_vote'] += 1

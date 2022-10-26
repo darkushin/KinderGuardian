@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import functools
 import os.path as osp
@@ -104,12 +105,14 @@ class VideoDataset(Dataset):
                  spatial_transform=None,
                  temporal_transform=None,
                  get_loader=get_default_video_loader,
-                 cloth_changing=True):
+                 cloth_changing=True,
+                 loaded_imgs=None):
         self.dataset = dataset
         self.spatial_transform = spatial_transform
         self.temporal_transform = temporal_transform
         self.loader = get_loader()
         self.cloth_changing = cloth_changing
+        self.loaded_imgs = loaded_imgs
 
     def __len__(self):
         return len(self.dataset)
@@ -129,8 +132,13 @@ class VideoDataset(Dataset):
 
         if self.temporal_transform is not None:
             img_paths = self.temporal_transform(img_paths)
-
-        clip = self.loader(img_paths)
+        if self.loaded_imgs:
+            try:
+                clip = list(np.array(self.loaded_imgs)[img_paths])
+            except Exception:
+                print('Failing Track')
+        else:
+            clip = self.loader(img_paths)
 
         if self.spatial_transform is not None:
             self.spatial_transform.randomize_parameters()

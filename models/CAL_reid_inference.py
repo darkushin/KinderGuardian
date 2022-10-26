@@ -4,6 +4,7 @@ import sys
 import numpy as np
 import torch
 import torch.nn.functional as F
+import math
 
 sys.path.append('Simple_CCReID')
 
@@ -85,6 +86,60 @@ def build_CAL_VID_gallery(config):
     return dataset, galleryloader
 
 
+def recombination_for_testset(dataset, seq_len=16, stride=4):
+    ''' Split all videos in test set into lots of equilong clips.
+
+    Args:
+        dataset (list): input dataset, each video is organized as (img_paths, pid, camid, clothes_id)
+        seq_len (int): sequence length of each output clip
+        stride (int): temporal sampling stride
+
+    Returns:
+        new_dataset (list): output dataset with lots of equilong clips
+        vid2clip_index (list): a list contains the start and end clip index of each original video
+    '''
+    new_dataset = []
+    vid2clip_index = np.zeros((len(dataset), 2), dtype=int)
+    for idx, (img_paths, pid, camid, clothes_id) in enumerate(dataset):
+        # start index
+        vid2clip_index[idx, 0] = len(new_dataset)
+        # process the sequence that can be divisible by seq_len*stride
+        for i in range(len(img_paths) // (seq_len * stride)):
+            for j in range(stride):
+                begin_idx = i * (seq_len * stride) + j
+                end_idx = (i + 1) * (seq_len * stride)
+                clip_paths = img_paths[begin_idx: end_idx: stride]
+                assert (len(clip_paths) == seq_len)
+                new_dataset.append((clip_paths, pid, camid, clothes_id))
+        # process the remaining sequence that can't be divisible by seq_len*stride
+        if len(img_paths) % (seq_len * stride) != 0:
+            # reducing stride
+            new_stride = (len(img_paths) % (seq_len * stride)) // seq_len
+            for i in range(new_stride):
+                begin_idx = len(img_paths) // (seq_len * stride) * (seq_len * stride) + i
+                end_idx = len(img_paths) // (seq_len * stride) * (seq_len * stride) + seq_len * new_stride
+                clip_paths = img_paths[begin_idx: end_idx: new_stride]
+                assert (len(clip_paths) == seq_len)
+                new_dataset.append((clip_paths, pid, camid, clothes_id))
+            # process the remaining sequence that can't be divisible by seq_len
+            if len(img_paths) % seq_len != 0:
+                clip_paths = img_paths[len(img_paths) // seq_len * seq_len:]
+                # loop padding
+                while len(clip_paths) < seq_len:
+                    for index in clip_paths:
+                        if len(clip_paths) >= seq_len:
+                            break
+                        clip_paths.append(index)
+                assert (len(clip_paths) == seq_len)
+                new_dataset.append((clip_paths, pid, camid, clothes_id))
+        # end index
+        vid2clip_index[idx, 1] = len(new_dataset)
+        assert ((vid2clip_index[idx, 1] - vid2clip_index[idx, 0]) == math.ceil(len(img_paths) / seq_len))
+
+    return new_dataset, vid2clip_index.tolist()
+
+
+
 def CAL_build_model(config, device=None):
     """
     Build the CAL model according to the given config.
@@ -99,6 +154,7 @@ def CAL_build_model(config, device=None):
         print("Warning: Did not load a checkpoint for CAL model!")
     if device:
         model = model.to(device)
+    model.eval()
     return model
 
 

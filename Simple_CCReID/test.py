@@ -53,8 +53,6 @@ def extract_vid_feature(model, dataloader, vid2clip_index, data_length, model_ty
     # clip_features, clip_pids, clip_camids, clip_clothes_ids = [], torch.tensor([], dtype=torch.int64), torch.tensor([], dtype=torch.int64), torch.tensor([], dtype=torch.int64)  # fix for huji
     clip_features, clip_pids, clip_camids, clip_clothes_ids = [], torch.tensor([]), torch.tensor([]), torch.tensor([])
     for batch_idx, (vids, batch_pids, batch_camids, batch_clothes_ids) in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
-        # if (batch_idx + 1) % 200!=0:
-        #     print(f'batch {batch_idx}/{len(dataloader)}')
         vids = vids.cuda()
         if 'CAL' in model_type:
             batch_features = model(vids)
@@ -73,6 +71,7 @@ def extract_vid_feature(model, dataloader, vid2clip_index, data_length, model_ty
         clip_clothes_ids = torch.cat((clip_clothes_ids, batch_clothes_ids.to(dtype=torch.float32).cpu()), dim=0)
     clip_features = torch.cat(clip_features, 0)
 
+    # Uncomment these lines if using multiple GPUs
     # Gather samples from different GPUs
     # clip_features, clip_pids, clip_camids, clip_clothes_ids = \
     #     concat_all_gather([clip_features, clip_pids, clip_camids, clip_clothes_ids], data_length)
