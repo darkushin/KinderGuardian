@@ -95,25 +95,25 @@ class ArcFace():
         face = numpy_img[:, :, ::-1]
         return face
 
-    def predict_img(self, img):
-        if type(img) == torch.Tensor:
-            img = self.img_tensor_to_cv2(img)
-        if img.shape != IMG_SIZE:
-            img = cv2.resize(img, IMG_SIZE)
-        input_feat = self.face_recognition.get_feat(img)
-        scores = {i:0 for i in ID_TO_NAME.keys()}
-        for i in scores.keys():
-            gallery_of_i = self.gallery[self.gpids == ID_TO_NAME[i]]
-            if gallery_of_i is not None and len(gallery_of_i) > 0:
-                cur_sims = [self.face_recognition.compute_sim(input_feat, cand) for cand in gallery_of_i]
-                # mean_scores = np.mean(cur_sims)
-                max_scores = np.max(cur_sims) #TODO is it max? mean? top-5?
-                # top_5_mean_score = np.argpartition(cur_sims, 5)[-5:].mean()
-                # print(ID_TO_NAME[i], "mean score:", mean_scores, "max score", max_scores)
-                # scores[i] = mean_scores if mean_scores > self.score_threshold else 0
-                # scores[i] = top_5_mean_score
-                scores[i] = max_scores
-        return scores
+    # def predict_img(self, img):
+    #     if type(img) == torch.Tensor:
+    #         img = self.img_tensor_to_cv2(img)
+    #     if img.shape != IMG_SIZE:
+    #         img = cv2.resize(img, IMG_SIZE)
+    #     input_feat = self.face_recognition.get_feat(img)
+    #     scores = {i:0 for i in ID_TO_NAME.keys()}
+    #     for i in scores.keys():
+    #         gallery_of_i = self.gallery[self.gpids == ID_TO_NAME[i]]
+    #         if gallery_of_i is not None and len(gallery_of_i) > 0:
+    #             cur_sims = [self.face_recognition.compute_sim(input_feat, cand) for cand in gallery_of_i]
+    #             # mean_scores = np.mean(cur_sims)
+    #             max_scores = np.max(cur_sims)
+    #             # top_5_mean_score = np.argpartition(cur_sims, 5)[-5:].mean()
+    #             # print(ID_TO_NAME[i], "mean score:", mean_scores, "max score", max_scores)
+    #             # scores[i] = mean_scores if mean_scores > self.score_threshold else 0
+    #             # scores[i] = top_5_mean_score
+    #             scores[i] = max_scores
+    #     return scores
 
     def predict_img_using_embedding(self, face_embedding,k=5):
         scores = {i:0 for i in ID_TO_NAME.keys()}
