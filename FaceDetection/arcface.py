@@ -9,7 +9,7 @@ import os
 import torch
 from insightface.app import FaceAnalysis
 
-from DataProcessing.dataProcessingConstants import ID_TO_NAME
+from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 import tqdm
 GALLERY_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gallery_face_det_improved.pkl"
 GPIDS_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_face_det_improved.pkl"
@@ -95,25 +95,25 @@ class ArcFace():
         face = numpy_img[:, :, ::-1]
         return face
 
-    def predict_img(self, img):
-        if type(img) == torch.Tensor:
-            img = self.img_tensor_to_cv2(img)
-        if img.shape != IMG_SIZE:
-            img = cv2.resize(img, IMG_SIZE)
-        input_feat = self.face_recognition.get_feat(img)
-        scores = {i:0 for i in ID_TO_NAME.keys()}
-        for i in scores.keys():
-            gallery_of_i = self.gallery[self.gpids == ID_TO_NAME[i]]
-            if gallery_of_i is not None and len(gallery_of_i) > 0:
-                cur_sims = [self.face_recognition.compute_sim(input_feat, cand) for cand in gallery_of_i]
-                # mean_scores = np.mean(cur_sims)
-                max_scores = np.max(cur_sims) #TODO is it max? mean? top-5?
-                # top_5_mean_score = np.argpartition(cur_sims, 5)[-5:].mean()
-                # print(ID_TO_NAME[i], "mean score:", mean_scores, "max score", max_scores)
-                # scores[i] = mean_scores if mean_scores > self.score_threshold else 0
-                # scores[i] = top_5_mean_score
-                scores[i] = max_scores
-        return scores
+    # def predict_img(self, img):
+    #     if type(img) == torch.Tensor:
+    #         img = self.img_tensor_to_cv2(img)
+    #     if img.shape != IMG_SIZE:
+    #         img = cv2.resize(img, IMG_SIZE)
+    #     input_feat = self.face_recognition.get_feat(img)
+    #     scores = {i:0 for i in ID_TO_NAME.keys()}
+    #     for i in scores.keys():
+    #         gallery_of_i = self.gallery[self.gpids == ID_TO_NAME[i]]
+    #         if gallery_of_i is not None and len(gallery_of_i) > 0:
+    #             cur_sims = [self.face_recognition.compute_sim(input_feat, cand) for cand in gallery_of_i]
+    #             # mean_scores = np.mean(cur_sims)
+    #             max_scores = np.max(cur_sims)
+    #             # top_5_mean_score = np.argpartition(cur_sims, 5)[-5:].mean()
+    #             # print(ID_TO_NAME[i], "mean score:", mean_scores, "max score", max_scores)
+    #             # scores[i] = mean_scores if mean_scores > self.score_threshold else 0
+    #             # scores[i] = top_5_mean_score
+    #             scores[i] = max_scores
+    #     return scores
 
     def predict_img_using_embedding(self, face_embedding,k=5):
         scores = {i:0 for i in ID_TO_NAME.keys()}
@@ -130,6 +130,39 @@ class ArcFace():
                 # scores[i] = top_5_mean_score
                 scores[i] = top_5_mean
         return scores
+
+    def get_face_score_all_ids_full_gallery(self, simmat, g_pids, k=5):
+        ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
+        # aligned_simmat = (track_im_conf[:, np.newaxis] * simmat) ** P_POWER
+        aligned_simmat = simmat
+        for pid in set(g_pids):
+            # maybe take the top-K?
+            id_matrix = aligned_simmat[:, np.where(g_pids == pid)]
+            if len(id_matrix) > 0:
+                # if dim of matrix is 3, squeeze it out
+                if len(id_matrix.shape) == 3:
+                    id_matrix = np.squeeze(id_matrix, axis=1)
+                # this is the correct dim
+                if len(id_matrix.shape) == 2:
+                    # ids_score[pid] +=  np.max(id_matrix, axis=1).mean()
+                    k = min(k, id_matrix.shape[1])
+                    ids_score[pid] += np.sort(id_matrix, axis=1)[:, -k:].mean()
+                # something went wrong
+                else:
+                    raise ValueError('Id cosin sim martix is not in the correct dims.')
+        return ids_score
+
+    def find_best_face_match(self, query_face_embeddings, k=5):
+        """
+        Given feature vectors of the query images, return the ids of the images that are most similar in the test gallery
+        """
+        import torch.nn.functional as F
+        features = F.normalize(torch.tensor(query_face_embeddings), p=2, dim=1)
+        others = F.normalize(torch.tensor(self.gallery), p=2, dim=1).squeeze(dim=1)
+        simmat = torch.mm(features, others.t()).numpy()
+        int_gpids = np.array([NAME_TO_ID[g] for g in self.gpids])
+        ids_score = self.get_face_score_all_ids_full_gallery(simmat, int_gpids, k=k)
+        return ids_score
 
     def predict_track(self, imgs:np.array):
         scores = {i:0 for i in ID_TO_NAME.keys()}

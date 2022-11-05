@@ -253,11 +253,12 @@ def write_ablation_results(args, columns_dict, ids_acc_dict, ablation_df, db_loc
         acc_columns = ['pure_reid_model', 'face_clf_only','face_clf_maj_vote', 'reid_with_maj_vote', 'reid_with_face_clf_maj_vote']
         acc_columns.extend(NODES_ORDER)
         track_columns = ['face_maj_vote_per_track', 'reid_maj_vote_per_track', 'reid_with_face_clf_maj_vote_per_track']
+        if columns_dict['total_crops_of_tracks_with_face'] > 0:
+            columns_dict['face_clf_only_tracks_with_face'] = columns_dict['face_clf_only'] / columns_dict['total_crops_of_tracks_with_face']
+
+
         for acc in acc_columns:
             columns_dict[acc] = columns_dict[acc] / columns_dict['total_crops']
-
-        if columns_dict['total_crops_of_tracks_with_face'] > 0:
-            columns_dict['face_clf_only_tracks_with_face'] = columns_dict['face_clf_only_tracks_with_face'] / columns_dict['total_crops_of_tracks_with_face']
 
         for track in track_columns:
             columns_dict[track] /= columns_dict['total_tracks']
@@ -395,7 +396,7 @@ def create_tracklets_using_tracking(args):
                             conf=conf,
                             cam_id=CAM_ID,
                             crop_id=-1,
-                            is_face=is_img(face_img) and face_prob > 0.7, # NOTE! the 0.8 face conf threshold was build for the 42Street dataset only, face gallery is labeled using the same threshold
+                            is_face=is_img(face_img), # NOTE! the 0.8 face conf threshold was build for the 42Street dataset only, face gallery is labeled using the same threshold
                             reviewed_one=False,
                             reviewed_two=False,
                             invalid=False,
@@ -410,24 +411,16 @@ def create_tracklets_using_tracking(args):
     return tracklets
 
 
-def create_or_load_tracklets(args, create_tracklets:bool):
-    if create_tracklets and not args.db_tracklets:  # create tracklets from video using tracking
+def create_or_load_tracklets(args):
+    pkl_path = f"/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/{get_vid_name(args)}_new.pkl"
+    if os.path.isfile(pkl_path):
+        tracklets = pickle.load(open(pkl_path,'rb'))
+        assert tracklets
+        print(f'********* Tracklets pkl file found with {len(tracklets)} tracks')
+    else:
         print('******* Creating tracklets using tracking: *******')
         tracklets = create_tracklets_using_tracking(args=args)
-        pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl', 'wb'))
-
-    elif create_tracklets and args.db_tracklets:  # create tracklets using the tagged DB
-        print('***** Creating tracklets using DB *****')
-        tracklets = create_tracklets_from_db(vid_name=get_vid_name(args), args=args)
-        pickle.dump(tracklets, open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/db-tracklets.pkl', 'wb'))
-
-    else:
-        if args.db_tracklets:
-            print('***** Using loaded DB tracklets! *****')
-            tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/db-tracklets.pkl', 'rb'))
-        else:
-            print('***** Using loaded tracking tracklets! *****')
-            tracklets = pickle.load(open('/mnt/raid1/home/bar_cohen/OUR_DATASETS/pickles/tracklets.pkl', 'rb'))
+        pickle.dump(tracklets, open(pkl_path, 'wb'))
     return tracklets
 
 
@@ -435,14 +428,19 @@ def is_unknown_id(reid_scores:dict, face_scores:dict, face_confs:np.array):
     unknown_id = False
     face_cos_sim = max(face_scores.values())
     # an already labeled unknown reid already exists in the gallery and face_cos_sim is low
-    if ID_TO_NAME[max(reid_scores, key=reid_scores.get)] == 'Unknown' and face_cos_sim <= 0.4:
-        unknown_id = True
+    # if ID_TO_NAME[max(reid_scores, key=reid_scores.get)] == 'Unknown' and face_cos_sim <= 0.4:
+    #     unknown_id = True
     face_ranks = sorted(face_scores.values(), reverse=True)
     face_ranks_diff = face_ranks[0] - face_ranks[1]
+
+    reid_ranks = sorted(reid_scores.values(), reverse=True)
+    reid_ranks_diff = face_ranks[0] - face_ranks[1]
 
     # its a high quality face but the face model is unsure
     if face_ranks_diff <= 0.01 and face_cos_sim <= 0.30 and face_confs.mean() >= 0.8:
         unknown_id = True
+    # elif reid_ranks_diff <= 0.005:
+    #     unknown_id = True
 
     return unknown_id
 
@@ -558,13 +556,7 @@ def create_data_by_re_id_and_track():
 
     tl_start = time.time()
     print('Starting to create tracklets')
-    if args.experiment_mode:
-        tracklets = create_or_load_tracklets(args,create_tracklets=True) # TODO huge issue here, requires manual adpation every run
-    else:
-        if not args.db_tracklets:  # create tracklets from video using tracking
-            tracklets = create_tracklets_using_tracking(args=args)
-        else:  # create tracklets from DB
-            tracklets = create_tracklets_from_db(vid_name=get_vid_name(args), args=args)
+    tracklets = create_or_load_tracklets(args=args)
     tl_end = time.time()
     print(f'Total time for loading tracklets for video {args.input.split("/")[-1]}: {int(tl_end-tl_start)}')
     print('******* Making predictions and saving crops to DB *******')
@@ -628,10 +620,10 @@ def create_data_by_re_id_and_track():
         all_tracks_final_scores[track_id] = reid_scores  # add reid scores in case the track doesn't include face images
 
         # face_imgs = [crop_dict.get('face_img') for crop_dict in crop_dicts if is_img(crop_dict.get('face_img'))]
-        face_embeddings = [crop_dict.get('face_embedding') for crop_dict in crop_dicts if is_img(crop_dict.get('face_embedding'))]
-        face_imgs_conf = np.array([crop_dict.get('face_img_conf') for crop_dict in crop_dicts if crop_dict.get('face_img_conf') > 0])
+        face_embeddings = [crop_dict.get('face_embedding') for crop_dict in crop_dicts if crop_dict.get('face_embedding') is not None and crop_dict.get('face_img_conf') >= 0.7]
+        # face_imgs_conf = np.array([crop_dict.get('face_img_conf') for crop_dict in crop_dicts if crop_dict.get('face_img_conf') >= 0.7])
         # assert len(face_imgs) == len(face_imgs_conf)
-        assert len(face_embeddings) == len(face_imgs_conf)
+        # assert len(face_embeddings) == len(face_imgs_conf)
         is_face_in_track = False
         face_track_score_label = 'None'
         face_scores = {pid: 0 for pid in ID_TO_NAME.keys()}
@@ -641,14 +633,15 @@ def create_data_by_re_id_and_track():
 
             # ARCFACE --- the below model uses ArcFace as the Face Classifier
             # face_scores = arc.predict_track(face_imgs)
-            face_scores = arc.predict_track_vectorized(face_embeddings)
+            face_scores = arc.find_best_face_match(face_embeddings)
+            # face_scores = arc.predict_track_vectorized(face_embeddings)
             face_track_score_label = ID_TO_NAME[max(face_scores, key=face_scores.get)]
 
         else:
             print(f"No face found, using Reid as Final Label: {final_label}")
             print(f"Reid scores: {reid_scores}")
 
-        alpha = 0.5  # TODO enter as an arg
+        alpha = 0.75
         final_scores = {pid: 0 for pid in ID_TO_NAME.keys()}
         for key in final_scores.keys():
             final_scores[key] = reid_scores[key] * alpha + (1 - alpha) * face_scores[key]
@@ -663,7 +656,7 @@ def create_data_by_re_id_and_track():
         # Todo this is a nice approach, but it fails on a number of cases. Need to find more robust approachs for better results.
         # if is_unknown_id(reid_scores=reid_scores, face_scores=face_scores, face_confs=face_imgs_conf):
         #     print(f'final label {final_label} replaced with Unknown')
-        #     final_label = 'Thresh Unknown'
+        #     final_label = 'Unknown'
 
         # update missing info of the crop: crop_id, label and is_face, save the crop to the crops_folder and add to DB
 
@@ -682,7 +675,7 @@ def create_data_by_re_id_and_track():
             if args.reid_model != 'CAL_VID':
                 crop_label = ID_TO_NAME[reid_ids[crop_id]]
             if crop_dict['Crop'].is_face:
-                cur_face_score = arc.predict_img(crop_dict['face_img'])
+                cur_face_score = arc.predict_img_using_embedding(crop_dict['face_embedding'],k=1)
                 crop_face_label = ID_TO_NAME[max(cur_face_score, key=cur_face_score.get)]
             crop.label = final_label
             crop.conf = max(final_scores.values())
@@ -747,8 +740,6 @@ def update_ablation_results(columns_dict, crop, crop_label,crop_face_label, face
     # there is a tagging for this crop which is not invalid, count it
         columns_dict['total_crops'] += 1
         track_acc_dict['tagged_crops_in_track'] += 1
-        if is_face_in_track:
-            columns_dict['total_crops_of_tracks_with_face'] += 1
         tagged_label = tagged_label_crop[0].label
         if ids_acc_dict[tagged_label][0] == ID_NOT_IN_VIDEO:  # init this id as present in vid
             ids_acc_dict[tagged_label][0] = 0
@@ -761,9 +752,10 @@ def update_ablation_results(columns_dict, crop, crop_label,crop_face_label, face
             track_acc_dict['correct_on_track_maj_vote_ReID'] += 1
 
         if is_face_in_track:
-            columns_dict['face_clf_only_tracks_with_face'] += 1
-            if crop_face_label and tagged_label == crop_face_label:
-                columns_dict['face_clf_only'] += 1
+            if crop_face_label:
+                columns_dict['total_crops_of_tracks_with_face'] += 1
+                if tagged_label == crop_face_label:
+                    columns_dict['face_clf_only'] += 1
 
             if tagged_label == face_track_score_label:
                 columns_dict['face_clf_maj_vote'] += 1
