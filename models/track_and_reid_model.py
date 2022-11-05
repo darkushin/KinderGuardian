@@ -606,7 +606,8 @@ def create_data_by_re_id_and_track():
 
             # ARCFACE --- the below model uses ArcFace as the Face Classifier
             # face_scores = arc.predict_track(face_imgs)
-            face_scores = arc.predict_track_vectorized(face_embeddings)
+            face_scores = arc.find_best_face_match(face_embeddings)
+            # face_scores = arc.predict_track_vectorized(face_embeddings)
             face_track_score_label = ID_TO_NAME[max(face_scores, key=face_scores.get)]
 
         else:

@@ -9,7 +9,7 @@ import os
 import torch
 from insightface.app import FaceAnalysis
 
-from DataProcessing.dataProcessingConstants import ID_TO_NAME
+from DataProcessing.dataProcessingConstants import ID_TO_NAME, NAME_TO_ID
 import tqdm
 GALLERY_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gallery_face_det_improved.pkl"
 GPIDS_PKL_PATH = "/mnt/raid1/home/bar_cohen/42street/pkls/gpids_face_det_improved.pkl"
@@ -130,6 +130,39 @@ class ArcFace():
                 # scores[i] = top_5_mean_score
                 scores[i] = top_5_mean
         return scores
+
+    def get_face_score_all_ids_full_gallery(self, simmat, g_pids, k=5):
+        ids_score = {pid: 0 for pid in ID_TO_NAME.keys()}
+        # aligned_simmat = (track_im_conf[:, np.newaxis] * simmat) ** P_POWER
+        aligned_simmat = simmat
+        for pid in set(g_pids):
+            # maybe take the top-K?
+            id_matrix = aligned_simmat[:, np.where(g_pids == pid)]
+            if len(id_matrix) > 0:
+                # if dim of matrix is 3, squeeze it out
+                if len(id_matrix.shape) == 3:
+                    id_matrix = np.squeeze(id_matrix, axis=1)
+                # this is the correct dim
+                if len(id_matrix.shape) == 2:
+                    # ids_score[pid] +=  np.max(id_matrix, axis=1).mean()
+                    k = min(k, id_matrix.shape[1])
+                    ids_score[pid] += np.sort(id_matrix, axis=1)[:, -k:].mean()
+                # something went wrong
+                else:
+                    raise ValueError('Id cosin sim martix is not in the correct dims.')
+        return ids_score
+
+    def find_best_face_match(self, query_face_embeddings, k=5):
+        """
+        Given feature vectors of the query images, return the ids of the images that are most similar in the test gallery
+        """
+        import torch.nn.functional as F
+        features = F.normalize(torch.tensor(query_face_embeddings), p=2, dim=1)
+        others = F.normalize(torch.tensor(self.gallery), p=2, dim=1).squeeze(dim=1)
+        simmat = torch.mm(features, others.t()).numpy()
+        int_gpids = np.array([NAME_TO_ID[g] for g in self.gpids])
+        ids_score = self.get_face_score_all_ids_full_gallery(simmat, int_gpids, k=k)
+        return ids_score
 
     def predict_track(self, imgs:np.array):
         scores = {i:0 for i in ID_TO_NAME.keys()}
