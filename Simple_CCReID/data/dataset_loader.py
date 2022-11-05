@@ -112,7 +112,7 @@ class VideoDataset(Dataset):
         self.temporal_transform = temporal_transform
         self.loader = get_loader()
         self.cloth_changing = cloth_changing
-        self.loaded_imgs = loaded_imgs
+        self.loaded_imgs = list(loaded_imgs) if loaded_imgs else loaded_imgs
 
     def __len__(self):
         return len(self.dataset)
@@ -134,9 +134,9 @@ class VideoDataset(Dataset):
             img_paths = self.temporal_transform(img_paths)
         if self.loaded_imgs:
             try:
-                clip = list(np.array(self.loaded_imgs)[img_paths])
-            except Exception:
-                print('Failing Track')
+                clip = list(np.array(self.loaded_imgs+[self.loaded_imgs[0]])[:-1][img_paths])
+            except Exception as e:
+                print(f'Failing Track: {str(e)}')
         else:
             clip = self.loader(img_paths)
 
