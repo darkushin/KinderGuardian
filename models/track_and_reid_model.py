@@ -78,7 +78,7 @@ def get_args():
     parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
     parser.add_argument('--experiment_mode', action='store_true', help='run in experiment_mode')
     parser.add_argument('--exp_description', help='The description of the experiment that should appear in the ablation study output')
-    parser.add_argument('--reid_model', choices=['fastreid', 'CAL', 'ctl'], default='fastreid', help='Reid model that should be used.')
+    parser.add_argument('--reid_model', choices=['fastreid', 'CAL', 'ctl', 'CAL_VID'], default='fastreid', help='Reid model that should be used.')
     args = parser.parse_args()
     return args
 
@@ -387,6 +387,9 @@ def create_tracklets_using_tracking(args):
                         face_img, face_prob = pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs, face_imgs)
                         # if is_img(face_img): # return this if you want to go back to kinderguardian
                             # face_img = normalize_image(face_img)
+                    else: # Taking the most conf. face
+                        id_of_max_det_score = np.argmax(face_probs)
+                        face_img , face_prob = face_imgs[id_of_max_det_score], face_probs[id_of_max_det_score]
 
                 x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to intsP
                 crop = Crop(vid_name=get_vid_name(args),
@@ -516,6 +519,22 @@ def create_data_by_re_id_and_track():
         g_feats, g_paths = CAL_run_inference(reid_model, gallery_data, args.device)
         g_pids = np.array([pid.split('/')[-1].split('_')[0] for pid in g_paths]).astype(int)  # need to be only the string id of a person ('0015' etc.)
         g_feats = torch.from_numpy(g_feats)
+    elif args.reid_model == 'CAL_VID':
+        reid_cfg = set_CAL_VID_reid_cfgs(args)
+
+        # initialize reid model:
+        reid_model = CAL_build_model(reid_cfg, args.device)
+        dataset, galleryloader = build_CAL_VID_gallery(reid_cfg)
+
+        # if False:
+        g_feats, g_pids, g_camids, _ = extract_vid_feature(reid_model, galleryloader,
+                                                                  dataset.gallery_vid2clip_index,
+                                                                  len(dataset.recombined_gallery),
+                                                                  model_type='CAL_VID')
+        # pickle.dump((g_feats, g_pids, g_camids), open('/home/bar_cohen/raid/42street/cal_vid_tests.pkl', 'wb'))
+        # else:
+        #     g_feats, g_pi000ds, g_camids = pickle.load(open('/home/bar_cohen/raid/42street/cal_vid_tests.pkl', 'rb'))
+        g_pids = np.array(g_pids).astype(int)
     elif args.reid_model == 'ctl':
         # args.reid_config = "./centroids_reid/configs/256_resnet50.yml"
         reid_cfg = set_CTL_reid_cfgs(args)
@@ -540,7 +559,10 @@ def create_data_by_re_id_and_track():
 
     tl_start = time.time()
     print('Starting to create tracklets')
-    tracklets = create_or_load_tracklets(args=args)
+    if args.db_tracklets:
+        tracklets = create_tracklets_from_db(vid_name=get_vid_name(args),args=args)
+    else: #use tracking
+        tracklets = create_or_load_tracklets(args=args)
     tl_end = time.time()
     print(f'Total time for loading tracklets for video {args.input.split("/")[-1]}: {int(tl_end-tl_start)}')
     print('******* Making predictions and saving crops to DB *******')
@@ -564,21 +586,32 @@ def create_data_by_re_id_and_track():
         if args.reid_model == 'fastreid':
             track_imgs = [crop_dict.get('crop_img') for crop_dict in crop_dicts]
             q_feats = reid_track_inference(reid_model=reid_model, track_imgs=track_imgs)
-            reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
         elif args.reid_model == 'CAL':
             track_imgs = [crop_dict.get('ctl_img') for crop_dict in crop_dicts]
             q_feats = CAL_track_inference(model=reid_model, cfg=reid_cfg, track_imgs=track_imgs, device=args.device)
             q_feats = torch.from_numpy(q_feats)
-            reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf)
-
+        elif args.reid_model == 'CAL_VID':
+            track_imgs = [crop_dict.get('ctl_img') for crop_dict in crop_dicts]
+            query_dataset = [(list(np.arange(len(track_imgs))), 1, 1, 1)]
+            recombined_query, query_vid2clip_index = recombination_for_testset(query_dataset)
+            spatial_transform_test, temporal_transform_test = build_vid_transforms(reid_cfg)
+            queryloader = DataLoader(
+                dataset=VideoDataset(recombined_query, spatial_transform_test, temporal_transform_test, loaded_imgs=track_imgs),
+                batch_size=reid_cfg.DATA.TEST_BATCH, num_workers=reid_cfg.DATA.NUM_WORKERS,
+                pin_memory=True, drop_last=False, shuffle=False)
+            q_feats, _, _, _ = extract_vid_feature(reid_model, queryloader,
+                                                               query_vid2clip_index,
+                                                               len(recombined_query),
+                                                               model_type='CAL_VID')
+            # q_feats = torch.from_numpy(q_feats)
         elif args.reid_model == 'ctl':
             track_imgs = [crop_dict.get('ctl_img') for crop_dict in crop_dicts]
             # use loaded images for inference:
             q_feats = ctl_track_inference(model=reid_model, cfg=reid_cfg, track_imgs=track_imgs, device=args.device)
             q_feats = torch.from_numpy(q_feats)
-            reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf,k=5)
         else:
             raise Exception('Unsupported ReID model')
+        reid_ids, reid_scores = find_best_reid_match(q_feats, g_feats, g_pids, track_imgs_conf, k=5)
 
         # print(reid_scores)
         bincount = np.bincount(reid_ids)
@@ -644,7 +677,9 @@ def create_data_by_re_id_and_track():
             crop_face_label = None
             crop = crop_dict.get('Crop')
             crop.crop_id = crop_id
-            crop_label = ID_TO_NAME[reid_ids[crop_id]]
+            crop_label = None
+            if args.reid_model != 'CAL_VID':
+                crop_label = ID_TO_NAME[reid_ids[crop_id]]
             if crop_dict['Crop'].is_face:
                 cur_face_score = arc.predict_img_using_embedding(crop_dict['face_embedding'],k=1)
                 crop_face_label = ID_TO_NAME[max(cur_face_score, key=cur_face_score.get)]
@@ -716,7 +751,7 @@ def update_ablation_results(columns_dict, crop, crop_label,crop_face_label, face
             ids_acc_dict[tagged_label][0] = 0
             ids_acc_dict[tagged_label][1] = 0
         ids_acc_dict[tagged_label][0] += 1
-        if tagged_label == crop_label:
+        if crop_label and tagged_label == crop_label:
             columns_dict['pure_reid_model'] += 1
         if tagged_label == maj_vote_label:
             columns_dict['reid_with_maj_vote'] += 1

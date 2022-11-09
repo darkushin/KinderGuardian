@@ -33,7 +33,7 @@ def get_args():
     parser.add_argument('--db_tracklets', action='store_true', help='use the tagged DB to create tracklets for inference')
     parser.add_argument('--experiment_mode', action='store_true', help='run in experiment_mode')
     parser.add_argument('--exp_description', help='The description of the experiment that should appear in the ablation study output')
-    parser.add_argument('--reid_model', choices=['fastreid', 'CAL', 'ctl'], default='fastreid', help='Reid model that should be used.')
+    parser.add_argument('--reid_model', choices=['fastreid', 'CAL', 'ctl', 'CAL_VID'], default='fastreid', help='Reid model that should be used.')
 
     return parser.parse_args()
 
@@ -255,19 +255,58 @@ MODEL.RESUME
 /home/bar_cohen/Simple-CCReID/checkpoints/prcc-checkpoint.pth.tar
 DATA.ROOT
 /mnt/raid1/home/bar_cohen/42street/part2_gallery/
+
+    CAL_VID
+    re-id-and-tracking
+--track_config
+./mmtracking/configs/mot/bytetrack/bytetrack_yolox_x_crowdhuman_mot17-private-half.py
+--mmtrack_checkpoint
+/home/bar_cohen/KinderGuardian/mmtracking/checkpoints/bytetrack_yolox_x_crowdhuman_mot17-private-half_20211218_205500-1985c9f0.pth
+--reid_config
+./Simple_CCReID/configs/c2dres50_ce_cal.yaml
+--input
+/mnt/raid1/home/bar_cohen/trimmed_videos/IPCamera_20210803105422/IPCamera_20210803105422_s0_e501.mp4
+--output
+/mnt/raid1/home/bar_cohen/labled_videos/20210803105422_s0_e501_new_model.mp4
+--acc_th
+0.0
+--crops_folder
+/mnt/raid1/home/bar_cohen/42street/42StreetCrops/
+--inference_only
+--exp_description
+"Testing CAL VID model"
+--device
+cuda:0
+--reid_model
+CAL_VID
+--pose_config
+/home/bar_cohen/D-KinderGuardian/mmpose/configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/hrnet_w48_coco_256x192.py
+--pose_checkpoint
+/home/bar_cohen/D-KinderGuardian/checkpoints/mmpose-hrnet_w48_coco_256x192-b9e0b3ab_20200708.pth
+--experiment_mode
+--reid_opts
+MODEL.RESUME
+/home/bar_cohen/Simple-CCReID/checkpoints/ccvid-checkpoint.pth.tar
+DATA.ROOT
+/home/bar_cohen/raid/42street/cal_vid_gallery_test
+GPU
+'0'
+DATA.TEST_BATCH
+64
+
     """
     reid_opts: List = create_reid_opts()
     optional_args: List = create_optional_args()
     inference_output = "/mnt/raid1/home/bar_cohen/labled_videos/inference_videos"
     # print('Total videos in eval set:', len(get_query_set()))
     # street42 = ["/mnt/raid1/home/bar_cohen/42street/val_videos_2/"]
-    street42 = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part3/"]
-    # street42 = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part4/"]
+    # street42 = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged/_vids/part1/"]
+    street42 = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part2/"]
     query_set = [os.path.join(part, vid) for part in street42 for vid in os.listdir(part)]
     for query_vid in query_set:
-        # if '_s26000_e26501' not in query_vid:
-        #     print(f'skipping {query_vid}')
-        #     continue
+        if 'part2_s35500_e36001' not in query_vid:
+            print(f'skipping {query_vid}')
+            continue
         print(f'running {query_vid}')
         args.input = query_vid
 
@@ -279,6 +318,28 @@ DATA.ROOT
         script_args.append('--reid_opts')
         script_args.extend(reid_opts)
         call(script_args)
+    print("done part5!"
+          "")
+    # street42 = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part5/"]
+    # query_set = [os.path.join(part, vid) for part in street42 for vid in os.listdir(part)]
+    # for query_vid in query_set:
+    #     # if 'part1_s24000_e24501' not in query_vid:
+    #     #     print(f'skipping {query_vid}')
+    #     #     continue
+    #     print(f'running {query_vid}')
+    #     args.input = query_vid
+    #
+    #
+    #     args.output = os.path.join(inference_output, 'inference_' + query_vid.split('/')[-1])
+    #     script_args = ['/home/bar_cohen/miniconda3/envs/CTL/bin/python3.7', './models/track_and_reid_model.py',
+    #                    args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
+    #
+    #     script_args.extend(optional_args)
+    #     script_args.append('--reid_opts')
+    #     script_args.extend(reid_opts)
+    #     script_args[29] = "/mnt/raid1/home/bar_cohen/42street/part5_embedding_0.4/bounding_box_test"
+    #     call(script_args)
+    # print("done part5")
 
 def runner():
     if args.action == TRACKING:

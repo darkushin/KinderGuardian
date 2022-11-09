@@ -157,8 +157,9 @@ class ArcFace():
         Given feature vectors of the query images, return the ids of the images that are most similar in the test gallery
         """
         import torch.nn.functional as F
+        self.gallery = self.gallery.squeeze()
         features = F.normalize(torch.tensor(query_face_embeddings), p=2, dim=1)
-        others = F.normalize(torch.tensor(self.gallery), p=2, dim=1).squeeze(dim=1)
+        others = F.normalize(torch.tensor(self.gallery), p=2, dim=1)
         simmat = torch.mm(features, others.t()).numpy()
         int_gpids = np.array([NAME_TO_ID[g] for g in self.gpids])
         ids_score = self.get_face_score_all_ids_full_gallery(simmat, int_gpids, k=k)
