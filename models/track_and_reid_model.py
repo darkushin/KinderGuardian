@@ -387,6 +387,9 @@ def create_tracklets_using_tracking(args):
                         face_img, face_prob = pose_estimator.find_matching_face(crop_im, face_bboxes, face_probs, face_imgs)
                         # if is_img(face_img): # return this if you want to go back to kinderguardian
                             # face_img = normalize_image(face_img)
+                    else: # Taking the most conf. face
+                        id_of_max_det_score = np.argmax(face_probs)
+                        face_img , face_prob = face_imgs[id_of_max_det_score], face_probs[id_of_max_det_score]
 
                 x1, y1, x2, y2 = list(map(int, crops_bboxes[i]))  # convert the bbox floats to intsP
                 crop = Crop(vid_name=get_vid_name(args),
@@ -556,7 +559,10 @@ def create_data_by_re_id_and_track():
 
     tl_start = time.time()
     print('Starting to create tracklets')
-    tracklets = create_or_load_tracklets(args=args)
+    if args.db_tracklets:
+        tracklets = create_tracklets_from_db(vid_name=get_vid_name(args),args=args)
+    else: #use tracking
+        tracklets = create_or_load_tracklets(args=args)
     tl_end = time.time()
     print(f'Total time for loading tracklets for video {args.input.split("/")[-1]}: {int(tl_end-tl_start)}')
     print('******* Making predictions and saving crops to DB *******')

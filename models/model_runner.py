@@ -318,6 +318,28 @@ DATA.TEST_BATCH
         script_args.append('--reid_opts')
         script_args.extend(reid_opts)
         call(script_args)
+    print("done part5!"
+          "")
+    # street42 = ["/mnt/raid1/home/bar_cohen/42street/42street_tagged_vids/part5/"]
+    # query_set = [os.path.join(part, vid) for part in street42 for vid in os.listdir(part)]
+    # for query_vid in query_set:
+    #     # if 'part1_s24000_e24501' not in query_vid:
+    #     #     print(f'skipping {query_vid}')
+    #     #     continue
+    #     print(f'running {query_vid}')
+    #     args.input = query_vid
+    #
+    #
+    #     args.output = os.path.join(inference_output, 'inference_' + query_vid.split('/')[-1])
+    #     script_args = ['/home/bar_cohen/miniconda3/envs/CTL/bin/python3.7', './models/track_and_reid_model.py',
+    #                    args.track_config, args.reid_config, '--input', args.input, '--output', args.output]
+    #
+    #     script_args.extend(optional_args)
+    #     script_args.append('--reid_opts')
+    #     script_args.extend(reid_opts)
+    #     script_args[29] = "/mnt/raid1/home/bar_cohen/42street/part5_embedding_0.4/bounding_box_test"
+    #     call(script_args)
+    # print("done part5")
 
 def runner():
     if args.action == TRACKING:
