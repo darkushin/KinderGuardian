@@ -311,24 +311,30 @@ def create_tracklets_from_db(vid_name, args):
                         invalid=temp_crop.invalid,
                         is_vague=temp_crop.is_vague)
             crop.set_im_name()
-            # im_path = f'{args.crops_folder}/{vid_name}/{crop.im_name}'
             im_path = os.path.join(args.crops_folder, vid_name, crop.im_name)
-            if not os.path.isfile(im_path):
-                im_location = 'v_' + crop.im_name[2:]
-                im_path =  f'/home/bar_cohen/raid/{vid_name}/{im_location}'
             crop_im = Image.open(im_path)
+            crop_im_for_face = cv2.imread(im_path)
+            # im_path = f'{args.crops_folder}/{vid_name}/{crop.im_name}'
+            # if not os.path.isfile(im_path):
+            #     im_location = 'v_' + crop.im_name[2:]
+            #     im_path =  f'/home/bar_cohen/raid/{vid_name}/{im_location}'
             # added for CTL inference
             ctl_img = crop_im
             ctl_img.convert("RGB")
-
-            face_imgs , face_bboxes, face_probs, detection_res = face_detector.detect_face_from_img(crop_img=crop_im)
+            face_imgs , face_bboxes, face_probs, detection_res = face_detector.detect_face_from_img(crop_img=crop_im_for_face)
             face_img, face_prob = None, 0
             if face_imgs is not None and len(face_imgs) > 0:
                 if pose_estimator:
                     face_img, face_prob = pose_estimator.find_matching_face(crop_im, face_bboxes,face_probs, face_imgs)
+                else:  # Taking the most conf. face
+                    id_of_max_det_score = np.argmax(face_probs)
+                    face_img, face_prob = face_imgs[id_of_max_det_score], face_probs[id_of_max_det_score]
             crop_im = mmcv.imread(im_path)
+            face_emb = detection_res[0].embedding if is_img(face_img) else None
+
             tracklets[track].append({'crop_img': crop_im, 'face_img': face_img, 'Crop': crop, 'face_img_conf': face_prob,
-                                     'ctl_img': ctl_img, 'face_embedding': detection_res[0].embedding})
+                                     'ctl_img': ctl_img, 'face_embedding': face_emb})
+
     del face_detector
     return tracklets
 
